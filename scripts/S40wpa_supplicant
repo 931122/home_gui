@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Start wpa_supplicant for wlan0
+#
+
+case "$1" in
+  start)
+    echo -n "Starting wpa_supplicant: "
+    # 关键：必须确保控制口目录存在，否则 -C 参数会报错
+    mkdir -p /var/run/wpa_supplicant
+
+    # 启动 wpa_supplicant
+    # -B: 后台运行
+    # -i: 网卡接口
+    # -c: 配置文件路径
+    # -C: 控制路径（供 wpa_cli 使用）
+    wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant.conf -C /var/run/wpa_supplicant
+
+    if [ $? -eq 0 ]; then
+      echo "OK"
+    else
+      echo "FAIL"
+    fi
+    ;;
+  stop)
+    echo -n "Stopping wpa_supplicant: "
+    killall wpa_supplicant
+    echo "OK"
+    ;;
+  restart|reload)
+    "$0" stop
+    "$0" start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+esac
+
+exit $?

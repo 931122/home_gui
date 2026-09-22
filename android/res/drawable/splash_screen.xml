@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 1. 背景层：与 Linux BootSplash 完全一致的深空冷青渐变 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#123044"
+                android:centerColor="#081018"
+                android:endColor="#030507"
+                android:angle="270"/>
+        </shape>
+    </item>
+
+    <!-- 2. 正中心科技芯片徽章（彻底移除原有的空按钮框，呈现专属矢量徽章） -->
+    <item
+        android:gravity="center"
+        android:width="108dp"
+        android:height="108dp"
+        android:drawable="@drawable/splash_logo" />
+</layer-list>

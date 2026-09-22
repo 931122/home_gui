@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 杂粮饭：麦穗与五谷杂粮圆碗，谷粒丰富 -->
+  <!-- 瓷碗碗身与碗口 -->
+  <path d="M4 12c0 4.5 3.5 7.5 8 7.5s8-3 8-7.5H4z"/>
+  <!-- 饱满杂粮米饭堆 -->
+  <path d="M6 12c.5-2.5 3-4 6-4s5.5 1.5 6 4"/>
+  <!-- 顶部杂粮麦穗 -->
+  <path d="M12 2v5M9.5 3.5l2.5 2.5M14.5 3.5L12 6"/>
+  <!-- 碗底座 -->
+  <path d="M9 19.5l-1 2h8l-1-2"/>
+  <!-- 碗内杂粮谷粒 (红豆、黑米小点) -->
+  <circle cx="8" cy="14" r="0.8" fill="#f59e0b"/>
+  <circle cx="12" cy="15" r="0.8" fill="#f59e0b"/>
+  <circle cx="16" cy="14" r="0.8" fill="#f59e0b"/>
+</svg>

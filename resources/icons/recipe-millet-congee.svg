@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 小米粥：温润粥碗 + 斜插小瓷勺 + 暖融热气 + 颗颗金黄小米 -->
+  <path d="M3 13c0 5 4 7.5 9 7.5s9-2.5 9-7.5H3z"/>
+  <path d="M7 9c0-1.5 1-2.5 1-2.5M11 9c0-1.5 1-2.5 1-2.5M15 9c0-1.5 1-2.5 1-2.5"/>
+  <!-- 勺子柄与勺头 -->
+  <path d="M14 13l4-8a1.5 1.5 0 0 1 2 2l-4 7"/>
+  <!-- 小米粒 -->
+  <circle cx="7.5" cy="15" r="0.9" fill="#f59e0b"/>
+  <circle cx="11" cy="16.5" r="0.9" fill="#f59e0b"/>
+  <circle cx="14.5" cy="15.5" r="0.9" fill="#f59e0b"/>
+  <!-- 碗底 -->
+  <path d="M9 20.5l-1 1.5h8l-1-1.5"/>
+</svg>

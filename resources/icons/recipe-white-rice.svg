@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 大米饭：圆润饱满白米饭山峰 + 瓷碗 + 袅袅热气 -->
+  <path d="M4 12c0 4.5 3.5 7.5 8 7.5s8-3 8-7.5H4z"/>
+  <!-- 饱满米饭山峰 -->
+  <path d="M5 12c.5-3.5 3.5-6 7-6s6.5 2.5 7 6"/>
+  <!-- 三道热气 -->
+  <path d="M9 4c0-1.5 1-2 1-2M12 4c0-1.5 1-2 1-2M15 4c0-1.5 1-2 1-2"/>
+  <!-- 碗底 -->
+  <path d="M9 19.5l-1 2h8l-1-2"/>
+</svg>

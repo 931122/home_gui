@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# Start home_gui
+#
+
+case "$1" in
+  start)
+    echo -n "Starting home_gui: "
+    # 设置显示后端为 linuxfb (RK3506 常用)
+    export QT_QPA_PLATFORM=linuxfb
+    # 首次开机时 fb 设备可能比 init 脚本稍晚就绪，先等待并确保屏幕打开。
+    i=0
+    while [ ! -e /dev/fb0 ] && [ "$i" -lt 20 ]; do
+        sleep 0.1
+        i=$((i + 1))
+    done
+    if [ -e /sys/class/graphics/fb0/blank ]; then
+        echo 0 > /sys/class/graphics/fb0/blank
+    fi
+    # 设置工作目录并后台启动
+    cd /root/home_gui
+    ./home_gui > /root/home_gui/app.log 2>&1 &
+    
+    if [ $? -eq 0 ]; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+    ;;
+  stop)
+    echo -n "Stopping home_gui: "
+    killall home_gui
+    killall xiaozhi_sound_app 2>/dev/null
+    echo "OK"
+    ;;
+  restart|reload)
+    "$0" stop
+    "$0" start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}"
+    exit 1
+esac
+
+exit $?

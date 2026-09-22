@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_bg_dark">#081018</color>
+    <color name="splash_bg_gradient_start">#123044</color>
+    <color name="splash_bg_gradient_center">#081018</color>
+    <color name="splash_bg_gradient_end">#030507</color>
+</resources>

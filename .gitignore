@@ -1,0 +1,29 @@
+build/
+build-*/
+.deps/
+.codex
+android/ffmpeg/
+
+
+# CMake
+CMakeUserPresets.json
+
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Temporary test media
+/*.jpg
+/*.jpeg
+/*.png
+
+# Local device configurations
+/config.yaml
+*.local.yaml
+!/config.yaml.example

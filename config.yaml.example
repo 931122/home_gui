@@ -1,0 +1,125 @@
+cameras:
+- backend: libav
+  cameraName: 前门摄像头
+  decoder: auto
+  enabled: true
+  onvifProfile: main
+  password: ''
+  renderer: video
+  url: onvif://192.168.1.100:2020
+  username: admin
+- backend: libav
+  cameraName: 客厅
+  decoder: auto
+  enabled: true
+  onvifProfile: auto
+  password: ''
+  renderer: video
+  url: rtsp://192.168.1.101/main
+  username: ''
+homeAssistant:
+  actions:
+  - domain: switch
+    entityId: switch.zimi_cn_1000000001_zncz01_on_p_2_1
+    name: 全屋总控
+    service: toggle
+    slideToTurnOff: true
+  - domain: cooker
+    entityId: sensor.chun_mi_dian_ya_li_guo_ya_li_guo_gong_zuo_zhuang_tai
+    name: 电饭煲
+    service: start_cooking
+  - domain: script
+    entityId: script.timed_cook_runner
+    name: 智能蒸煮
+    service: toggle
+    isSteamer: true
+  - domain: washer
+    entityId: sensor.midea_123456789012345_running_status
+    name: 滚筒洗衣机
+    service: turn_on
+  - domain: switch
+    entityId: switch.lumi_cn_1000000003_b2nc01_on_p_2_1
+    name: 客厅灯
+    service: toggle
+  - domain: switch
+    entityId: switch.lumi_cn_1000000003_b2nc01_on_p_3_1
+    name: 餐厅灯
+    service: toggle
+  - domain: switch
+    entityId: switch.lumi_cn_1000000005_b2nc01_on_p_2_1
+    name: 洗漱台
+    service: toggle
+  - domain: switch
+    entityId: switch.lumi_cn_1000000005_b2nc01_on_p_3_1
+    name: 走廊灯
+    service: toggle
+  - domain: switch
+    entityId: switch.lumi_cn_1000000004_b1nc01_on_p_2_1
+    name: 北卧室灯
+    service: toggle
+  - domain: switch
+    entityId: switch.lemesh_cn_1000000007_sw0a01_on_p_2_1
+    name: 床头灯
+    service: toggle
+  - domain: switch
+    entityId: switch.zimi_cn_1000000006_zncz01_on_p_2_1
+    name: 主卧插座
+    service: toggle
+  - domain: switch
+    entityId: switch.zimi_cn_1000000002_zncz01_on_p_2_1
+    name: 餐桌插座
+    service: toggle
+  baseUrl: http://192.168.1.10:8123
+  enabled: true
+  token: ''
+ui:
+  # 手机横屏模式下，视频卡片下方留出空间的辅助扩展卡片模式：
+  # 可选值：
+  #   - "camera" 或 "A": 多摄像头通道快速切换与监控工具栏（默认）
+  #   - "scene" 或 "B": 全屋安防与快捷场景模式（回家/离家布防/睡眠/会客）
+  #   - "security" 或 "C": 全屋安防状态速览（智能门锁/门窗闭合/照明/实时功耗）
+  video_bottom_card_mode: camera
+platform:
+  chip: RK3568
+  height: 480
+  reducedEffects: false
+  renderMode: linuxfb
+  width: 800
+screenPower:
+  blankEnd: '07:00'
+  blankStart: '23:00'
+  enabled: true
+  idleTimeoutSeconds: 180
+  panelConfig: auto
+  temporaryWakeMinutes: 5
+weather:
+  areaId: '101010100'
+  city: 历城
+  enabled: true
+  provider: china_weather
+  refreshMinutes: 30
+wifi:
+  enabled: true
+  interface: wlan0
+  password: ''
+  ssid: ''
+xiaozhi:
+  applicationName: xiaozhi_linux_100ask
+  applicationVersion: 1.0.0
+  authToken: ''
+  autoListenOnConnect: false
+  autoStartAudio: true
+  boardName: rk3506_home_gui
+  boardType: rk3506_linux_board
+  configPath: /etc/xiaozhi.cfg
+  enabled: false
+  language: zh-CN
+  otaUrl: https://api.tenclass.net/xiaozhi/ota/
+  soundAppPath: xiaozhi_sound_app
+  userAgent: weidongshan1
+  wakeGpioActiveLow: false
+  wakeGpioDebounceMs: 80
+  wakeGpioLine: -1
+  websocketHost: api.tenclass.net
+  websocketPath: /xiaozhi/v1/
+  websocketPort: 443

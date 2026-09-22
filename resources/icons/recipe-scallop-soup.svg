@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 干贝排骨汤：双耳老火靓汤炖盅 + 扇形贝柱干贝 + 袅袅蒸汽 -->
+  <!-- 汤盅盅体 -->
+  <path d="M4 11h16a1 1 0 0 1 1 1c0 5-3.5 8-9 8s-9-3-9-8a1 1 0 0 1 1-1z"/>
+  <!-- 汤盅两边古典小把手/耳 -->
+  <path d="M2 13a2 2 0 0 1 2-2M22 13a2 2 0 0 0-2-2"/>
+  <!-- 盅底座 -->
+  <path d="M8 20h8"/>
+  <!-- 盅内干贝扇贝花纹 -->
+  <path d="M10 16a2 2 0 0 1 4 0l-2-2-2 2z"/>
+  <!-- 袅袅升腾三缕热气 -->
+  <path d="M8 7c0-2 1-3 1-3M12 7c0-2 1-3 1-3M16 7c0-2 1-3 1-3"/>
+</svg>

@@ -1,0 +1,149 @@
+cmake_minimum_required(VERSION 3.16)
+
+set(HOME_GUI_TOOLCHAIN_FILE "" CACHE FILEPATH "CMake toolchain file for cross-compilation")
+if(HOME_GUI_TOOLCHAIN_FILE AND NOT CMAKE_TOOLCHAIN_FILE)
+    set(CMAKE_TOOLCHAIN_FILE "${HOME_GUI_TOOLCHAIN_FILE}" CACHE FILEPATH "CMake toolchain file" FORCE)
+endif()
+
+project(home_gui VERSION 0.1.0 LANGUAGES CXX)
+
+option(HOME_GUI_CROSS_COMPILE "Enable embedded cross-compilation settings" OFF)
+set(HOME_GUI_TARGET_QT_ROOT "" CACHE PATH "Target Qt installation prefix for cross-compilation")
+set(HOME_GUI_TARGET_SYSROOT "" CACHE PATH "Target sysroot path for cross-compilation")
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+find_package(PkgConfig REQUIRED)
+option(HOME_GUI_ENABLE_GSTREAMER "Enable GStreamer video backend when development files are available" ON)
+option(HOME_GUI_ENABLE_XIAOZHI "Build bundled Xiaozhi Linux audio backend" ON)
+
+if(APPLE)
+    list(PREPEND CMAKE_PREFIX_PATH
+        "/usr/local/Cellar/qt@5/5.15.18"
+        "/usr/local/opt/qt@5"
+    )
+endif()
+
+if(HOME_GUI_CROSS_COMPILE)
+    if(HOME_GUI_TARGET_SYSROOT)
+        set(CMAKE_SYSROOT "${HOME_GUI_TARGET_SYSROOT}" CACHE PATH "Target sysroot" FORCE)
+    endif()
+
+    if(HOME_GUI_TARGET_QT_ROOT)
+        list(PREPEND CMAKE_PREFIX_PATH
+            "${HOME_GUI_TARGET_QT_ROOT}"
+            "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake"
+            "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake/Qt5"
+        )
+    endif()
+
+    add_compile_definitions(HOME_GUI_CROSS_COMPILE)
+endif()
+
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
+find_package(Qt5Svg QUIET)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
+if(FFMPEG_FOUND)
+    add_compile_definitions(HOME_GUI_HAS_FFMPEG)
+endif()
+
+if(HOME_GUI_ENABLE_GSTREAMER)
+    pkg_check_modules(GSTREAMER QUIET IMPORTED_TARGET gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+    if(GSTREAMER_FOUND)
+        add_compile_definitions(HOME_GUI_HAS_GSTREAMER)
+    endif()
+endif()
+
+add_executable(home_gui
+    src/main.cpp
+    src/core/appconfig.cpp
+    src/core/configmanager.cpp
+    src/core/globalstate.cpp
+    src/core/imodule.cpp
+    src/core/modulemanager.cpp
+    src/core/networkutils.cpp
+    src/core/platformhelper.cpp
+    src/core/tstranslator.cpp
+    src/modules/video/videomodule.cpp
+    src/modules/video/onvifclient.cpp
+    src/modules/video/backends/abstractvideobackend.cpp
+    src/modules/video/backends/gstreamervideobackend.cpp
+    src/modules/video/backends/libavvideobackend.cpp
+    src/modules/video/videobackendfactory.cpp
+    src/modules/video/videoplayer.cpp
+    src/modules/homeassistant/homeassistantmodule.cpp
+    src/modules/wifi/wifimodule.cpp
+    src/modules/xiaozhi/xiaozhimodule.cpp
+    src/ui/appcontroller.cpp
+    src/ui/bootsplash.cpp
+    src/ui/brightnesscontroller.cpp
+    src/ui/screenpowermanager.cpp
+    src/ui/holidayservice.cpp
+    src/ui/weatherservice.cpp
+    src/ui/videoitem.cpp
+    resources/qml.qrc
+)
+
+target_include_directories(home_gui PRIVATE src src/3rdparty)
+
+find_package(ZLIB QUIET)
+
+target_link_libraries(home_gui PRIVATE
+    Qt5::Core
+    Qt5::Gui
+    Qt5::Qml
+    Qt5::Quick
+    Qt5::Network
+    Qt5::WebSockets
+    PkgConfig::FFMPEG
+)
+
+if(Qt5Svg_FOUND)
+    target_link_libraries(home_gui PRIVATE Qt5::Svg)
+endif()
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(home_gui PRIVATE z)
+endif()
+
+
+if(GSTREAMER_FOUND)
+    target_link_libraries(home_gui PRIVATE PkgConfig::GSTREAMER)
+endif()
+
+if(HOME_GUI_ENABLE_XIAOZHI)
+    pkg_check_modules(XIAOZHI_AUDIO QUIET IMPORTED_TARGET alsa opus speexdsp)
+    if(XIAOZHI_AUDIO_FOUND)
+        add_executable(xiaozhi_sound_app
+            third_party/xiaozhi-linux/sound_app/sound_app.cpp
+            third_party/xiaozhi-linux/sound_app/aplay.cpp
+            third_party/xiaozhi-linux/sound_app/record.cpp
+            third_party/xiaozhi-linux/sound_app/opus.cpp
+            third_party/xiaozhi-linux/sound_app/ipc_udp.cpp
+        )
+        target_include_directories(xiaozhi_sound_app PRIVATE
+            third_party/xiaozhi-linux/sound_app
+        )
+        target_link_libraries(xiaozhi_sound_app PRIVATE
+            PkgConfig::XIAOZHI_AUDIO
+            pthread
+        )
+    else()
+        message(WARNING "Xiaozhi audio backend skipped: alsa/opus/speexdsp development files not found")
+    endif()
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.yaml")
+    file(COPY config.yaml DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.yaml.example")
+    file(COPY config.yaml.example DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+
+message(STATUS "HOME_GUI_CROSS_COMPILE=${HOME_GUI_CROSS_COMPILE}")
+message(STATUS "HOME_GUI_TARGET_SYSROOT=${HOME_GUI_TARGET_SYSROOT}")
+message(STATUS "HOME_GUI_TARGET_QT_ROOT=${HOME_GUI_TARGET_QT_ROOT}")
