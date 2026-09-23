@@ -6,8 +6,8 @@
 case "$1" in
   start)
     echo -n "Starting home_gui: "
-    # 设置显示后端为 linuxfb (RK3506 常用)
-    export QT_QPA_PLATFORM=linuxfb
+    # Let the application select the configured platform (eglfs for RK3568, linuxfb when required).
+    unset QT_QPA_PLATFORM
     # 首次开机时 fb 设备可能比 init 脚本稍晚就绪，先等待并确保屏幕打开。
     i=0
     while [ ! -e /dev/fb0 ] && [ "$i" -lt 20 ]; do

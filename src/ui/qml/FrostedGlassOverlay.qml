@@ -61,7 +61,7 @@ Item {
         property real blurStrength: root.blurFactor
         property real _pad: 0.0
 
-        vertexShader: "qrc:/shaders/default.vert.qsb"
+        vertexShader: "qrc:/shaders/frosted_glass.vert.qsb"
         fragmentShader: "qrc:/shaders/frosted_glass.frag.qsb"
     }
 

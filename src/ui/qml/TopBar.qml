@@ -99,48 +99,21 @@ Rectangle {
                 }
             }
 
-            Rectangle {
+            LiquidGlassSurface {
                 anchors.fill: parent
-                radius: root.chipRadius
-                clip: true
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0.0
-                        color: weatherArea.pressed ? Qt.rgba(1, 1, 1, 0.22) : (weatherArea.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.09))
-                    }
-                    GradientStop {
-                        position: 1.0
-                        color: weatherArea.pressed ? Qt.rgba(1, 1, 1, 0.11) : (weatherArea.containsMouse ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(1, 1, 1, 0.03))
-                    }
-                }
-                border.color: weatherArea.pressed ? Qt.rgba(1, 1, 1, 0.42) : (weatherArea.containsMouse ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.18))
-                border.width: 1
-
-                // 穹顶透镜曲面高光
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.topMargin: 1
-                    anchors.leftMargin: Math.round(root.chipRadius * 0.4)
-                    anchors.rightMargin: Math.round(root.chipRadius * 0.4)
-                    height: Math.round(parent.height * 0.48)
-                    radius: root.chipRadius
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, weatherArea.pressed ? 0.50 : (weatherArea.containsMouse ? 0.38 : 0.24)) }
-                        GradientStop { position: 0.85; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                }
-
-                // 触压波纹提亮
-                Rectangle {
-                    anchors.fill: parent
-                    radius: root.chipRadius
-                    color: "#ffffff"
-                    opacity: weatherArea.pressed ? 0.12 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 80 } }
-                }
+                cornerRadius: height / 2
+                materialVariant: LiquidGlassSurface.MaterialVariant.Clear
+                baseOpacity: weatherArea.pressed ? 0.28 : 0.20
+                tintColor: Qt.rgba(0.75, 0.88, 1.0, weatherArea.pressed ? 0.18 : 0.10)
+                tintStrength: 0.24
+                blurAmount: 0.28
+                distortionStrength: 0.026
+                dispersion: 0.30
+                lensMagnification: 0.34
+                highlightIntensity: weatherArea.pressed ? 1.0 : (weatherArea.containsMouse ? 0.92 : 0.76)
+                hovered: weatherArea.containsMouse
+                pressed: weatherArea.pressed
+                pointerPosition: Qt.point(weatherArea.mouseX, weatherArea.mouseY)
             }
 
             Row {

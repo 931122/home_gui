@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import HomeGui 1.0
 
 Item {
     id: root
@@ -9,6 +9,7 @@ Item {
     // ============================================================
     property var model: []
     property int currentIndex: 0
+    property bool scrollable: false
     property Item backgroundSource: null
     property color accentColor: "#38bdf8"
     function dp(v) { return (typeof Theme !== "undefined" && Theme) ? Theme.dp(v) : v }
@@ -16,10 +17,21 @@ Item {
 
     property real cornerRadius: root.dp(16)
     property int materialVariant: LiquidGlassSurface.MaterialVariant.Regular
+    property bool indicatorAnimation: true
 
     signal tabSelected(int index, string title)
 
-    implicitWidth: tabRow.implicitWidth + root.dp(16)
+    function updateIndicator(animate) {
+        var tab = tabRepeater.itemAt(currentIndex)
+        if (!tab) return
+        indicatorAnimation = animate && (typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled)
+        var point = tab.mapToItem(root, 0, 0)
+        indicator.x = point.x
+        indicator.width = tab.width
+    }
+
+    implicitWidth: scrollable ? Math.min(parent ? parent.width : tabRow.implicitWidth + root.dp(16), tabRow.implicitWidth + root.dp(16))
+                              : tabRow.implicitWidth + root.dp(16)
     implicitHeight: root.dp(44)
 
     // 1. 底层液态微晶长条轨道 (Liquid Glass Base Surface)
@@ -41,8 +53,8 @@ Item {
         )
         secondarySize: Qt.vector2d(indicator.width * 0.46, indicator.height * 0.46)
         secondaryRadius: indicator.radius
-        secondaryActive: isAnimating ? 0.90 : 0.60
-        sminFactor: isAnimating ? 26.0 : 16.0
+        secondaryActive: root.isAnimating ? 0.90 : 0.60
+        sminFactor: root.isAnimating ? 26.0 : 16.0
     }
 
     property bool isAnimating: indicatorXAnim.running
@@ -78,6 +90,7 @@ Item {
         }
 
         Behavior on x {
+            enabled: root.indicatorAnimation
             NumberAnimation {
                 id: indicatorXAnim
                 duration: 260
@@ -87,6 +100,7 @@ Item {
         }
 
         Behavior on width {
+            enabled: root.indicatorAnimation
             NumberAnimation {
                 duration: 220
                 easing.type: Easing.OutCubic
@@ -95,54 +109,59 @@ Item {
     }
 
     // 3. Tab 项水平布局 (Tab Items Row)
-    Row {
-        id: tabRow
-        anchors.centerIn: parent
-        spacing: root.dp(4)
+    Flickable {
+        id: tabViewport
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: root.dp(8)
+        anchors.rightMargin: root.dp(8)
+        height: parent.height - root.dp(8)
+        contentWidth: tabRow.implicitWidth
+        contentHeight: height
+        interactive: root.scrollable
+        clip: root.scrollable
+        boundsBehavior: Flickable.StopAtBounds
         z: 10
 
-        Repeater {
-            id: tabRepeater
-            model: root.model
+        Row {
+            id: tabRow
+            y: 0
+            height: parent.height
+            spacing: root.dp(4)
+
+            Repeater {
+                id: tabRepeater
+                model: root.model
 
             delegate: Item {
                 id: tabItem
+                required property int index
+                required property string modelData
                 property bool isSelected: root.currentIndex === index
                 implicitWidth: tabLabel.implicitWidth + root.dp(24)
                 implicitHeight: root.height - root.dp(8)
 
                 // 首次加载或索引变化时同步指示器位置
                 Component.onCompleted: {
-                    if (index === root.currentIndex) {
-                        updateIndicator(false)
+                    if (tabItem.index === root.currentIndex) {
+                        root.updateIndicator(false)
                     }
                 }
 
                 Connections {
                     target: root
                     function onCurrentIndexChanged() {
-                        if (index === root.currentIndex) {
-                            updateIndicator(true)
+                        if (tabItem.index === root.currentIndex) {
+                            root.updateIndicator(true)
                         }
-                    }
-                }
-
-                function updateIndicator(animate) {
-                    var targetX = tabItem.x + tabRow.x
-                    var targetW = tabItem.width
-                    if (!animate) {
-                        indicator.x = targetX
-                        indicator.width = targetW
-                    } else {
-                        indicator.x = targetX
-                        indicator.width = targetW
                     }
                 }
 
                 Text {
                     id: tabLabel
                     anchors.centerIn: parent
-                    text: modelData
+                    text: tabItem.modelData
                     font.pixelSize: root.fs(13)
                     font.bold: tabItem.isSelected
                     color: tabItem.isSelected ? "#ffffff" : "#94a3b8"
@@ -156,11 +175,21 @@ Item {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        root.currentIndex = index
-                        root.tabSelected(index, modelData)
+                        root.currentIndex = tabItem.index
+                        root.tabSelected(tabItem.index, tabItem.modelData)
                     }
                 }
             }
+            }
         }
     }
+
+    Connections {
+        target: tabViewport
+        function onContentXChanged() {
+            root.updateIndicator(false)
+        }
+    }
+
+    onWidthChanged: root.updateIndicator(false)
 }

@@ -101,3 +101,9 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 * **新增功能前**: 先分析 `src/core` 下的基类，确保新模块继承自项目定义的接口。
 * **修改 UI 前**: 确认是否会引入 CPU 密集型的渲染操作，特别是在 RK3506 环境下。
 * **提交代码前**: 确保包含了必要的 `include` 保护和 Doxygen 风格的代码注释。
+
+## 7. Liquid Glass UI
+
+`LiquidGlassSurface.qml` provides SDF rounded geometry, broad convex-lens magnification, refraction and chromatic aberration, Regular/Clear materials, backdrop blur and saturation, edge highlights, adaptive tint, press response, metaball merging and progressive edge blur. `GlassRuntime` supplies Android gravity-sensor tilt, sampled backdrop luminance, high-contrast and reduce-motion settings, and battery-saver state. Reusable controls include `LiquidGlassButton`, `LiquidGlassFab`, `LiquidGlassTabBar`, `LiquidGlassTabLayout`, `LiquidGlassChip`, `LiquidGlassChipGroup`, `LiquidGlassListItem`, `LiquidGlassListGroup`, `LiquidGlassToast` and `LiquidGlassDialog`.
+
+These surfaces require the Qt Quick scene graph with a GPU-backed render loop. Use `eglfs` on RK3568; `linuxfb` has no Qt Quick shader backend, so select `reducedEffects: true` there. `platform.reducedEffects` remains an explicit flat/high-contrast fallback. See [Qt ShaderEffect](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html) and [Qt for Embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html).

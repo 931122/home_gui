@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 
 Item {
     id: root
@@ -28,6 +27,7 @@ Item {
     property real _scale: chipArea.pressed ? 0.95 : 1.0
     scale: _scale
     Behavior on _scale {
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
         NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
     }
 

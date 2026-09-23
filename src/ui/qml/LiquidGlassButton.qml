@@ -1,5 +1,5 @@
 import QtQuick
-import QtQuick.Controls
+import HomeGui 1.0
 
 Item {
     id: root
@@ -14,7 +14,7 @@ Item {
     property bool checkable: true
     property color accentColor: "#38bdf8"
     property Item backgroundSource: null
-    property real cornerRadius: isFab ? Math.min(width, height) / 2 : root.dp(14)
+    property real cornerRadius: Math.min(width, height) / 2
     property bool isAvailable: true
 
     // 材质风格变体 (Regular / Clear)
@@ -48,11 +48,12 @@ Item {
     scale: _pressScale
 
     Behavior on _pressScale {
-        NumberAnimation { duration: 140; easing.type: Easing.OutBack }
+        NumberAnimation { duration: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled ? 140 : 0; easing.type: Easing.OutBack }
     }
 
     SequentialAnimation {
         id: shakeAnim
+        running: false
         NumberAnimation { target: cardContainer; property: "x"; from: 0; to: -root.dp(6); duration: 45; easing.type: Easing.OutQuad }
         NumberAnimation { target: cardContainer; property: "x"; from: -root.dp(6); to: root.dp(6); duration: 60; easing.type: Easing.InOutQuad }
         NumberAnimation { target: cardContainer; property: "x"; from: root.dp(6); to: -root.dp(4); duration: 50; easing.type: Easing.InOutQuad }
@@ -68,6 +69,7 @@ Item {
 
     NumberAnimation {
         id: resetSlideAnim
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
         target: root
         property: "slideProgress"
         to: 0.0
@@ -230,6 +232,7 @@ Item {
                 SequentialAnimation on opacity {
                     loops: Animation.Infinite
                     running: root.isSlideToTurnOff && root.checked && !root.isDraggingSlide && !root.showSlideHint
+                             && (typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled)
                     NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutQuad }
                     NumberAnimation { to: 0.95; duration: 900; easing.type: Easing.InOutQuad }
                 }
@@ -328,7 +331,7 @@ Item {
             if (root.isSlideToTurnOff && root.checked) {
                 root.showSlideHint = true
                 slideHintTimer.restart()
-                shakeAnim.restart()
+                if (typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled) shakeAnim.restart()
                 return
             }
 

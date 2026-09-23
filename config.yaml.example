@@ -83,7 +83,7 @@ platform:
   chip: RK3568
   height: 480
   reducedEffects: false
-  renderMode: linuxfb
+  renderMode: eglfs
   width: 800
 screenPower:
   blankEnd: '07:00'

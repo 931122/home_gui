@@ -29,6 +29,7 @@
 #include "core/tstranslator.h"
 #include "ui/appcontroller.h"
 #include "ui/bootsplash.h"
+#include "ui/glassruntime.h"
 #include "ui/videoitem.h"
 
 #if defined(Q_OS_ANDROID)
@@ -354,6 +355,7 @@ int main(int argc, char *argv[])
     }
 
     GlobalState globalState;
+    GlassRuntime glassRuntime;
     ModuleManager moduleManager(&configManager, &globalState);
     AppController controller(&configManager, &globalState, &moduleManager);
 
@@ -373,6 +375,7 @@ int main(int argc, char *argv[])
     // QML 通过这两个上下文对象读取状态并发出控制命令。
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
     engine.rootContext()->setContextProperty(QStringLiteral("globalState"), &globalState);
+    engine.rootContext()->setContextProperty(QStringLiteral("glassRuntime"), &glassRuntime);
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
 
     if (engine.rootObjects().isEmpty()) {

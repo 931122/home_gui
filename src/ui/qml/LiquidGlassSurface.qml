@@ -33,6 +33,24 @@ Item {
 
     // 🌈 物理色散 (Chromatic Aberration - 三通道光谱分离)
     property real dispersion: 0.16
+    property real refractionHeight: materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 38 : 27
+    property real bevelWidth: 18
+    property real refractionFalloff: 2.0
+    property bool refractionNoFold: false
+    property bool refractionOutward: false
+    property bool adaptiveLensScale: true
+    property real blurAmount: materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 0.42 : 0.82
+    property real saturation: 1.18
+    property real aberrationIntensity: 1.0
+    property bool edgeHighlightEnabled: true
+    property real edgeHighlightWidth: 1.5
+    property real edgeHighlightOpacity: 1.0
+    property bool backdropBlurEnabled: true
+    property bool sensorHighlightEnabled: true
+    property bool adaptiveTint: true
+    property int downsampleScale: 2
+    property string accessibilityMode: "AUTO"
+    property bool enableDynamicBackground: true
 
     // 🌫️ 滚动边缘渐进模糊 (Progressive Blur)
     // 0: 全局均匀, 1: 顶部渐进 (从 top 模糊渐变到 bottom 清晰), 2: 底部渐进
@@ -41,6 +59,8 @@ Item {
     // 💡 传感器与倾斜高光 (Sensor / Tilt Vector)
     // 可外接陀螺仪/加速度计，或随触摸/指针倾斜
     property vector2d tilt: Qt.vector2d(0.0, 0.0)
+    property vector2d interactionTilt: Qt.vector2d(0.0, 0.0)
+    property bool pointerTrackingEnabled: false
 
     // 🫧 液态融合 (Metaball smin 双玻璃形状黏连合并)
     property vector2d secondaryPos: Qt.vector2d(0, 0)
@@ -59,17 +79,18 @@ Item {
 
     // ♿ 无障碍降级与节能模式 (Accessibility / Battery Saver Fallback)
     // 在高对比度或极端低功耗芯片上，直接退化为原生扁平高对比度矩形，零 Shader 开销
-    property bool accessibleFallback: false
+    property bool accessibleFallback: accessibilityMode === "FORCE_OPAQUE"
+                                      || (accessibilityMode === "AUTO"
+                                          && ((typeof glassRuntime !== "undefined" && glassRuntime.accessibilityFallback)
+                                              || (typeof globalState !== "undefined" && globalState.reducedEffects)))
 
     // 交互状态追踪
     property bool hovered: false
     property bool pressed: false
     property point pointerPosition: Qt.point(width / 2, height / 2)
     property real scrollSync: 0
-    property real lensMagnification: 0.0
-
-    // 动画时间基准
-    property real animationTime: 0
+    // 0 disables body magnification; values near 0.6 produce the broad lens look.
+    property real lensMagnification: materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 0.52 : 0.0
 
     // 内容插槽
     default property alias content: contentContainer.data
@@ -84,23 +105,42 @@ Item {
     )
 
     // 根据背景染色粗略计算的明度（着色器内部有精确逐像素感知）
-    readonly property real _calcLuminance: {
-        var c = root.tintColor
-        return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-    }
-
-    Timer {
-        id: animTimer
-        running: !root.accessibleFallback && root.visible && root.opacity > 0.01
-        repeat: true
-        interval: 32
-        onTriggered: root.animationTime += 0.032
-    }
+    readonly property real _calcLuminance: typeof glassRuntime !== "undefined"
+                                             ? glassRuntime.backdropLuminance
+                                             : (0.2126 * tintColor.r + 0.7152 * tintColor.g + 0.0722 * tintColor.b)
+    readonly property Item _effectiveBackgroundSource: backgroundSource
+                                                         ? backgroundSource
+                                                         : (typeof glassRuntime !== "undefined" ? glassRuntime.backdropSource : null)
+    readonly property real _capturePadding: Math.max(0, refractionHeight) + Math.max(4, bevelWidth)
 
     onHoveredChanged: updateEffectiveValues()
     onPressedChanged: updateEffectiveValues()
     onHighlightIntensityChanged: updateEffectiveValues()
     onDistortionStrengthChanged: updateEffectiveValues()
+
+    HoverHandler {
+        id: pointerTracker
+        enabled: root.pointerTrackingEnabled
+        onHoveredChanged: {
+            root.hovered = hovered
+            if (!hovered) {
+                root.interactionTilt = Qt.vector2d(0, 0)
+            }
+        }
+        onPointChanged: {
+            root.pointerPosition = point.position
+            root.interactionTilt = Qt.vector2d(
+                (point.position.x / Math.max(root.width, 1) - 0.5) * 2.0,
+                (point.position.y / Math.max(root.height, 1) - 0.5) * 2.0
+            )
+        }
+    }
+
+    TapHandler {
+        enabled: root.pointerTrackingEnabled
+        onPressedChanged: root.pressed = pressed
+        onPointChanged: root.pointerPosition = point.position
+    }
 
     function updateEffectiveValues() {
         var baseHighlight = highlightIntensity
@@ -115,9 +155,11 @@ Item {
     }
 
     Behavior on _effectiveHighlight {
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
         NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
     }
     Behavior on _effectiveDistortion {
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
         NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
     }
 
@@ -184,12 +226,15 @@ Item {
 
     readonly property rect _capturedRect: {
         var _sync = root.scrollSync
-        if (!root.backgroundSource || !root.visible || root.width <= 0 || root.height <= 0) {
+        if (!root._effectiveBackgroundSource || !root.visible || root.width <= 0 || root.height <= 0) {
             return Qt.rect(0, 0, 1, 1)
         }
         try {
-            var pt = root.mapToItem(root.backgroundSource, 0, 0)
-            return Qt.rect(Math.max(0, pt.x), Math.max(0, pt.y), Math.max(1, root.width), Math.max(1, root.height))
+            var pt = root.mapToItem(root._effectiveBackgroundSource, 0, 0)
+            return Qt.rect(pt.x - root._capturePadding,
+                           pt.y - root._capturePadding,
+                           Math.max(1, root.width + root._capturePadding * 2),
+                           Math.max(1, root.height + root._capturePadding * 2))
         } catch(e) {
             return Qt.rect(0, 0, 1, 1)
         }
@@ -197,13 +242,14 @@ Item {
 
     ShaderEffectSource {
         id: bgCapture
-        sourceItem: root.backgroundSource ? root.backgroundSource : defaultBackdropItem
-        sourceRect: root._capturedRect
-        textureSize: Qt.size(Math.max(1, Math.round(root.width * 0.25)), Math.max(1, Math.round(root.height * 0.25)))
+        sourceItem: root._effectiveBackgroundSource ? root._effectiveBackgroundSource : defaultBackdropItem
+        sourceRect: root._effectiveBackgroundSource ? root._capturedRect : Qt.rect(0, 0, 1, 1)
+        textureSize: Qt.size(Math.max(1, Math.round((root.width + root._capturePadding * 2) / Math.max(1, root.downsampleScale))),
+                             Math.max(1, Math.round((root.height + root._capturePadding * 2) / Math.max(1, root.downsampleScale))))
         smooth: true
         anchors.fill: parent
         recursive: false
-        live: !root.accessibleFallback && root.visible
+        live: root.enableDynamicBackground && !root.accessibleFallback && root.visible
         visible: false
     }
 
@@ -218,9 +264,11 @@ Item {
         z: 1
 
         property var source: bgCapture
-        property real hasSource: root.backgroundSource ? 1.0 : 0.0
+        property real hasSource: root._effectiveBackgroundSource ? 1.0 : 0.0
 
-        property real time: root.animationTime
+        // Kept in the uniform block for shader layout compatibility. Motion comes
+        // from the live backdrop capture and sensor/interaction state.
+        property real time: 0.0
         property real opacity_: root.baseOpacity
         property color tint: root.tintColor
         property color edgeColor: root.edgeHighlightColor
@@ -235,12 +283,29 @@ Item {
         property real pressState: root.pressed ? 1.0 : 0.0
         property real cornerRadius: root.cornerRadius
         property real lensMagnification: root.lensMagnification
-        
-        // Liquid Glass 2.0 新增统一属性
+        property real refractionHeight: root.refractionHeight
+        property real bevelWidth: root.bevelWidth
+        property real refractionFalloff: root.refractionFalloff
+        property real refractionNoFold: root.refractionNoFold ? 1.0 : 0.0
+        property real refractionOutward: root.refractionOutward ? 1.0 : 0.0
+        property real adaptiveLensScale: root.adaptiveLensScale ? 1.0 : 0.0
+        property real blurAmount: root.backdropBlurEnabled ? root.blurAmount : 0.0
+        property real saturation: root.saturation
+        property real aberrationIntensity: root.aberrationIntensity
+        property real edgeHighlightEnabled: root.edgeHighlightEnabled ? 1.0 : 0.0
+        property real edgeHighlightWidth: root.edgeHighlightWidth
+        property real edgeHighlightOpacity: root.edgeHighlightOpacity
+        property real sensorHighlightEnabled: root.sensorHighlightEnabled ? 1.0 : 0.0
+        property real adaptiveTint: root.adaptiveTint ? 1.0 : 0.0
+        property real downsampleScale: root.downsampleScale
+        property vector2d capturePadding: Qt.vector2d(root._capturePadding, root._capturePadding)
         property real materialStyle: root.materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 1.0 : 0.0
         property real dispersion: root.dispersion
         property real progressiveMode: root.progressiveMode
-        property vector2d tilt: root.tilt
+        property vector2d tilt: Qt.vector2d(
+            root.tilt.x + root.interactionTilt.x + (typeof glassRuntime !== "undefined" ? glassRuntime.tilt.x : 0),
+            root.tilt.y + root.interactionTilt.y + (typeof glassRuntime !== "undefined" ? glassRuntime.tilt.y : 0)
+        )
         property vector2d secondaryPos: root.secondaryPos
         property vector2d secondarySize: root.secondarySize
         property real secondaryRadius: root.secondaryRadius
@@ -250,7 +315,7 @@ Item {
         property real _pad0: 0.0
         property real _pad1: 0.0
 
-        vertexShader: "qrc:/shaders/default.vert.qsb"
+        vertexShader: "qrc:/shaders/liquid_glass_surface.vert.qsb"
         fragmentShader: "qrc:/shaders/liquid_glass_surface.frag.qsb"
     }
 
@@ -290,7 +355,7 @@ Item {
         color: "transparent"
         border.width: 1
         visible: !root.accessibleFallback
-        border.color: root.pressed 
+        border.color: root.pressed
                     ? Qt.rgba(1.0, 1.0, 1.0, 0.42) 
                     : (root.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.28) : Qt.rgba(1.0, 1.0, 1.0, 0.16))
         z: 3

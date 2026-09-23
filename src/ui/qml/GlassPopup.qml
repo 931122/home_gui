@@ -55,46 +55,29 @@ Popup {
         color: Theme.colorOverlayModal
     }
 
-    background: Rectangle {
-        radius: root.panelRadius
-        color: Theme.colorPopupBg
-        border.color: Theme.colorPopupBorder
-        border.width: 1
+    background: Item {
         clip: true
 
-        // 左上冰蓝流体漫反射光晕
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.margins: -Theme.dp(40)
-            width: Theme.dp(200)
-            height: Theme.dp(200)
-            radius: width / 2
-            color: Qt.rgba(0.20, 0.58, 0.95, 0.14)
+        LiquidGlassSurface {
+            anchors.fill: parent
+            backgroundSource: typeof glassRuntime !== "undefined" ? glassRuntime.backdropSource : null
+            cornerRadius: root.panelRadius
+            baseOpacity: 0.88
+            tintColor: Theme.colorPopupBg
+            tintStrength: 0.30
+            blurAmount: 0.88
+            accessibleFallback: typeof glassRuntime !== "undefined" ? glassRuntime.accessibilityFallback : false
         }
 
-        // 右下紫晶微暖光晕
         Rectangle {
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.margins: -Theme.dp(40)
-            width: Theme.dp(180)
-            height: Theme.dp(180)
-            radius: width / 2
-            color: Qt.rgba(0.42, 0.22, 0.68, 0.09)
+            anchors.fill: parent
+            radius: root.panelRadius
+            color: "transparent"
+            border.color: Theme.colorPopupBorder
+            border.width: 1
         }
 
-        // 顶部 1px 月白光折射线
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: root.panelRadius
-            anchors.rightMargin: root.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.22
-        }
+        Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: root.panelRadius; anchors.rightMargin: root.panelRadius; height: 1; color: "#ffffff"; opacity: 0.22 }
 
         // 顶部居中下滑把手指示条
         Item {

@@ -537,6 +537,7 @@ EOF
         -DANDROID_PLATFORM="${android_platform}" \
         -DANDROID_SDK_ROOT="${android_sdk_root}" \
         -DANDROID_NDK_ROOT="${android_ndk_root}" \
+        -DANDROID_OPENSSL_ROOT="${openssl_dir}" \
         -DCMAKE_BUILD_TYPE=Release
 
     echo "Compiling and packaging APK with Qt 6 CMake..."

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import HomeGui 1.0
 
 Item {
     id: root
@@ -33,10 +34,10 @@ Item {
     visible: opacity > 0.01
 
     Behavior on opacity {
-        NumberAnimation { duration: 220; easing.type: Easing.OutQuad }
+        NumberAnimation { duration: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled ? 220 : 0; easing.type: Easing.OutQuad }
     }
     Behavior on yOffset {
-        NumberAnimation { duration: 260; easing.type: Easing.OutBack }
+        NumberAnimation { duration: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled ? 260 : 0; easing.type: Easing.OutBack }
     }
 
     Timer {

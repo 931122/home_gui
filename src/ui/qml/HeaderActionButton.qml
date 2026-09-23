@@ -58,60 +58,32 @@ Item {
         Behavior on color { ColorAnimation { duration: 120 } }
     }
 
-    // 1. 晶莹玻璃主体
-    Rectangle {
+    // Clear material gives compact controls the same refractive lens as the shared glass surfaces.
+    LiquidGlassSurface {
         id: glassBody
         anchors.fill: parent
+        cornerRadius: root.effectiveRadius
+        materialVariant: LiquidGlassSurface.MaterialVariant.Clear
+        tintColor: root.isPressed ? root.pressedColor : root.activeColor
+        baseOpacity: root.isPressed ? 0.28 : 0.20
+        tintStrength: 0.26
+        blurAmount: 0.28
+        distortionStrength: 0.026
+        dispersion: 0.30
+        lensMagnification: 0.34
+        highlightIntensity: root.isPressed ? 1.0 : (root.isHovered ? 0.92 : 0.76)
+        hovered: root.isHovered
+        pressed: root.isPressed
+        pointerPosition: Qt.point(clickArea.mouseX, clickArea.mouseY)
+    }
+
+    Rectangle {
+        anchors.fill: parent
         radius: root.effectiveRadius
-        clip: true
-
-        gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: root.isPressed ? (root.pressedColor !== Qt.rgba(1,1,1,0.22) ? root.pressedColor : Qt.rgba(1, 1, 1, 0.22)) : (root.isHovered ? Qt.rgba(1, 1, 1, 0.15) : (root.activeColor !== Qt.rgba(1,1,1,0.08) ? root.activeColor : Qt.rgba(1, 1, 1, 0.10)))
-            }
-            GradientStop {
-                position: 1.0
-                color: root.isPressed ? Qt.rgba(1, 1, 1, 0.12) : (root.isHovered ? Qt.rgba(1, 1, 1, 0.07) : (root.activeInnerColor !== "transparent" ? root.activeInnerColor : Qt.rgba(1, 1, 1, 0.04)))
-            }
-        }
-        border.color: root.isPressed ? (root.pressedBorderColor !== Qt.rgba(1,1,1,0.40) ? root.pressedBorderColor : Qt.rgba(1, 1, 1, 0.45)) : (root.isHovered ? Qt.rgba(1, 1, 1, 0.30) : (root.activeBorderColor !== Qt.rgba(1,1,1,0.18) ? root.activeBorderColor : Qt.rgba(1, 1, 1, 0.20)))
+        color: "transparent"
         border.width: 1
-
-        // 2. 穹顶透镜曲面高光
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.topMargin: 1
-            anchors.leftMargin: Math.max(2, Math.round(root.effectiveRadius * 0.4))
-            anchors.rightMargin: Math.max(2, Math.round(root.effectiveRadius * 0.4))
-            height: Math.max(2, Math.round(parent.height * 0.48))
-            radius: root.effectiveRadius
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: Qt.rgba(1.0, 1.0, 1.0, root.isPressed ? 0.50 : (root.isHovered ? 0.38 : 0.24))
-                }
-                GradientStop {
-                    position: 0.85
-                    color: Qt.rgba(1.0, 1.0, 1.0, 0.02)
-                }
-                GradientStop {
-                    position: 1.0
-                    color: "transparent"
-                }
-            }
-        }
-
-        // 3. 触压波纹提亮
-        Rectangle {
-            anchors.fill: parent
-            radius: root.effectiveRadius
-            color: "#ffffff"
-            opacity: root.isPressed ? 0.12 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 80 } }
-        }
+        border.color: root.isPressed ? root.pressedBorderColor
+                                     : (root.isHovered ? Qt.rgba(1, 1, 1, 0.30) : root.activeBorderColor)
     }
 
     Row {

@@ -44,6 +44,7 @@ SOURCES += \
     src/ui/appcontroller.cpp \
     src/ui/bootsplash.cpp \
     src/ui/brightnesscontroller.cpp \
+    src/ui/glassruntime.cpp \
     src/ui/screenpowermanager.cpp \
     src/ui/holidayservice.cpp \
     src/ui/weatherservice.cpp \
@@ -71,6 +72,7 @@ HEADERS += \
     src/ui/appcontroller.h \
     src/ui/bootsplash.h \
     src/ui/brightnesscontroller.h \
+    src/ui/glassruntime.h \
     src/ui/screenpowermanager.h \
     src/ui/holidayservice.h \
     src/ui/weatherservice.h \

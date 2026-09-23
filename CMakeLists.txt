@@ -100,6 +100,7 @@ qt_add_executable(home_gui
     src/ui/appcontroller.cpp
     src/ui/bootsplash.cpp
     src/ui/brightnesscontroller.cpp
+    src/ui/glassruntime.cpp
     src/ui/screenpowermanager.cpp
     src/ui/holidayservice.cpp
     src/ui/weatherservice.cpp
@@ -127,6 +128,19 @@ if(ANDROID)
     if(ANDROID_FFMPEG_LIBRARIES)
         target_link_libraries(home_gui PRIVATE ${ANDROID_FFMPEG_LIBRARIES} z)
     endif()
+
+    # OpenSSL 支持库集成 (KDAB android_openssl，确保 HTTPS / TLS 网络请求正常)
+    if(NOT ANDROID_OPENSSL_ROOT)
+        set(ANDROID_OPENSSL_ROOT "${HOME}/Android/android_openssl")
+    endif()
+    if(EXISTS "${ANDROID_OPENSSL_ROOT}/android_openssl.cmake")
+        message(STATUS "Found Android OpenSSL: ${ANDROID_OPENSSL_ROOT}")
+        include("${ANDROID_OPENSSL_ROOT}/android_openssl.cmake")
+        add_android_openssl_libraries(home_gui)
+    else()
+        message(WARNING "Android OpenSSL not found at ${ANDROID_OPENSSL_ROOT}")
+    endif()
+
     set_target_properties(home_gui PROPERTIES
         QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
         QT_ANDROID_TARGET_SDK_VERSION "33"
@@ -183,4 +197,3 @@ endif()
 message(STATUS "HOME_GUI_CROSS_COMPILE=${HOME_GUI_CROSS_COMPILE}")
 message(STATUS "HOME_GUI_TARGET_SYSROOT=${HOME_GUI_TARGET_SYSROOT}")
 message(STATUS "HOME_GUI_TARGET_QT_ROOT=${HOME_GUI_TARGET_QT_ROOT}")
-

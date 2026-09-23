@@ -252,7 +252,7 @@ Rectangle {
     color: Qt.rgba(0.13, 0.19, 0.29, 0.38)
     border.color: Qt.rgba(1, 1, 1, 0.18)
     border.width: 1
-    clip: true
+    clip: false
 
     // 顶部月白玻璃边缘折射高光
     Rectangle {
@@ -410,11 +410,16 @@ Rectangle {
                 backgroundSource: root.backgroundSource
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: actionDelegate.radius
-                baseOpacity: actionDelegate.isActive ? 0.50 : 0.36
+                materialVariant: LiquidGlassSurface.MaterialVariant.Clear
+                baseOpacity: actionDelegate.isActive ? 0.40 : 0.24
                 tintColor: actionDelegate.isActive 
-                           ? Qt.rgba(actionDelegate.themeColor.r, actionDelegate.themeColor.g, actionDelegate.themeColor.b, 0.65)
-                           : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                tintStrength: actionDelegate.isActive ? 0.45 : 0.18
+                           ? Qt.rgba(actionDelegate.themeColor.r, actionDelegate.themeColor.g, actionDelegate.themeColor.b, 0.52)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                tintStrength: actionDelegate.isActive ? 0.34 : 0.12
+                lensMagnification: actionArea.pressed ? 0.42 : 0.28
+                dispersion: 0.26
+                blurAmount: 0.30
+                distortionStrength: 0.024
                 highlightIntensity: (actionArea.pressed || actionDelegate.isActive) ? 0.92 : 0.68
                 edgeFresnelPower: 2.2
                 hovered: actionArea.containsMouse
@@ -445,7 +450,6 @@ Rectangle {
                 anchors.margins: 1
                 width: (parent.width - 2) * (actionArea.brightnessDrag ? actionArea.previewLevel : root.actionLevel(actionModel))
                 visible: root.hasDetailAction(actionModel) && isAvailable
-                clip: true
                 z: 5
                 
                 Behavior on width {
@@ -892,11 +896,16 @@ Rectangle {
                 backgroundSource: root.backgroundSource
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: tileDelegate.radius
-                baseOpacity: tileDelegate.isActive ? 0.48 : 0.35
+                materialVariant: LiquidGlassSurface.MaterialVariant.Clear
+                baseOpacity: tileDelegate.isActive ? 0.38 : 0.22
                 tintColor: tileDelegate.isActive 
-                           ? Qt.rgba(tileDelegate.themeColor.r, tileDelegate.themeColor.g, tileDelegate.themeColor.b, 0.62)
-                           : Qt.rgba(1.0, 1.0, 1.0, 0.10)
-                tintStrength: tileDelegate.isActive ? 0.42 : 0.16
+                           ? Qt.rgba(tileDelegate.themeColor.r, tileDelegate.themeColor.g, tileDelegate.themeColor.b, 0.50)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                tintStrength: tileDelegate.isActive ? 0.32 : 0.11
+                lensMagnification: tileArea.pressed ? 0.40 : 0.26
+                dispersion: 0.26
+                blurAmount: 0.30
+                distortionStrength: 0.024
                 highlightIntensity: (tileArea.pressed || tileDelegate.isActive) ? 0.88 : 0.65
                 edgeFresnelPower: 2.2
                 hovered: tileArea.containsMouse
@@ -1022,7 +1031,8 @@ Rectangle {
     Flickable {
         id: sidebarFlickable
         anchors.fill: parent
-        anchors.margins: root.dp(7)
+        // Keep the rectangular Flickable viewport inside the rounded panel corners.
+        anchors.margins: Math.max(root.dp(7), root.panelRadius + root.dp(2))
         contentWidth: width
         contentHeight: sidebarCol.implicitHeight
         clip: true

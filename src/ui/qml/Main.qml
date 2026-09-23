@@ -159,6 +159,7 @@ ApplicationWindow {
     Item {
         id: mainSceneLayer
         anchors.fill: parent
+        Component.onCompleted: glassRuntime.setBackdropSource(ambientBackdrop)
 
         // 背景层容器：现代苹果通透深空极光星云（明澈清朗，提供极高对比度折射色彩基底）
         Item {

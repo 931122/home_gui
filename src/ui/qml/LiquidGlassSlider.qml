@@ -150,7 +150,6 @@ Item {
         anchors.bottom: parent.bottom
         anchors.margins: sliderRoot.pad
         width: Math.max(sliderRoot.baseD, sliderRoot.curKnobX + sliderRoot.curKnobW * 0.5 - sliderRoot.pad)
-        clip: true
         visible: sliderRoot.progress > 0.01
 
         Rectangle {

@@ -25,7 +25,7 @@ platform:
   chip: RK3568
   width: 800
   height: 480
-  renderMode: linuxfb
+  renderMode: eglfs
   reducedEffects: false
 
 cameras:
@@ -109,20 +109,19 @@ xiaozhi:
 - `width` / `height`
   给界面布局和平台状态展示使用。
 - `renderMode`
-  例如 `linuxfb`、`eglfs`。
+  使用 EGL/GPU 渲染时设为 `eglfs`（RK3568 推荐）；仅在没有可用 GPU/EGL 的设备上使用 `linuxfb`。Liquid Glass 的 ShaderEffect 需要 Qt Quick 图形渲染后端。
 - `reducedEffects`
   控制是否降低动画和视觉效果。
 
 示例：
 
 ```yaml
-"platform": {
-  "chip": "RK3506",
-  "width": 800,
-  "height": 480,
-  "renderMode": "linuxfb",
-  "reducedEffects": true
-}
+platform:
+  chip: RK3568
+  width: 800
+  height: 480
+  renderMode: eglfs
+  reducedEffects: false
 ```
 
 ## 4. Cameras

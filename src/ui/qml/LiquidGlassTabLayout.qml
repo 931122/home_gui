@@ -1,0 +1,3 @@
+LiquidGlassTabBar {
+    scrollable: true
+}
