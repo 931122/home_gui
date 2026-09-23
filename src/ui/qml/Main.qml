@@ -382,11 +382,11 @@ ApplicationWindow {
         }
     }
 
-    // 苹果级高斯毛玻璃动态虚化层（Android 平台专属 GPU 满血加速）
+    // 苹果级高斯毛玻璃动态虚化层（Qt 6 原生 RHI 硬件加速）
     Loader {
         id: frostedGlassLoader
         anchors.fill: parent
-        active: root.isAndroidPlatform
+        active: true
         source: "FrostedGlassOverlay.qml"
         z: 90
         onLoaded: {

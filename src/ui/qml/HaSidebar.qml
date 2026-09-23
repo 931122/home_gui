@@ -1092,7 +1092,7 @@ Rectangle {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         Overlay.modal: Rectangle {
-            color: isAndroidPlatform ? Qt.rgba(0.02, 0.04, 0.07, 0.20) : Qt.rgba(0.02, 0.04, 0.07, 0.65)
+            color: Theme.colorOverlayModal
         }
 
         background: Rectangle {

@@ -17,7 +17,7 @@ QtObject {
     readonly property int radiusPopup: dp(22)
 
     // 统一液态毛玻璃调色板与材质规范
-    readonly property color colorOverlayModal: isAndroidPlatform ? Qt.rgba(0.02, 0.04, 0.07, 0.20) : Qt.rgba(0.02, 0.04, 0.07, 0.65)
+    readonly property color colorOverlayModal: Qt.rgba(0.02, 0.04, 0.07, 0.18)
     readonly property color colorPopupBg: Qt.rgba(0.07, 0.12, 0.18, 0.88)
     readonly property color colorPopupBorder: Qt.rgba(1.0, 1.0, 1.0, 0.16)
     readonly property color colorCardBg: Qt.rgba(1.0, 1.0, 1.0, 0.05)

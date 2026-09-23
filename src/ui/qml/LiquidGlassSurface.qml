@@ -4,13 +4,13 @@ Item {
     id: root
 
     // ============================================================
-    // 公开属性 (Public Properties - 对标 OliverZhaohaibin/Qt-liquid-glass-widgets)
+    // 公开属性 (Public Properties - 对标 Apple Liquid Glassmorphism)
     // ============================================================
 
-    // 背景捕获源（若未指定则启用独立微晶材质渲染）
+    // 背景捕获源
     property Item backgroundSource: null
 
-    // 材质参数（通透纯白微晶，彻底消除暗紫色杂色）
+    // 材质参数
     property real baseOpacity: 0.42
     property color tintColor: Qt.rgba(1.0, 1.0, 1.0, 0.12)
     property real tintStrength: 0.25
@@ -27,9 +27,7 @@ Item {
     property bool hovered: false
     property bool pressed: false
     property point pointerPosition: Qt.point(width / 2, height / 2)
-    // 列表滚动或外部移动同步驱动因子（用于在 Flickable 滑动时实时驱动背景采样更新）
     property real scrollSync: 0
-    // 凸透镜物理放大率（0.0 为标准折射，>0 产生水滴凸透镜光学放大感）
     property real lensMagnification: 0.0
 
     // 动画时间基准
@@ -51,7 +49,7 @@ Item {
         id: animTimer
         running: root.visible && root.opacity > 0.01
         repeat: true
-        interval: 32 // ~30fps 节省算力并保持有机流动感
+        interval: 32
         onTriggered: root.animationTime += 0.032
     }
 
@@ -80,10 +78,54 @@ Item {
     }
 
     // ============================================================
-    // 背景捕获与安全回退纹理 (ShaderEffectSource - 杜绝非法纹理类型)
+    // 1. 苹果原生高透微晶实体底板 (Crystal Glass Bed)
+    // 无论 GPU 着色器是否离屏抓取就绪，底层都拥有纯净通透的微晶光泽
     // ============================================================
+    Rectangle {
+        id: crystalBed
+        anchors.fill: parent
+        radius: root.cornerRadius
+        color: root.tintColor
+        opacity: Math.max(0.18, root.baseOpacity)
+        z: 0
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Qt.rgba(
+                    Math.min(1.0, root.tintColor.r * 1.25 + 0.08),
+                    Math.min(1.0, root.tintColor.g * 1.25 + 0.08),
+                    Math.min(1.0, root.tintColor.b * 1.25 + 0.08),
+                    Math.min(1.0, root.tintColor.a * 1.20)
+                )
+            }
+            GradientStop {
+                position: 1.0
+                color: Qt.rgba(
+                    root.tintColor.r * 0.75,
+                    root.tintColor.g * 0.75,
+                    root.tintColor.b * 0.75,
+                    root.tintColor.a * 0.85
+                )
+            }
+        }
+    }
+
+    // ============================================================
+    // 2. 背景捕获与安全回退纹理
+    // ============================================================
+    Item {
+        id: defaultBackdropItem
+        anchors.fill: parent
+        visible: false
+        Rectangle {
+            anchors.fill: parent
+            color: "#182638"
+        }
+    }
+
     readonly property rect _capturedRect: {
-        var _sync = root.scrollSync // 显式绑定滚动与位移，滑动列表时每帧同步重新计算背景物理采样区域
+        var _sync = root.scrollSync
         if (!root.backgroundSource || !root.visible || root.width <= 0 || root.height <= 0) {
             return Qt.rect(0, 0, 1, 1)
         }
@@ -97,44 +139,26 @@ Item {
 
     ShaderEffectSource {
         id: bgCapture
-        sourceItem: root.backgroundSource
+        sourceItem: root.backgroundSource ? root.backgroundSource : defaultBackdropItem
         sourceRect: root._capturedRect
-        textureSize: Qt.size(Math.max(1, root.width * 0.25), Math.max(1, root.height * 0.25))
+        textureSize: Qt.size(Math.max(1, Math.round(root.width * 0.25)), Math.max(1, Math.round(root.height * 0.25)))
         smooth: true
         anchors.fill: parent
         recursive: false
-        live: root.visible && (root.backgroundSource !== null)
-        visible: false
-    }
-
-    // 安全默认微晶底板（必须通过 ShaderEffectSource 提供合法的 OpenGL 纹理，杜绝驱动崩溃为洋红）
-    Item {
-        id: fallbackItem
-        width: 64
-        height: 64
-        visible: false
-        Rectangle {
-            anchors.fill: parent
-            color: "#16202e"
-        }
-    }
-
-    ShaderEffectSource {
-        id: fallbackCapture
-        sourceItem: fallbackItem
-        recursive: false
+        live: root.visible
         visible: false
     }
 
     // ============================================================
-    // 真实光学液态玻璃 Shader (Qt 6 RHI / GLSL 适配)
+    // 3. 真实光学液态玻璃 Shader (Qt 6 RHI 预编译 QSB 着色器)
     // 包含：圆角 SDF 法线、引力透镜逆幂折射、双对称高光瓣、菲涅尔微晶边缘
     // ============================================================
     ShaderEffect {
         id: glassShader
         anchors.fill: parent
+        z: 1
 
-        property variant source: root.backgroundSource ? bgCapture : fallbackCapture
+        property var source: bgCapture
         property real hasSource: root.backgroundSource ? 1.0 : 0.0
 
         property real time: root.animationTime
@@ -157,19 +181,51 @@ Item {
         fragmentShader: "qrc:/shaders/liquid_glass_surface.frag.qsb"
     }
 
-    // 物理圆角边缘保护遮罩（仅微弱保底边框，杜绝任何人工死白线）
+    // ============================================================
+    // 4. 苹果凸透镜穹顶微弧光反光层 (Crescent Lens Specular Highlight)
+    // 模拟真实厚玻璃表面张力产生的微弧光
+    // ============================================================
+    Rectangle {
+        id: topSheen
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: 1
+        height: Math.max(2, Math.round(parent.height * 0.44))
+        radius: root.cornerRadius
+        z: 2
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Qt.rgba(1.0, 1.0, 1.0, root.pressed ? 0.32 : (root.hovered ? 0.22 : 0.14))
+            }
+            GradientStop {
+                position: 1.0
+                color: Qt.rgba(1.0, 1.0, 1.0, 0.0)
+            }
+        }
+    }
+
+    // ============================================================
+    // 5. 360° 物理全反射微晶描边 (360° Specular Rim)
+    // ============================================================
     Rectangle {
         id: maskRect
         anchors.fill: parent
         radius: root.cornerRadius
         color: "transparent"
-        border.color: Qt.rgba(1, 1, 1, 0.10)
         border.width: 1
+        border.color: root.pressed 
+                    ? Qt.rgba(1.0, 1.0, 1.0, 0.38) 
+                    : (root.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.25) : Qt.rgba(1.0, 1.0, 1.0, 0.14))
+        z: 3
     }
 
     // 内容容器
     Item {
         id: contentContainer
         anchors.fill: parent
+        z: 10
     }
 }

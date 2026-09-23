@@ -24,7 +24,7 @@ Item {
     property real alertFactor: isAlert ? 1.0 : 0.0
     Behavior on alertFactor { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
 
-    // 苹果物理手感：按住/拖动时水滴轻微饱满放大 (自然优雅，杜绝臃肿)
+    // 苹果物理手感：按住/拖动时水滴轻微饱满放大
     property real scaleFactor: isDragging ? 1.08 : 1.0
     Behavior on scaleFactor {
         NumberAnimation {
@@ -54,12 +54,11 @@ Item {
     }
 
     // ============================================================
-    // 1. 底层内容层：用于被 Shader 动态折射与物理放大
+    // 1. 底层实体层：跑道与微晶基底
     // ============================================================
     Item {
         id: contentLayer
         anchors.fill: parent
-        visible: false
 
         // 跑道半透明微晶槽基底
         Rectangle {
@@ -71,7 +70,7 @@ Item {
                           : Qt.rgba(1.0, 1.0, 1.0, 0.18)
             border.width: 1
 
-            // 跑道中心指引文字（供凸透镜水滴划过时真实物理放大）
+            // 跑道中心指引文字
             Text {
                 id: trackLabel
                 anchors.centerIn: parent
@@ -92,10 +91,45 @@ Item {
                 sourceSize: Qt.size(width, height)
                 opacity: sliderRoot.isAlert ? 0.95 : 0.40
             }
+
+            // 原生实体水滴滑块基底（保证在任何平台都具有饱满水银圆球触感）
+            readonly property real pad: 3
+            readonly property real knobRadius: (height / 2 - pad) * 0.80 * sliderRoot.scaleFactor
+            readonly property real minX: pad + (height / 2 - pad)
+            readonly property real maxX: width - pad - (height / 2 - pad)
+            readonly property real knobCenterX: minX + (maxX - minX) * sliderRoot.progress
+
+            Rectangle {
+                id: physicalKnob
+                width: parent.knobRadius * 2 * (1.0 + sliderRoot.stretchFactor * 0.22)
+                height: parent.knobRadius * 2 / (1.0 + sliderRoot.stretchFactor * 0.12)
+                radius: height / 2
+                x: parent.knobCenterX - width / 2
+                anchors.verticalCenter: parent.verticalCenter
+                color: sliderRoot.isAlert ? Qt.rgba(1.0, 0.28, 0.24, 0.85) : Qt.rgba(1.0, 1.0, 1.0, 0.88)
+
+                // 水滴顶部月牙穹顶高光
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: 1
+                    height: parent.height * 0.45
+                    radius: height / 2
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.70) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.0) }
+                    }
+                }
+
+                // 水银微晶外轮廓
+                border.width: 1
+                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.95)
+            }
         }
     }
 
-    // 捕获内容层作为 OpenGL 纹理
+    // 捕获内容层作为纹理
     ShaderEffectSource {
         id: contentSource
         sourceItem: contentLayer
@@ -111,7 +145,7 @@ Item {
         id: fluidShader
         anchors.fill: parent
 
-        property variant source: contentSource
+        property var source: contentSource
         property real progress: sliderRoot.progress
         property real stretchFactor: sliderRoot.stretchFactor
         property real scaleFactor: sliderRoot.scaleFactor

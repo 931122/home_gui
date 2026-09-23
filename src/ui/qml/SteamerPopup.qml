@@ -68,7 +68,7 @@ Popup {
     }
 
     Overlay.modal: Rectangle {
-        color: Theme.isAndroidPlatform ? Qt.rgba(0.01, 0.02, 0.04, 0.20) : Qt.rgba(0.01, 0.02, 0.04, 0.88)
+        color: Theme.colorOverlayModal
     }
 
     background: Rectangle {

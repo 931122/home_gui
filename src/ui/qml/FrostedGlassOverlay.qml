@@ -1,5 +1,5 @@
 import QtQuick
-import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 
 Item {
     id: root
@@ -10,7 +10,7 @@ Item {
     property real maxRadius: 46
 
     // 动态显隐与流畅淡入淡出，不使用时完全脱离渲染管线，零功耗
-    visible: opacity > 0.001
+    visible: activeBlur || opacity > 0.001
     opacity: activeBlur ? 1.0 : 0.0
 
     Behavior on opacity {
@@ -20,29 +20,19 @@ Item {
         }
     }
 
-    // 结合降采样优化 (Downsample Texture Source)
-    // 采用 2x 降采样纹理，使 GPU 像素着色开销降低 75%，同时利用硬件线性滤波获得柔和二次平滑
-    ShaderEffectSource {
-        id: blurSource
-        sourceItem: root.sourceItem
-        width: Math.max(1, Math.round(root.width / 2))
-        height: Math.max(1, Math.round(root.height / 2))
-        sourceRect: Qt.rect(0, 0, root.sourceItem ? root.sourceItem.width : root.width, root.sourceItem ? root.sourceItem.height : root.height)
-        textureSize: Qt.size(width, height)
-        smooth: true
-        hideSource: false
-        live: root.visible && root.activeBlur
-    }
-
-    // 1. 苹果原味动态高斯模糊核心层 (Qt 6 官方 Qt5Compat 硬件加速层)
-    FastBlur {
+    // 1. Qt 6 官方原生 RHI 高斯毛玻璃核心层（直接接入 sourceItem，GPU 硬件级平滑虚化）
+    MultiEffect {
         id: blurEffect
         anchors.fill: parent
-        source: blurSource
-        radius: root.activeBlur ? root.maxRadius : 0
-        cached: false
+        source: root.sourceItem
+        autoPaddingEnabled: false
+        blurEnabled: true
+        blur: root.activeBlur ? 1.0 : 0.0
+        blurMax: 48
+        saturation: 0.15
+        brightness: 0.02
 
-        Behavior on radius {
+        Behavior on blur {
             NumberAnimation {
                 duration: root.activeBlur ? 260 : 180
                 easing.type: Easing.OutCubic
@@ -50,19 +40,22 @@ Item {
         }
     }
 
-    // 2. 苹果深空夜空磨砂基底（iOS System Material Dark 调色）
+    // 2. 苹果暗夜微光物理吸收层（Dark Tint Absorber - 轻盈通透，不遮盖模糊光感）
     Rectangle {
+        id: tintOverlay
         anchors.fill: parent
-        color: Qt.rgba(0.02, 0.05, 0.08, 0.52)
+        color: Qt.rgba(0.02, 0.05, 0.09, 0.30)
     }
 
-    // 3. 苹果液态微光漫反射折射光场（呈现厚重高质感玻璃的折射色散）
+    // 3. 苹果次表面晶莹漫反射层（Subsurface Specular Noise & Sheen）
     Rectangle {
+        id: sheenOverlay
         anchors.fill: parent
+        opacity: 0.40
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(0.20, 0.50, 0.85, 0.12) }
-            GradientStop { position: 0.45; color: Qt.rgba(0.05, 0.15, 0.30, 0.02) }
-            GradientStop { position: 1.0; color: Qt.rgba(0.40, 0.20, 0.65, 0.08) }
+            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
+            GradientStop { position: 0.4; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+            GradientStop { position: 1.0; color: Qt.rgba(0.0, 0.0, 0.0, 0.15) }
         }
     }
 }
