@@ -227,11 +227,11 @@ Rectangle {
 
         Timer {
             id: ptzRepeatTimer
-            interval: 350
+            interval: 2000
             repeat: true
             onTriggered: {
-                if (ptzDpad.activePtzDirection.length > 0) {
-                    appController.movePtz(ptzDpad.activePtzDirection)
+                if (ptzPanel.activePtzDirection.length > 0) {
+                    appController.movePtz(ptzPanel.activePtzDirection)
                 }
             }
         }
@@ -303,9 +303,9 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: globalState.ptzAvailable
-                    onPressed: ptzDpad.startPtz("up")
-                    onReleased: ptzDpad.stopPtz()
-                    onCanceled: ptzDpad.stopPtz()
+                    onPressed: ptzPanel.startPtz("up")
+                    onReleased: ptzPanel.stopPtz()
+                    onCanceled: ptzPanel.stopPtz()
                 }
             }
 
@@ -357,9 +357,9 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: globalState.ptzAvailable
-                    onPressed: ptzDpad.startPtz("left")
-                    onReleased: ptzDpad.stopPtz()
-                    onCanceled: ptzDpad.stopPtz()
+                    onPressed: ptzPanel.startPtz("left")
+                    onReleased: ptzPanel.stopPtz()
+                    onCanceled: ptzPanel.stopPtz()
                 }
             }
 
@@ -398,7 +398,7 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: globalState.ptzAvailable
-                    onClicked: ptzDpad.stopPtz()
+                    onClicked: ptzPanel.stopPtz()
                 }
             }
 
@@ -448,9 +448,9 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: globalState.ptzAvailable
-                    onPressed: ptzDpad.startPtz("right")
-                    onReleased: ptzDpad.stopPtz()
-                    onCanceled: ptzDpad.stopPtz()
+                    onPressed: ptzPanel.startPtz("right")
+                    onReleased: ptzPanel.stopPtz()
+                    onCanceled: ptzPanel.stopPtz()
                 }
             }
 
@@ -502,9 +502,9 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     enabled: globalState.ptzAvailable
-                    onPressed: ptzDpad.startPtz("down")
-                    onReleased: ptzDpad.stopPtz()
-                    onCanceled: ptzDpad.stopPtz()
+                    onPressed: ptzPanel.startPtz("down")
+                    onReleased: ptzPanel.stopPtz()
+                    onCanceled: ptzPanel.stopPtz()
                 }
             }
 

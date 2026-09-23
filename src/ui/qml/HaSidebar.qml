@@ -11,6 +11,7 @@ Rectangle {
     property real scaleUnit: 1.0
     property int panelRadius: dp(18)
     property int cardRadius: dp(14)
+    property Item backgroundSource: null
     readonly property bool moreDevicesOpened: moreDevicesPopup.opened
     readonly property bool hasActionStateData: appController.haActionModels && appController.haActionModels.length > 0
 
@@ -191,9 +192,65 @@ Rectangle {
         return "qrc:/icons/switch.svg"
     }
 
+    // 计算设备在刻度盘上的百分比 (0.0 ~ 1.0)
+    function calculateDeviceProgress(model, name) {
+        if (!model) return 0.0
+        if (isCookerAction(model, name)) {
+            if (!model.active) return 0.0
+            var isKw = Boolean(model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1))
+            if (isKw) return 0.45
+            var lt = RecipesData.formatCookerTime(model)
+            var mins = parseInt(lt)
+            if (!isNaN(mins) && mins > 0) {
+                return Math.max(0.15, Math.min(0.95, 1.0 - (mins / 50.0)))
+            }
+            return 0.68
+        }
+        if (isWasherAction(model, name)) {
+            var isPwr = model.washerPower === "on"
+            if (!isPwr) return 0.0
+            var rt = parseInt(model.washerRemainTime || "0")
+            if (!isNaN(rt) && rt > 0) {
+                return Math.max(0.15, Math.min(0.95, 1.0 - (rt / 55.0)))
+            }
+            return model.active ? 0.75 : 0.20
+        }
+        if (isSteamerAction(model, name)) {
+            if (!appController.steamerRunning) return appController.steamerSocketState ? 0.15 : 0.0
+            var totalSec = Math.max(1, appController.steamerTotalMinutes * 60)
+            return Math.max(0.05, Math.min(1.0, 1.0 - (appController.steamerRemainSeconds / totalSec)))
+        }
+        if (name && (name.indexOf("总控") !== -1 || (model.domain === "switch" && name.indexOf("全屋") !== -1))) {
+            var all = globalState.haActionStates || []
+            if (all.length === 0) return model.active ? 0.6 : 0.0
+            var act = 0
+            for (var i = 0; i < all.length; i++) {
+                if (all[i] && all[i].active) act++
+            }
+            return act / Math.max(1, all.length)
+        }
+        if (isLightAction(model)) return actionLevel(model)
+        if (isCoverAction(model)) return actionLevel(model)
+        return model.active ? 1.0 : 0.0
+    }
+
+    // 获取设备专属主题色
+    function getDeviceThemeColor(model, name) {
+        if (isCookerAction(model, name)) {
+            var isKw = Boolean(model && (model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1)))
+            return isKw ? "#f59e0b" : "#ff7043"
+        }
+        if (isWasherAction(model, name)) return "#38bdf8"
+        if (isSteamerAction(model, name)) return "#34d399"
+        if (name && (name.indexOf("总控") !== -1 || (model && model.domain === "switch" && name.indexOf("全屋") !== -1))) return "#fbbf24"
+        if (isLightAction(model)) return "#facc15"
+        if (isCoverAction(model)) return "#a78bfa"
+        return "#4ade80"
+    }
+
     radius: root.panelRadius
-    color: Qt.rgba(0.06, 0.11, 0.16, 0.80)
-    border.color: Qt.rgba(1, 1, 1, 0.12)
+    color: Qt.rgba(0.13, 0.19, 0.29, 0.38)
+    border.color: Qt.rgba(1, 1, 1, 0.18)
     border.width: 1
     clip: true
 
@@ -206,20 +263,19 @@ Rectangle {
         anchors.rightMargin: root.panelRadius
         height: 1
         color: "#ffffff"
-        opacity: 0.20
+        opacity: 0.45
     }
 
     // 复用按钮组件
     Component {
         id: actionComponent
-        Rectangle {
+        Item {
             id: actionDelegate
             Layout.fillWidth: true
             implicitHeight: root.calculatedCardHeight
             Layout.preferredHeight: root.calculatedCardHeight
             anchors.fill: (parent && typeof parent.actionData !== "undefined") ? parent : undefined
-            radius: root.dp(14)
-            clip: true
+            property real radius: root.cardRadius
             
             readonly property var currentItemData: {
                 if (typeof parent !== "undefined" && parent && typeof parent.actionData !== "undefined" && parent.actionData !== null) {
@@ -264,9 +320,22 @@ Rectangle {
             property bool showSlideHint: false
             property real shakeX: 0
 
-            transform: Translate {
-                x: actionDelegate.shakeX
-            }
+            transform: [
+                Translate {
+                    x: actionDelegate.shakeX
+                },
+                Rotation {
+                    origin.x: actionDelegate.width / 2
+                    origin.y: actionDelegate.height / 2
+                    axis {
+                        x: actionDelegate.height > 0 ? -(actionArea.mouseY - actionDelegate.height / 2) / actionDelegate.height : 0
+                        y: actionDelegate.width > 0 ? (actionArea.mouseX - actionDelegate.width / 2) / actionDelegate.width : 0
+                        z: 0
+                    }
+                    angle: (actionArea.pressed && !actionDelegate.isDraggingSlide) ? 2.2 : 0
+                    Behavior on angle { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+                }
+            ]
 
             SequentialAnimation {
                 id: shakeAnim
@@ -288,8 +357,9 @@ Rectangle {
                 target: actionDelegate
                 property: "slideProgress"
                 to: 0.0
-                duration: 220
-                easing.type: Easing.OutQuad
+                duration: 280
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.15
             }
 
             function turnOffDevice() {
@@ -312,98 +382,120 @@ Rectangle {
                 }
             }
 
-            scale: (actionArea.pressed && !actionDelegate.isDraggingSlide) ? 0.96 : 1.0
-            Behavior on scale { NumberAnimation { duration: 100 } }
+            readonly property color themeColor: root.getDeviceThemeColor(actionModel, actionName)
+            readonly property real deviceProgress: root.calculateDeviceProgress(actionModel, actionName)
 
-            color: !isAvailable ? Qt.rgba(1, 1, 1, 0.02)
-                                : (actionDelegate.isDraggingSlide
-                                   ? Qt.rgba(0.18 + 0.60 * actionDelegate.slideProgress, 0.45 - 0.25 * actionDelegate.slideProgress, 0.30 - 0.20 * actionDelegate.slideProgress, 0.40)
-                                   : (isActive ? Qt.rgba(0.18, 0.45, 0.30, 0.32) : Qt.rgba(1, 1, 1, 0.055)))
-            border.color: (actionDelegate.isSlideToTurnOff && actionDelegate.isActive && actionDelegate.showSlideHint)
-                          ? "#ff7875"
-                          : (isActive ? (actionDelegate.slideProgress >= 0.65 ? "#ff7875" : Qt.rgba(0.40, 0.85, 0.55, 0.45)) : Qt.rgba(1, 1, 1, 0.10))
-            border.width: (actionDelegate.isSlideToTurnOff && actionDelegate.isActive && actionDelegate.showSlideHint) ? 1.5 : 1
-
-            // 卡片顶部月白微高光
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.leftMargin: root.dp(16)
-                anchors.rightMargin: root.dp(16)
-                height: 1
-                color: isActive ? "#a8f0c2" : "#ffffff"
-                opacity: isActive ? 0.35 : 0.15
+            // 物理弹性按压手感 (Liquid Glass Spring Interaction)
+            scale: (actionArea.pressed && !actionDelegate.isDraggingSlide && !actionDelegate.isSlideToTurnOff) ? 0.965 : 1.0
+            Behavior on scale {
+                NumberAnimation { duration: 120; easing.type: Easing.OutBack }
             }
 
-            // 亮度/窗帘微调层
+            // 0. 悬浮暗色软阴影 (Floating Ambient Shadow)
             Rectangle {
+                anchors.fill: parent
+                anchors.topMargin: root.dp(2)
+                anchors.bottomMargin: -root.dp(2)
+                radius: actionDelegate.radius
+                color: Qt.rgba(0, 0, 0, 0.35)
+                opacity: (actionArea.pressed && !actionDelegate.isDraggingSlide) ? 0.15 : 0.40
+                z: 0
+            }
+
+            // 1. 真实液态玻璃光学表面 (Liquid Glass Optical Surface)
+            // 接入主屏环境光场，产生真实透镜折射、三棱镜微色散与菲涅尔全反射边缘
+            LiquidGlassSurface {
+                id: cardGlassSurface
+                anchors.fill: parent
+                backgroundSource: root.backgroundSource
+                scrollSync: sidebarFlickable.contentY
+                cornerRadius: actionDelegate.radius
+                baseOpacity: actionDelegate.isActive ? 0.50 : 0.36
+                tintColor: actionDelegate.isActive 
+                           ? Qt.rgba(actionDelegate.themeColor.r, actionDelegate.themeColor.g, actionDelegate.themeColor.b, 0.65)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                tintStrength: actionDelegate.isActive ? 0.45 : 0.18
+                highlightIntensity: (actionArea.pressed || actionDelegate.isActive) ? 0.92 : 0.68
+                edgeFresnelPower: 2.2
+                hovered: actionArea.containsMouse
+                pressed: actionArea.pressed
+                pointerPosition: Qt.point(actionArea.mouseX, actionArea.mouseY)
+                opacity: actionDelegate.isAvailable ? 1.0 : 0.25
+                z: 1
+            }
+
+            // 2. 状态轮廓保护层（仅在激活或滑动警告时呈现极微发丝边缘，杜绝任何人工死白月牙）
+            Rectangle {
+                anchors.fill: parent
+                radius: actionDelegate.radius
+                color: "transparent"
+                border.color: (actionDelegate.isSlideToTurnOff && actionDelegate.isActive && actionDelegate.showSlideHint)
+                              ? Qt.rgba(1, 0.8, 0.3, 0.65)
+                              : (actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.24) : Qt.rgba(1, 1, 1, 0.10))
+                border.width: 1
+                z: 2
+            }
+
+            // 5. 亮度/窗帘微调层 (Brightness Preview - 液态微晶水波充盈槽)
+            Item {
+                id: brightnessPreviewLayer
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.margins: 1
-                radius: parent.radius - 1
                 width: (parent.width - 2) * (actionArea.brightnessDrag ? actionArea.previewLevel : root.actionLevel(actionModel))
-                color: "#ffffff"
-                opacity: 0.10
                 visible: root.hasDetailAction(actionModel) && isAvailable
+                clip: true
+                z: 5
                 
                 Behavior on width {
                     enabled: !actionArea.brightnessDrag
-                    NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                    NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
                 }
-            }
-
-            // 滑动关闭的红色/橙色展开填充层（仅在拖动时展现，未拖动时绝无任何深色遮罩阴影）
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                anchors.margins: 1
-                radius: parent.radius - 1
-                width: Math.max(0, (parent.width - 2) * actionDelegate.slideProgress)
-                color: actionDelegate.slideProgress >= 0.60 ? Qt.rgba(0.92, 0.28, 0.24, 0.75) : Qt.rgba(0.90, 0.45, 0.20, 0.45)
-                visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && (actionDelegate.slideProgress > 0.005 || actionDelegate.isDraggingSlide)
-                clip: true
-                z: 15
 
                 Rectangle {
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: root.dp(3)
-                    color: "#ffffff"
-                    opacity: 0.8
+                    anchors.fill: parent
+                    radius: actionDelegate.radius - 1
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.06) }
+                        GradientStop { position: 0.80; color: Qt.rgba(1.0, 1.0, 1.0, 0.16) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.35) }
+                    }
+
+                    // 弯月面水波高光边缘
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: root.dp(3)
+                        color: "#ffffff"
+                        opacity: actionArea.brightnessDrag ? 0.95 : 0.60
+                    }
                 }
             }
 
-            // 跟随手指移动的滑动滑钮（Handle，仅在用户拖动时显示，平时隐藏）
-            Rectangle {
-                id: slideHandle
-                x: Math.max(root.dp(4), Math.min(parent.width - width - root.dp(4), (parent.width - width - root.dp(8)) * actionDelegate.slideProgress + root.dp(4)))
+            // 6. 苹果纯正水滴液态微透镜滑动关机跑道 (Apple Fluid Metaball Liquid Glass Slider)
+            LiquidGlassSlider {
+                id: liquidSlideCapsule
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: root.dp(4)
+                anchors.rightMargin: root.dp(4)
                 anchors.verticalCenter: parent.verticalCenter
-                width: root.dp(38)
-                height: root.dp(38)
-                radius: root.dp(19)
-                color: actionDelegate.slideProgress >= 0.60 ? "#ff4d4f" : "#f59e0b"
-                border.color: "#ffffff"
-                border.width: 2
-                visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && (actionDelegate.isDraggingSlide || actionDelegate.slideProgress > 0.01)
-                z: 20
-
-                Image {
-                    anchors.centerIn: parent
-                    width: root.dp(18)
-                    height: root.dp(18)
-                    source: actionDelegate.slideProgress >= 0.60 ? "qrc:/icons/power.svg" : "qrc:/icons/arrow-right.svg"
-                    sourceSize: Qt.size(width, height)
-                    smooth: true
-                }
+                height: Math.min(root.dp(48), parent.height - root.dp(6))
+                visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && (actionDelegate.isDraggingSlide || actionDelegate.slideProgress > 0.005)
+                z: 25
+                progress: actionDelegate.slideProgress
+                isDragging: actionDelegate.isDraggingSlide
+                backgroundSource: root.backgroundSource
+                scrollSync: sidebarFlickable.contentY
             }
 
             MouseArea {
                 id: actionArea
                 anchors.fill: parent
+                hoverEnabled: true
                 property real previewLevel: 0
                 property bool brightnessDrag: false
                 property real startX: 0
@@ -444,7 +536,7 @@ Rectangle {
                             actionArea.preventStealing = true
                         }
                         if (actionDelegate.isDraggingSlide) {
-                            var travelDist = Math.max(1, actionDelegate.width - root.dp(48))
+                            var travelDist = Math.max(1, liquidSlideCapsule.width - liquidSlideCapsule.height)
                             var curDist = Math.max(0, Math.min(travelDist, dx))
                             actionDelegate.slideProgress = curDist / travelDist
                         }
@@ -531,18 +623,28 @@ Rectangle {
                 anchors.fill: parent
                 anchors.margins: root.dp(8)
                 spacing: root.dp(10)
+                opacity: liquidSlideCapsule.visible ? Math.max(0.06, 1.0 - actionDelegate.slideProgress * 3.0) : 1.0
+                Behavior on opacity { NumberAnimation { duration: 120 } }
+                z: 10
 
+                // 左侧：苹果微晶玻璃图标底座（晶莹通透透镜圆盘）
                 Rectangle {
-                    Layout.preferredWidth: root.dp(38)
-                    Layout.preferredHeight: root.dp(38)
-                    radius: root.dp(19)
-                    color: actionDelegate.isActive
-                           ? (root.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)
-                              ? "#38bdf8"
-                              : (root.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName) && (actionDelegate.actionModel && (actionDelegate.actionModel.cookerIsKeepWarm || (actionDelegate.actionModel.stateText && actionDelegate.actionModel.stateText.indexOf("保温") !== -1)))
-                                 ? "#f3a83c"
-                                 : "#9af06d"))
-                           : "#263542"
+                    Layout.preferredWidth: root.dp(36)
+                    Layout.preferredHeight: root.dp(36)
+                    Layout.alignment: Qt.AlignVCenter
+                    radius: width / 2
+                    gradient: Gradient {
+                        GradientStop { 
+                            position: 0.0
+                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.14) 
+                        }
+                        GradientStop { 
+                            position: 1.0
+                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04) 
+                        }
+                    }
+                    border.color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(1, 1, 1, 0.16)
+                    border.width: 1
                     opacity: actionDelegate.isAvailable ? 1.0 : 0.4
 
                     Image {
@@ -554,25 +656,17 @@ Rectangle {
                         smooth: true
                         visible: status === Image.Ready
                     }
-                    
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        color: "white"
-                        opacity: 0.15
-                        visible: actionDelegate.isActive
-                    }
                 }
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 1
+                    spacing: root.dp(2)
 
                     Text {
                         Layout.fillWidth: true
                         text: actionDelegate.actionName || qsTr("未知设备")
                         color: actionDelegate.isActive ? "#ffffff" : "#c5d1dd"
-                        font.pixelSize: root.fs(14)
+                        font.pixelSize: root.fs(13)
                         font.bold: true
                         elide: Text.ElideRight
                     }
@@ -586,7 +680,7 @@ Rectangle {
                                         return qsTr("向右滑动以关闭")
                                     }
                                     if (actionDelegate.isDraggingSlide) {
-                                        return actionDelegate.slideProgress >= 0.65 ? qsTr("松手立即关闭") : qsTr("向右滑动关闭...")
+                                        return actionDelegate.slideProgress >= 0.60 ? qsTr("松手立即关闭") : qsTr("向右滑动关闭...")
                                     }
                                     return qsTr("已开启 · 滑动关闭")
                                 }
@@ -628,9 +722,9 @@ Rectangle {
                         }
                         color: {
                             if (actionDelegate.isSlideToTurnOff && actionDelegate.isActive) {
-                                if (actionDelegate.showSlideHint) return "#ff7875"
-                                if (actionDelegate.isDraggingSlide) return actionDelegate.slideProgress >= 0.65 ? "#ff7875" : "#ffc069"
-                                return "#85e89d"
+                                if (actionDelegate.showSlideHint) return "#fbbf24"
+                                if (actionDelegate.isDraggingSlide) return actionDelegate.slideProgress >= 0.60 ? "#ffffff" : "#e2e8f0"
+                                return "#86efac"
                             }
                             if (actionDelegate.isActive) {
                                 if (root.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
@@ -643,24 +737,71 @@ Rectangle {
                                 if (root.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
                                     return "#4ade80"
                                 }
-                                return "#9af06d"
+                                return "#86efac"
                             }
                             return "#7b8ea0"
                         }
-                        font.pixelSize: root.fs(11)
+                        font.pixelSize: root.fs(10)
+                        elide: Text.ElideRight
                         visible: text !== ""
+                    }
+
+                    // 底部微晶刻度进度滑轨 (Apple Frosted Ruler Track)
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: root.dp(3)
+                        visible: actionDelegate.isActive || actionDelegate.isSlideToTurnOff
+
+                        // 底槽轨道
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: Qt.rgba(1, 1, 1, 0.08)
+
+                            // 4 个微小等分刻度点 (Tick Dots)
+                            Row {
+                                anchors.fill: parent
+                                anchors.leftMargin: root.dp(6)
+                                anchors.rightMargin: root.dp(6)
+                                spacing: (parent.width - root.dp(12) - 4 * root.dp(2)) / 3
+
+                                Repeater {
+                                    model: 4
+                                    Rectangle {
+                                        width: root.dp(2)
+                                        height: root.dp(2)
+                                        radius: 1
+                                        color: Qt.rgba(1, 1, 1, 0.20)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                            }
+                        }
+
+                        // 柔和微晶填充滑块
+                        Rectangle {
+                            width: Math.max(0, parent.width * Math.min(1.0, actionDelegate.deviceProgress))
+                            height: parent.height
+                            radius: height / 2
+                            color: actionDelegate.themeColor
+                            opacity: 0.85
+
+                            Behavior on width {
+                                NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
+                            }
+                        }
                     }
                 }
 
-                // 开启状态下且需要滑动关闭时的提示小胶囊
+                // 开启状态下且需要滑动关闭时的苹果微晶小指示胶囊
                 Rectangle {
-                    Layout.preferredWidth: root.dp(24)
+                    Layout.preferredWidth: root.dp(26)
                     Layout.preferredHeight: root.dp(24)
                     radius: root.dp(12)
-                    color: actionDelegate.showSlideHint ? Qt.rgba(0.92, 0.28, 0.24, 0.35) : Qt.rgba(1, 1, 1, 0.10)
-                    border.color: actionDelegate.showSlideHint ? "#ff7875" : Qt.rgba(1, 1, 1, 0.18)
+                    color: actionDelegate.showSlideHint ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)
+                    border.color: actionDelegate.showSlideHint ? Qt.rgba(1, 1, 1, 0.50) : Qt.rgba(1, 1, 1, 0.22)
                     border.width: 1
-                    visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !actionDelegate.isDraggingSlide && actionDelegate.slideProgress <= 0.01
+                    visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !liquidSlideCapsule.visible
 
                     Image {
                         anchors.centerIn: parent
@@ -673,9 +814,9 @@ Rectangle {
 
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
-                        running: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !actionDelegate.isDraggingSlide && !actionDelegate.showSlideHint
-                        NumberAnimation { to: 0.35; duration: 800; easing.type: Easing.InOutQuad }
-                        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
+                        running: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !liquidSlideCapsule.visible && !actionDelegate.showSlideHint
+                        NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutQuad }
+                        NumberAnimation { to: 0.95; duration: 900; easing.type: Easing.InOutQuad }
                     }
                 }
             }
@@ -686,13 +827,12 @@ Rectangle {
     Component {
         id: miniTileComponent
 
-        Rectangle {
+        Item {
             id: tileDelegate
             Layout.fillWidth: true
             implicitHeight: root.calculatedTileHeight
             Layout.preferredHeight: root.calculatedTileHeight
-            radius: root.dp(10)
-            clip: true
+            property real radius: root.dp(10)
 
             readonly property bool isDevice: modelData && modelData.isDevice === true
             readonly property var itemData: isDevice ? modelData.data : null
@@ -720,30 +860,60 @@ Rectangle {
             }
             readonly property bool isAvailable: isDevice ? (actionModel ? (actionModel.available !== false) : true) : true
 
-            scale: tileArea.pressed ? 0.94 : 1.0
-            Behavior on scale { NumberAnimation { duration: 80 } }
+            readonly property color themeColor: root.getDeviceThemeColor(actionModel, actionName)
 
-            color: !isDevice
-                   ? (tileArea.pressed ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.055))
-                   : (!isAvailable
-                      ? Qt.rgba(1, 1, 1, 0.02)
-                      : (isActive ? Qt.rgba(0.18, 0.45, 0.30, 0.35) : Qt.rgba(1, 1, 1, 0.055)))
+            transform: Rotation {
+                origin.x: tileDelegate.width / 2
+                origin.y: tileDelegate.height / 2
+                axis {
+                    x: tileDelegate.height > 0 ? -(tileArea.mouseY - tileDelegate.height / 2) / tileDelegate.height : 0
+                    y: tileDelegate.width > 0 ? (tileArea.mouseX - tileDelegate.width / 2) / tileDelegate.width : 0
+                    z: 0
+                }
+                angle: tileArea.pressed ? 2.5 : 0
+                Behavior on angle { NumberAnimation { duration: 130; easing.type: Easing.OutQuad } }
+            }
 
-            border.color: !isDevice
-                          ? Qt.rgba(1, 1, 1, 0.12)
-                          : (isActive ? Qt.rgba(0.40, 0.85, 0.55, 0.50) : Qt.rgba(1, 1, 1, 0.10))
-            border.width: 1
-
-            // 顶部月白微高光
+            // 0. 悬浮暗色软阴影
             Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.leftMargin: root.dp(8)
-                anchors.rightMargin: root.dp(8)
-                height: 1
-                color: tileDelegate.isActive ? "#a8f0c2" : "#ffffff"
-                opacity: tileDelegate.isActive ? 0.35 : 0.15
+                anchors.fill: parent
+                anchors.topMargin: root.dp(2)
+                anchors.bottomMargin: -root.dp(2)
+                radius: tileDelegate.radius
+                color: Qt.rgba(0, 0, 0, 0.32)
+                opacity: tileArea.pressed ? 0.14 : 0.35
+                z: 0
+            }
+
+            // 1. 真实液态玻璃微晶表面（接入背景折射与边缘色散）
+            LiquidGlassSurface {
+                id: tileGlassSurface
+                anchors.fill: parent
+                backgroundSource: root.backgroundSource
+                scrollSync: sidebarFlickable.contentY
+                cornerRadius: tileDelegate.radius
+                baseOpacity: tileDelegate.isActive ? 0.48 : 0.35
+                tintColor: tileDelegate.isActive 
+                           ? Qt.rgba(tileDelegate.themeColor.r, tileDelegate.themeColor.g, tileDelegate.themeColor.b, 0.62)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                tintStrength: tileDelegate.isActive ? 0.42 : 0.16
+                highlightIntensity: (tileArea.pressed || tileDelegate.isActive) ? 0.88 : 0.65
+                edgeFresnelPower: 2.2
+                hovered: tileArea.containsMouse
+                pressed: tileArea.pressed
+                pointerPosition: Qt.point(tileArea.mouseX, tileArea.mouseY)
+                opacity: tileDelegate.isAvailable ? 1.0 : 0.25
+                z: 1
+            }
+
+            // 2. 状态轮廓保护层（仅激活时微弱发丝高光，杜绝人工死白月牙）
+            Rectangle {
+                anchors.fill: parent
+                radius: tileDelegate.radius
+                color: "transparent"
+                border.color: tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.10)
+                border.width: 1
+                z: 2
             }
 
             ColumnLayout {
@@ -753,21 +923,33 @@ Rectangle {
                 anchors.leftMargin: root.dp(7)
                 anchors.rightMargin: root.dp(7)
                 spacing: 0
+                z: 10
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 0
 
-                    // 图标容器 (20 x 20)
+                    // 图标容器 (22 x 22 苹果微晶底座)
                     Rectangle {
-                        Layout.preferredWidth: root.dp(20)
-                        Layout.preferredHeight: root.dp(20)
-                        radius: root.dp(10)
-                        color: !tileDelegate.isDevice
-                               ? Qt.rgba(1, 1, 1, 0.08)
-                               : (tileDelegate.isActive
-                                  ? (root.isWasherAction(tileDelegate.actionModel, tileDelegate.actionName) ? "#38bdf8" : "#9af06d")
-                                  : "#263542")
+                        Layout.preferredWidth: root.dp(22)
+                        Layout.preferredHeight: root.dp(22)
+                        radius: root.dp(11)
+                        gradient: Gradient {
+                            GradientStop { 
+                                position: 0.0
+                                color: !tileDelegate.isDevice 
+                                       ? Qt.rgba(1, 1, 1, 0.20) 
+                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)) 
+                            }
+                            GradientStop { 
+                                position: 1.0
+                                color: !tileDelegate.isDevice 
+                                       ? Qt.rgba(1, 1, 1, 0.06) 
+                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03)) 
+                            }
+                        }
+                        border.color: tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.35) : Qt.rgba(1, 1, 1, 0.16)
+                        border.width: 1
 
                         Image {
                             anchors.centerIn: parent
@@ -781,13 +963,13 @@ Rectangle {
 
                     Item { Layout.fillWidth: true }
 
-                    // 激活状态发光小圆点（开启时亮起，未开启时不显示）
+                    // 激活状态发光小圆点（开启时亮起温和柔光绿，未开启时不显示）
                     Rectangle {
                         visible: tileDelegate.isDevice && tileDelegate.isActive
-                        Layout.preferredWidth: root.dp(6)
-                        Layout.preferredHeight: root.dp(6)
-                        radius: root.dp(3)
-                        color: root.isWasherAction(tileDelegate.actionModel, tileDelegate.actionName) ? "#38bdf8" : "#4ade80"
+                        Layout.preferredWidth: root.dp(5)
+                        Layout.preferredHeight: root.dp(5)
+                        radius: root.dp(2.5)
+                        color: "#86efac"
                     }
 
                     // 更多设备小尖头
@@ -815,6 +997,8 @@ Rectangle {
             MouseArea {
                 id: tileArea
                 anchors.fill: parent
+                hoverEnabled: true
+                z: 20
                 onClicked: {
                     if (!tileDelegate.isDevice) {
                         moreDevicesPopup.open()

@@ -1,5 +1,6 @@
 #include "videomodule.h"
 
+#include <QDebug>
 #include <QMetaObject>
 #include <QUrl>
 
@@ -122,6 +123,7 @@ void VideoWorker::movePtz(const QString &direction)
         } else {
             emit ptzStatusChanged(tr("PTZ %1 failed: %2").arg(command, errorMessage));
         }
+        qWarning() << "[VideoWorker::movePtz] Command" << command << "failed:" << errorMessage;
         return;
     }
 
@@ -132,6 +134,7 @@ void VideoWorker::movePtz(const QString &direction)
     } else {
         emit ptzStatusChanged(tr("PTZ moving %1").arg(command));
     }
+    qDebug() << "[VideoWorker::movePtz] Command" << command << "succeeded";
 }
 
 void VideoWorker::resetUnavailable(const QString &ptzStatus)

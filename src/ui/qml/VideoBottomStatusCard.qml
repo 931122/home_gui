@@ -16,8 +16,8 @@ Rectangle {
     function fs(value) { return Theme.fs(value) }
 
     radius: cardRadius
-    color: Qt.rgba(0.06, 0.10, 0.16, 0.85)
-    border.color: Qt.rgba(1, 1, 1, 0.10)
+    color: Qt.rgba(0.12, 0.18, 0.26, 0.52)
+    border.color: Qt.rgba(1, 1, 1, 0.15)
     border.width: 1
     clip: true
 
@@ -30,7 +30,7 @@ Rectangle {
         anchors.rightMargin: cardRoot.cardRadius
         height: 1
         color: "#ffffff"
-        opacity: 0.18
+        opacity: 0.30
     }
 
     // 智能提取全屋所有“灯光”相关实体

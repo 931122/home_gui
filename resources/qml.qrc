@@ -104,6 +104,9 @@
         <file alias="icons/dock-movie.svg">icons/dock-movie.svg</file>
         <file alias="icons/dock-plug.svg">icons/dock-plug.svg</file>
         <file alias="qml/VideoBottomStatusCard.qml">../src/ui/qml/VideoBottomStatusCard.qml</file>
+        <file alias="qml/LiquidGlassSurface.qml">../src/ui/qml/LiquidGlassSurface.qml</file>
+        <file alias="qml/LiquidGlassButton.qml">../src/ui/qml/LiquidGlassButton.qml</file>
+        <file alias="qml/LiquidGlassSlider.qml">../src/ui/qml/LiquidGlassSlider.qml</file>
         <file alias="icons/heater.svg">icons/heater.svg</file>
         <file alias="icons/purifier.svg">icons/purifier.svg</file>
     </qresource>

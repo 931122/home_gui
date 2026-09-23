@@ -9,7 +9,7 @@ ApplicationWindow {
     height: 480
     visible: true
     title: qsTr("Embedded Qt Control System")
-    color: "#071018"
+    color: "#0e1724"
 
     // 自适应响应式基准系统：
     // 横屏以 800x480 为基准；竖屏以 480x800 为基准，完美适配手机、平板、RK3506 及桌面
@@ -160,41 +160,114 @@ ApplicationWindow {
         id: mainSceneLayer
         anchors.fill: parent
 
-        // 背景层：苹果深空夜空流体微光场
-        Rectangle {
+        // 背景层容器：现代苹果通透深空极光星云（明澈清朗，提供极高对比度折射色彩基底）
+        Item {
+            id: ambientBackdrop
             anchors.fill: parent
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "#0c1824" }
-                GradientStop { position: 0.5; color: "#070f16" }
-                GradientStop { position: 1.0; color: "#04080c" }
-            }
-        }
 
-        // 左上方浅冰蓝柔和漫反射流体光晕
-        Rectangle {
-            x: -root.dp(80)
-            y: -root.dp(100)
-            width: Math.min(root.width * 0.8, root.dp(360))
-            height: width
-            radius: width / 2
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(0.20, 0.52, 0.85, 0.16) }
-                GradientStop { position: 0.6; color: Qt.rgba(0.10, 0.30, 0.55, 0.04) }
-                GradientStop { position: 1.0; color: "transparent" }
+            // 1. 基底流体光幕（明澈高级的深空宝石蓝与黛青渐变：彻底消除暗沉死黑）
+            Rectangle {
+                anchors.fill: parent
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#2e4a73" }
+                    GradientStop { position: 0.35; color: "#213654" }
+                    GradientStop { position: 0.75; color: "#182840" }
+                    GradientStop { position: 1.0; color: "#121e30" }
+                }
             }
-        }
 
-        // 右下方紫晶微暖漫反射流体光晕
-        Rectangle {
-            x: root.width - width + root.dp(40)
-            y: root.height - height + root.dp(40)
-            width: Math.min(root.width * 0.7, root.dp(340))
-            height: width
-            radius: width / 2
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(0.45, 0.25, 0.70, 0.10) }
-                GradientStop { position: 0.6; color: Qt.rgba(0.20, 0.12, 0.40, 0.02) }
-                GradientStop { position: 1.0; color: "transparent" }
+            // 2. 左上方极光：明亮电光冰川蔚蓝（为左侧视频监控卡片与顶栏提供通透冷光与多重折射）
+            Rectangle {
+                id: auroraBlue
+                x: -root.dp(30)
+                y: -root.dp(30)
+                width: Math.min(root.width * 0.85, root.dp(480))
+                height: width
+                radius: width / 2
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(0.22, 0.68, 1.0, 0.58) }
+                    GradientStop { position: 0.35; color: Qt.rgba(0.14, 0.50, 0.90, 0.32) }
+                    GradientStop { position: 0.70; color: Qt.rgba(0.08, 0.30, 0.65, 0.10) }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+
+                // 微流体轻柔呼吸漂移动画
+                SequentialAnimation on x {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: -root.dp(15); duration: 7000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -root.dp(45); duration: 7000; easing.type: Easing.InOutSine }
+                }
+                SequentialAnimation on y {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: -root.dp(45); duration: 8500; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -root.dp(15); duration: 8500; easing.type: Easing.InOutSine }
+                }
+            }
+
+            // 3. 右上方侧边栏正后方：纯净天青与翡翠碧波流光（为右侧设备卡片液态玻璃提供通透的光学折射高光）
+            Rectangle {
+                id: auroraCyan
+                x: root.width - width + root.dp(50)
+                y: -root.dp(30)
+                width: Math.min(root.width * 0.80, root.dp(450))
+                height: width
+                radius: width / 2
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(0.12, 0.84, 0.88, 0.52) }
+                    GradientStop { position: 0.38; color: Qt.rgba(0.08, 0.58, 0.72, 0.28) }
+                    GradientStop { position: 0.72; color: Qt.rgba(0.05, 0.35, 0.52, 0.08) }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+
+                SequentialAnimation on y {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: -root.dp(10); duration: 9000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -root.dp(40); duration: 9000; easing.type: Easing.InOutSine }
+                }
+            }
+
+            // 4. 右侧偏下侧边栏后方：幻彩霞光薰衣草梦幻紫（冷暖交汇，让下方设备卡片折射出 visionOS 般的梦幻紫霞）
+            Rectangle {
+                id: auroraPurple
+                x: root.width - width * 0.85
+                y: root.height * 0.45
+                width: Math.min(root.width * 0.65, root.dp(360))
+                height: width
+                radius: width / 2
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(0.70, 0.36, 0.95, 0.42) }
+                    GradientStop { position: 0.40; color: Qt.rgba(0.48, 0.22, 0.78, 0.22) }
+                    GradientStop { position: 0.72; color: Qt.rgba(0.25, 0.12, 0.48, 0.06) }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+
+                SequentialAnimation on x {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: root.width - width * 0.78; duration: 8000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: root.width - width * 0.92; duration: 8000; easing.type: Easing.InOutSine }
+                }
+            }
+
+            // 5. 中下方至右下方：明澈晨曦微温琥珀金光（提供高对比度色温与晶莹折射边缘）
+            Rectangle {
+                id: auroraAmber
+                x: root.width * 0.25
+                y: root.height - height + root.dp(50)
+                width: Math.min(root.width * 0.75, root.dp(420))
+                height: width * 0.68
+                radius: width / 2
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 0.68, 0.28, 0.35) }
+                    GradientStop { position: 0.36; color: Qt.rgba(0.88, 0.46, 0.32, 0.18) }
+                    GradientStop { position: 0.70; color: Qt.rgba(0.45, 0.22, 0.40, 0.05) }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+
+                SequentialAnimation on y {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: root.height - height + root.dp(30); duration: 7500; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: root.height - height + root.dp(60); duration: 7500; easing.type: Easing.InOutSine }
+                }
             }
         }
 
@@ -295,6 +368,7 @@ ApplicationWindow {
                 scaleUnit: root.su
                 panelRadius: root.panelRadius
                 cardRadius: root.cardRadius
+                backgroundSource: ambientBackdrop
                 onCookerRequested: function(actionModel) {
                     cookerPopup.openWithAction(actionModel)
                 }

@@ -93,6 +93,9 @@ DISTFILES += \
     src/ui/qml/RoomSensorsPanel.qml \
     src/ui/qml/VideoBottomDockCard.qml \
     src/ui/qml/VideoBottomStatusCard.qml \
+    src/ui/qml/LiquidGlassSurface.qml \
+    src/ui/qml/LiquidGlassButton.qml \
+    src/ui/qml/LiquidGlassSlider.qml \
     src/ui/qml/VideoPanel.qml \
     src/ui/qml/VideoSurface.qml \
     src/ui/qml/WeatherPopup.qml \

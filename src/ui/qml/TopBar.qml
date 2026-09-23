@@ -20,8 +20,8 @@ Rectangle {
     readonly property bool isCompact: width < dp(520)
 
     radius: panelRadius
-    color: Qt.rgba(0.06, 0.11, 0.16, 0.78)
-    border.color: Qt.rgba(1, 1, 1, 0.12)
+    color: Qt.rgba(0.12, 0.18, 0.26, 0.52)
+    border.color: Qt.rgba(1, 1, 1, 0.15)
     border.width: 1
     clip: true
 
@@ -34,7 +34,7 @@ Rectangle {
         anchors.rightMargin: root.panelRadius
         height: 1
         color: "#ffffff"
-        opacity: 0.20
+        opacity: 0.30
     }
 
     function getTopBarWeatherIcon() {

@@ -22,6 +22,7 @@ CMakeUserPresets.json
 /*.jpg
 /*.jpeg
 /*.png
+/*.mp4
 
 # Local device configurations
 /config.yaml
