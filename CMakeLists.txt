@@ -49,6 +49,7 @@ endif()
 # 纯 Qt 6 架构要求
 find_package(Qt6 6.0 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
 find_package(Qt6Svg QUIET)
+find_package(Qt6Core5Compat QUIET)
 
 message(STATUS "Configured with Qt ${Qt6_VERSION}")
 
@@ -140,6 +141,10 @@ endif()
 
 if(Qt6Svg_FOUND)
     target_link_libraries(home_gui PRIVATE Qt6::Svg)
+endif()
+
+if(Qt6Core5Compat_FOUND)
+    target_link_libraries(home_gui PRIVATE Qt6::Core5Compat)
 endif()
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)

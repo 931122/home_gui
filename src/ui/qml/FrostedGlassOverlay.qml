@@ -1,4 +1,5 @@
 import QtQuick
+import Qt5Compat.GraphicalEffects
 
 Item {
     id: root
@@ -33,39 +34,17 @@ Item {
         live: root.visible && root.activeBlur
     }
 
-    // 1. 原生 GPU 柔和微晶磨砂虚化层（Qt 6 纯原生，零额外插件依赖）
-    ShaderEffect {
+    // 1. 苹果原味动态高斯模糊核心层 (Qt 6 官方 Qt5Compat 硬件加速层)
+    FastBlur {
         id: blurEffect
         anchors.fill: parent
-        property var source: blurSource
-        property real radius: root.activeBlur ? root.maxRadius : 0
-        property real pixelStepX: 1.0 / Math.max(1, width)
-        property real pixelStepY: 1.0 / Math.max(1, height)
-
-        fragmentShader: "
-            varying highp vec2 qt_TexCoord0;
-            uniform lowp float qt_Opacity;
-            uniform sampler2D source;
-            uniform highp float radius;
-            uniform highp float pixelStepX;
-            uniform highp float pixelStepY;
-
-            void main() {
-                highp vec2 step = vec2(pixelStepX, pixelStepY) * (radius * 0.25);
-                lowp vec4 sum = texture2D(source, qt_TexCoord0) * 0.227027;
-                sum += texture2D(source, qt_TexCoord0 + vec2(step.x * 1.3846, 0.0)) * 0.158108;
-                sum += texture2D(source, qt_TexCoord0 - vec2(step.x * 1.3846, 0.0)) * 0.158108;
-                sum += texture2D(source, qt_TexCoord0 + vec2(0.0, step.y * 1.3846)) * 0.158108;
-                sum += texture2D(source, qt_TexCoord0 - vec2(0.0, step.y * 1.3846)) * 0.158108;
-                sum += texture2D(source, qt_TexCoord0 + vec2(step.x * 3.2307, step.y * 3.2307)) * 0.070270;
-                sum += texture2D(source, qt_TexCoord0 - vec2(step.x * 3.2307, step.y * 3.2307)) * 0.070270;
-                gl_FragColor = sum * qt_Opacity;
-            }
-        "
+        source: blurSource
+        radius: root.activeBlur ? root.maxRadius : 0
+        cached: false
 
         Behavior on radius {
             NumberAnimation {
-                duration: 260
+                duration: root.activeBlur ? 260 : 180
                 easing.type: Easing.OutCubic
             }
         }

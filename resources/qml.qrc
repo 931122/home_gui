@@ -109,5 +109,8 @@
         <file alias="qml/LiquidGlassSlider.qml">../src/ui/qml/LiquidGlassSlider.qml</file>
         <file alias="icons/heater.svg">icons/heater.svg</file>
         <file alias="icons/purifier.svg">icons/purifier.svg</file>
+        <file alias="shaders/default.vert.qsb">../src/ui/shaders/default.vert.qsb</file>
+        <file alias="shaders/liquid_glass_slider.frag.qsb">../src/ui/shaders/liquid_glass_slider.frag.qsb</file>
+        <file alias="shaders/liquid_glass_surface.frag.qsb">../src/ui/shaders/liquid_glass_surface.frag.qsb</file>
     </qresource>
 </RCC>

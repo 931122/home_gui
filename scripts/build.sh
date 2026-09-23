@@ -87,6 +87,24 @@ choose_platform() {
     esac
 }
 
+ensure_qsb_shaders() {
+    local qsb_bin="${HOME}/Android/Qt/6.6.3/gcc_64/bin/qsb"
+    if [[ ! -x "${qsb_bin}" ]]; then
+        qsb_bin="$(find ${HOME}/Android/Qt -name "qsb" -type f -perm /111 2>/dev/null | head -n 1)"
+    fi
+    if [[ ! -x "${qsb_bin}" ]]; then
+        qsb_bin="$(command -v qsb || true)"
+    fi
+
+    local shader_dir="${ROOT_DIR}/src/ui/shaders"
+    if [[ -n "${qsb_bin}" && -x "${qsb_bin}" && -d "${shader_dir}" ]]; then
+        echo "Compiling Qt 6 QSB shaders..."
+        "${qsb_bin}" --qt6 -b -o "${shader_dir}/default.vert.qsb" "${shader_dir}/default.vert"
+        "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_slider.frag.qsb" "${shader_dir}/liquid_glass_slider.frag"
+        "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_surface.frag.qsb" "${shader_dir}/liquid_glass_surface.frag"
+    fi
+}
+
 ensure_native_ffmpeg() {
     local deps_dir="${ROOT_DIR}/.deps/ffmpeg"
 
@@ -192,6 +210,7 @@ run_native_build() {
     fi
 
     ensure_native_ffmpeg
+    ensure_qsb_shaders
 
     local cmake_extra_args=()
     if [[ -z "${CMAKE_PREFIX_PATH:-}" ]]; then
@@ -505,6 +524,8 @@ EOF
     fi
 
     local qt_host_path="${qt_android_dir}/../gcc_64"
+
+    ensure_qsb_shaders
 
     echo "Configuring project with Qt 6 CMake for Android..."
     "${qt_cmake_bin}" \
