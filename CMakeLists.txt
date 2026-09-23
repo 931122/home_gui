@@ -23,8 +23,10 @@ option(HOME_GUI_ENABLE_XIAOZHI "Build bundled Xiaozhi Linux audio backend" ON)
 
 if(APPLE)
     list(PREPEND CMAKE_PREFIX_PATH
-        "/usr/local/Cellar/qt@5/5.15.18"
-        "/usr/local/opt/qt@5"
+        "/opt/homebrew/opt/qt6"
+        "/opt/homebrew/opt/qt"
+        "/usr/local/opt/qt6"
+        "/usr/local/opt/qt"
     )
 endif()
 
@@ -38,19 +40,17 @@ if(HOME_GUI_CROSS_COMPILE)
             "${HOME_GUI_TARGET_QT_ROOT}"
             "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake"
             "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake/Qt6"
-            "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake/Qt5"
         )
     endif()
 
     add_compile_definitions(HOME_GUI_CROSS_COMPILE)
 endif()
 
-# 优先探测并加载 Qt6，若未安装则平滑向下兼容 Qt5
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
-find_package(Qt${QT_VERSION_MAJOR}Svg QUIET)
+# 纯 Qt 6 架构要求
+find_package(Qt6 6.0 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
+find_package(Qt6Svg QUIET)
 
-message(STATUS "Configured with Qt ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}.${QT_VERSION_PATCH}")
+message(STATUS "Configured with Qt ${Qt6_VERSION}")
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
 if(FFMPEG_FOUND)
     add_compile_definitions(HOME_GUI_HAS_FFMPEG)
@@ -98,17 +98,17 @@ target_include_directories(home_gui PRIVATE src src/3rdparty)
 find_package(ZLIB QUIET)
 
 target_link_libraries(home_gui PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
-    Qt${QT_VERSION_MAJOR}::Qml
-    Qt${QT_VERSION_MAJOR}::Quick
-    Qt${QT_VERSION_MAJOR}::Network
-    Qt${QT_VERSION_MAJOR}::WebSockets
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::Network
+    Qt6::WebSockets
     PkgConfig::FFMPEG
 )
 
-if(Qt${QT_VERSION_MAJOR}Svg_FOUND)
-    target_link_libraries(home_gui PRIVATE Qt${QT_VERSION_MAJOR}::Svg)
+if(Qt6Svg_FOUND)
+    target_link_libraries(home_gui PRIVATE Qt6::Svg)
 endif()
 
 if(UNIX AND NOT APPLE)

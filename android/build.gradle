@@ -32,12 +32,14 @@ android {
     compileSdkVersion androidCompileSdkVersion.toInteger()
     buildToolsVersion '28.0.3'
 
+    def resolvedQtAndroidDir = project.hasProperty('qtAndroidDir') ? qtAndroidDir : ''
+
     sourceSets {
         main {
             manifest.srcFile 'AndroidManifest.xml'
-            java.srcDirs = [qt5AndroidDir + '/src', 'src', 'java']
-            aidl.srcDirs = [qt5AndroidDir + '/src', 'src', 'aidl']
-            res.srcDirs = [qt5AndroidDir + '/res', 'res']
+            java.srcDirs = [resolvedQtAndroidDir + '/src', 'src', 'java']
+            aidl.srcDirs = [resolvedQtAndroidDir + '/src', 'src', 'aidl']
+            res.srcDirs = [resolvedQtAndroidDir + '/res', 'res']
             resources.srcDirs = ['resources']
             renderscript.srcDirs = ['src']
             assets.srcDirs = ['assets']

@@ -73,9 +73,9 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 
 ## 4. 技术栈规范与约束
 
-* **语言**: C++11/14, 严禁使用极耗内存的 C++20 特性。
+* **语言**: C++17, 采用现代标准 C++。
 * **库依赖**:
-    - Qt 5.15+ (Buildroot uClibc 环境)。
+    - Qt 6.x (Buildroot uClibc 环境)。
     - **fkYAML**: 用于模块化配置文件。
     - **Qt Network/WebSockets**: 用于 HA 连接。
 * **内存管理**:

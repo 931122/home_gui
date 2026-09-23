@@ -1,7 +1,7 @@
 QT += core gui qml quick network websockets svg
 QT -= widgets
 
-CONFIG += c++14
+CONFIG += c++17
 CONFIG(debug, debug|release) {
     CONFIG += qml_debug
 }
@@ -135,7 +135,6 @@ contains(CONFIG, rk3506) {
 }
 
 android {
-    QT += androidextras
     ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
 
     QMAKE_CFLAGS += -ffunction-sections -fdata-sections

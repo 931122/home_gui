@@ -5,85 +5,12 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
-#include <QOpenGLFunctions>
 #include <QPainter>
 #include <QQuickWindow>
 
 #include "modules/video/videoplayer.h"
 
 namespace {
-
-class ReusableVideoTexture : public QSGTexture, protected QOpenGLFunctions
-{
-public:
-    ReusableVideoTexture()
-    {
-        initializeOpenGLFunctions();
-    }
-
-    ~ReusableVideoTexture() override
-    {
-        if (m_textureId) {
-            glDeleteTextures(1, &m_textureId);
-            m_textureId = 0;
-        }
-    }
-
-    int textureId() const override
-    {
-        return static_cast<int>(m_textureId);
-    }
-
-    QSize textureSize() const override
-    {
-        return m_size;
-    }
-
-    bool hasAlphaChannel() const override
-    {
-        return false;
-    }
-
-    bool hasMipmaps() const override
-    {
-        return false;
-    }
-
-    void bind() override
-    {
-        glBindTexture(GL_TEXTURE_2D, m_textureId);
-    }
-
-    void update(const QImage &image)
-    {
-        if (image.isNull()) {
-            return;
-        }
-
-        if (m_textureId == 0) {
-            glGenTextures(1, &m_textureId);
-            glBindTexture(GL_TEXTURE_2D, m_textureId);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image.constBits());
-            m_size = image.size();
-        } else if (m_size != image.size()) {
-            glBindTexture(GL_TEXTURE_2D, m_textureId);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, image.constBits());
-            m_size = image.size();
-        } else {
-            // 复用已有显存，通过 glTexSubImage2D 原地更新纹理，零重新分配、零显存泄漏与碎片
-            glBindTexture(GL_TEXTURE_2D, m_textureId);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image.width(), image.height(), GL_RGBA, GL_UNSIGNED_BYTE, image.constBits());
-        }
-    }
-
-private:
-    GLuint m_textureId = 0;
-    QSize m_size;
-};
 
 QHash<QString, QImage> &sharedFrames()
 {
@@ -283,7 +210,6 @@ bool VideoItem::framePresented() const
 
 QSGNode *VideoItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_image.isNull()) {
         delete oldNode;
         return nullptr;
@@ -321,55 +247,6 @@ QSGNode *VideoItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     }
 
     return node;
-#else
-    QSGSimpleTextureNode *node = static_cast<QSGSimpleTextureNode *>(oldNode);
-    ReusableVideoTexture *videoTexture = nullptr;
-
-    if (m_image.isNull()) {
-        delete node;
-        return nullptr;
-    }
-
-    if (!node) {
-        node = new QSGSimpleTextureNode();
-        node->setFiltering(QSGTexture::Linear); // 启用 GPU 双线性滤波硬件加速
-        videoTexture = new ReusableVideoTexture();
-        node->setTexture(videoTexture);
-        node->setOwnsTexture(true);             // 节点析构时自动释放 VideoTexture 和底层 OpenGL 纹理
-    } else {
-        videoTexture = static_cast<ReusableVideoTexture *>(node->texture());
-        if (!videoTexture) {
-            videoTexture = new ReusableVideoTexture();
-            node->setTexture(videoTexture);
-            node->setOwnsTexture(true);
-        }
-    }
-
-    if (m_imageDirty) {
-        videoTexture->update(m_image);
-        node->markDirty(QSGNode::DirtyMaterial);
-        m_imageDirty = false;
-    }
-
-    if (videoTexture && videoTexture->textureId() > 0) {
-        const QRectF target = boundingRect();
-        const qreal imageRatio = qreal(m_image.width()) / qMax(1, m_image.height());
-        const qreal targetRatio = target.width() / qMax<qreal>(1.0, target.height());
-        QRectF drawRect = target;
-        if (imageRatio > targetRatio) {
-            const qreal height = target.width() / imageRatio;
-            drawRect.setY(target.y() + (target.height() - height) / 2.0);
-            drawRect.setHeight(height);
-        } else {
-            const qreal width = target.height() * imageRatio;
-            drawRect.setX(target.x() + (target.width() - width) / 2.0);
-            drawRect.setWidth(width);
-        }
-        node->setRect(drawRect);
-    }
-
-    return node;
-#endif
 }
 
 void VideoItem::geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry)

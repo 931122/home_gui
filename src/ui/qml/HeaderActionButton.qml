@@ -1,4 +1,4 @@
-import QtQuick 2.12
+import QtQuick
 import HomeGui 1.0
 
 Item {

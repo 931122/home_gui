@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a Qt 5.15 application for camera, ONVIF, Home Assistant, and weather integration.
+This repository contains a Qt 6 application for camera, ONVIF, Home Assistant, and weather integration.
 
 - `src/main.cpp`: application entry and QML type registration.
 - `src/core/`: configuration, global state, platform helpers, and module lifecycle.
@@ -23,7 +23,7 @@ There is currently no dedicated `tests/` directory.
 - `bash scripts/build.sh native`: one-step local native build (auto-detects Linux/macOS).
 - `bash scripts/build.sh linux`: one-step local Linux build.
 - `bash scripts/build.sh macos`: one-step local macOS build.
-- `bash scripts/build.sh rk3506`: one-step RK3506 cross build.
+- `bash scripts/build.sh rk3506`: one-step RK3506 cross build (requires Qt 6.x in Buildroot).
 - `./build/home_gui`: run the locally built application.
 - `cmake -S . -B build-rk3506 -DHOME_GUI_CROSS_COMPILE=ON -DHOME_GUI_TOOLCHAIN_FILE=$PWD/cmake/toolchains/rk3506-buildroot.cmake`: explicit cross-build entry.
 
@@ -31,7 +31,7 @@ Use `home_gui.pro` when opening the project in Qt Creator.
 
 ## Coding Style & Naming Conventions
 
-- Use C++14 and Qt 5 APIs already present in the project.
+- Use C++17 and Qt 6 APIs already present in the project.
 - Prefer 4-space indentation in C++ and consistent property alignment in QML.
 - Class names use `PascalCase`; functions and variables use `camelCase`.
 - Keep QML IDs short and descriptive, for example `videoLoader`, `cameraPopup`.

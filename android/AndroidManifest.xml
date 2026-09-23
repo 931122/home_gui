@@ -13,11 +13,11 @@
     
 
     <supports-screens android:largeScreens="true" android:normalScreens="true" android:anyDensity="true" android:smallScreens="true"/>
-    <application android:hardwareAccelerated="true" android:name="org.qtproject.qt5.android.bindings.QtApplication" android:label="智能中控" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:extractNativeLibs="true" android:usesCleartextTraffic="true" android:requestLegacyExternalStorage="true" android:resizeableActivity="true">
+    <application android:hardwareAccelerated="true" android:name="org.qtproject.qt.android.bindings.QtApplication" android:label="智能中控" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:extractNativeLibs="true" android:usesCleartextTraffic="true" android:requestLegacyExternalStorage="true" android:resizeableActivity="true">
         <!-- 支持 18:9, 19.5:9, 21:9 等全面屏比例，避免被系统强制 Letterbox 留黑边 -->
         <meta-data android:name="android.max_aspect" android:value="2.5" />
 
-        <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:name="org.qtproject.qt5.android.bindings.QtActivity" android:label="智能中控" android:theme="@style/AppTheme" android:screenOrientation="sensorLandscape" android:launchMode="singleTop" android:resizeableActivity="true">
+        <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:name="org.qtproject.qt.android.bindings.QtActivity" android:label="智能中控" android:theme="@style/AppTheme" android:screenOrientation="sensorLandscape" android:launchMode="singleTop" android:resizeableActivity="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

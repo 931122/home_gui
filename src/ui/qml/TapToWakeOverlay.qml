@@ -1,4 +1,4 @@
-import QtQuick 2.12
+import QtQuick
 
 /**
  * 屏幕熄灭纯黑防误触遮罩 (Tap to Wake Overlay)

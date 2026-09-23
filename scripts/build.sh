@@ -165,8 +165,10 @@ ensure_native_ffmpeg() {
 setup_macos_env() {
     # Add common Homebrew search paths if available
     local brew_paths=(
-        "/opt/homebrew/opt/qt@5"
-        "/usr/local/opt/qt@5"
+        "/opt/homebrew/opt/qt6"
+        "/opt/homebrew/opt/qt"
+        "/usr/local/opt/qt6"
+        "/usr/local/opt/qt"
         "/opt/homebrew/opt/ffmpeg"
         "/usr/local/opt/ffmpeg"
     )
@@ -239,7 +241,7 @@ run_android_build() {
     local build_jobs
     build_jobs="$(detect_build_jobs)"
 
-    local qt_android_dir="${QT_ANDROID_DIR:-${HOME}/Android/Qt/5.15.2/android}"
+    local qt_android_dir="${QT_ANDROID_DIR:-${HOME}/Android/Qt/6.8.0/android}"
     local android_sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
     local android_ndk_root="${ANDROID_NDK_ROOT:-${HOME}/Android/ndk/21.4.7075529}"
     local java_home="${JAVA_HOME:-/usr/lib/jvm/java-11-openjdk-amd64}"
@@ -249,7 +251,7 @@ run_android_build() {
 
     if [[ ! -d "${qt_android_dir}" || ! -x "${qt_android_dir}/bin/qmake" ]]; then
         echo "Error: Qt for Android not found at ${qt_android_dir}" >&2
-        echo "Please install Qt 5.15.2 for Android or export QT_ANDROID_DIR." >&2
+        echo "Please install Qt 6 for Android or export QT_ANDROID_DIR." >&2
         exit 1
     fi
 
