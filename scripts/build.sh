@@ -102,6 +102,7 @@ ensure_qsb_shaders() {
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/default.vert.qsb" "${shader_dir}/default.vert"
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_slider.frag.qsb" "${shader_dir}/liquid_glass_slider.frag"
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_surface.frag.qsb" "${shader_dir}/liquid_glass_surface.frag"
+        "${qsb_bin}" --qt6 -b -o "${shader_dir}/frosted_glass.frag.qsb" "${shader_dir}/frosted_glass.frag"
     fi
 }
 

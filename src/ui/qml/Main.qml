@@ -383,18 +383,12 @@ ApplicationWindow {
     }
 
     // 苹果级高斯毛玻璃动态虚化层（Qt 6 原生 RHI 硬件加速）
-    Loader {
-        id: frostedGlassLoader
+    FrostedGlassOverlay {
+        id: frostedGlassOverlay
         anchors.fill: parent
-        active: true
-        source: "FrostedGlassOverlay.qml"
+        sourceItem: mainSceneLayer
+        activeBlur: root.hasOpenPopup
         z: 90
-        onLoaded: {
-            if (item) {
-                item.sourceItem = mainSceneLayer
-                item.activeBlur = Qt.binding(function() { return root.hasOpenPopup })
-            }
-        }
     }
 
     Rectangle {

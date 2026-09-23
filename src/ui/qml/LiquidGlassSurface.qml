@@ -170,10 +170,10 @@ Item {
         property real highlight: root._effectiveHighlight
         property real fresnel: root.edgeFresnelPower
         property color edgeColor: root.edgeHighlightColor
-        property point pointer: root._normalizedPointer
+        property vector2d pointer: Qt.vector2d(root._normalizedPointer.x, root._normalizedPointer.y)
         property real hoverState: root.hovered ? 1.0 : 0.0
         property real pressState: root.pressed ? 1.0 : 0.0
-        property point resolution: Qt.point(root.width, root.height)
+        property vector2d resolution: Qt.vector2d(Math.max(root.width, 1), Math.max(root.height, 1))
         property real cornerRadius: root.cornerRadius
         property real lensMagnification: root.lensMagnification
 

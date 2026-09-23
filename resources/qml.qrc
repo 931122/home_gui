@@ -112,5 +112,6 @@
         <file alias="shaders/default.vert.qsb">../src/ui/shaders/default.vert.qsb</file>
         <file alias="shaders/liquid_glass_slider.frag.qsb">../src/ui/shaders/liquid_glass_slider.frag.qsb</file>
         <file alias="shaders/liquid_glass_surface.frag.qsb">../src/ui/shaders/liquid_glass_surface.frag.qsb</file>
+        <file alias="shaders/frosted_glass.frag.qsb">../src/ui/shaders/frosted_glass.frag.qsb</file>
     </qresource>
 </RCC>
