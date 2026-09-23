@@ -249,9 +249,9 @@ run_android_build() {
     local android_build_tools="${ANDROID_BUILD_TOOLS:-28.0.3}"
     local android_abi="${ANDROID_ABI:-arm64-v8a}"
 
-    if [[ ! -d "${qt_android_dir}" || ! -x "${qt_android_dir}/bin/qmake" ]]; then
-        echo "Error: Qt for Android not found at ${qt_android_dir}" >&2
-        echo "Please install Qt 6 for Android or export QT_ANDROID_DIR." >&2
+    if [[ ! -d "${qt_android_dir}" || (! -x "${qt_android_dir}/bin/qt-cmake" && ! -x "${qt_android_dir}/bin/androiddeployqt") ]]; then
+        echo "Error: Qt 6 for Android not found at ${qt_android_dir}" >&2
+        echo "Please install Qt 6 for Android (e.g. Qt 6.8.x arm64-v8a) or export QT_ANDROID_DIR." >&2
         exit 1
     fi
 
@@ -484,28 +484,27 @@ EOF
         cp -f "${local_config}" "${example_config}"
     fi
 
-    echo "Running qmake..."
-    "${qt_android_dir}/bin/qmake" "${ROOT_DIR}/home_gui.pro" \
-        -spec android-clang \
-        ANDROID_ABIS="${android_abi}"
-
-    echo "Compiling C++ shared library..."
-    make -j"${build_jobs}"
-
-    echo "Preparing android package tree..."
-    make INSTALL_ROOT=android-build install
-
-    # 剥离应用共享库调试符号以大幅缩减包体积
-    local target_so="${build_dir}/android-build/libs/${android_abi}/libhome_gui_${android_abi}.so"
-    if [[ -f "${target_so}" ]]; then
-        echo "Stripping debug symbols from ${target_so}..."
-        "${android_ndk_root}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android-strip" --strip-unneeded "${target_so}"
+    local qt_cmake_bin="${qt_android_dir}/bin/qt-cmake"
+    if [[ ! -x "${qt_cmake_bin}" ]]; then
+        qt_cmake_bin="cmake"
     fi
 
+    echo "Configuring project with Qt 6 CMake for Android..."
+    "${qt_cmake_bin}" \
+        -S "${ROOT_DIR}" \
+        -B "${build_dir}" \
+        -DANDROID_ABI="${android_abi}" \
+        -DANDROID_PLATFORM="${android_platform}" \
+        -DANDROID_SDK_ROOT="${android_sdk_root}" \
+        -DANDROID_NDK_ROOT="${android_ndk_root}" \
+        -DCMAKE_BUILD_TYPE=Release
+
+    echo "Compiling C++ shared library..."
+    cmake --build "${build_dir}" --parallel "${build_jobs}" --target home_gui
+
     local settings_json="${build_dir}/android-home_gui-deployment-settings.json"
-    if [[ -f "${settings_json}" ]]; then
-        # Ensure build tools revision matches what androiddeployqt gradle expects (28.0.3)
-        sed -i "s/\"sdkBuildToolsRevision\": *\"[^\"]*\"/\"sdkBuildToolsRevision\": \"${android_build_tools}\"/" "${settings_json}"
+    if [[ ! -f "${settings_json}" ]]; then
+        settings_json="$(find "${build_dir}" -name "*deployment-settings.json" 2>/dev/null | head -n 1)"
     fi
 
     echo "Packaging APK with androiddeployqt..."

@@ -51,12 +51,26 @@ find_package(Qt6 6.0 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
 find_package(Qt6Svg QUIET)
 
 message(STATUS "Configured with Qt ${Qt6_VERSION}")
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
-if(FFMPEG_FOUND)
-    add_compile_definitions(HOME_GUI_HAS_FFMPEG)
+
+if(ANDROID)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavformat.a")
+        set(FFMPEG_FOUND TRUE)
+        add_compile_definitions(HOME_GUI_HAS_FFMPEG)
+        set(ANDROID_FFMPEG_LIBRARIES
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavformat.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavcodec.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libswscale.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavutil.a"
+        )
+    endif()
+else()
+    pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
+    if(FFMPEG_FOUND)
+        add_compile_definitions(HOME_GUI_HAS_FFMPEG)
+    endif()
 endif()
 
-if(HOME_GUI_ENABLE_GSTREAMER)
+if(HOME_GUI_ENABLE_GSTREAMER AND NOT ANDROID)
     pkg_check_modules(GSTREAMER QUIET IMPORTED_TARGET gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
     if(GSTREAMER_FOUND)
         add_compile_definitions(HOME_GUI_HAS_GSTREAMER)
@@ -94,6 +108,9 @@ add_executable(home_gui
 )
 
 target_include_directories(home_gui PRIVATE src src/3rdparty)
+if(ANDROID AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/include")
+    target_include_directories(home_gui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/include")
+endif()
 
 find_package(ZLIB QUIET)
 
@@ -104,14 +121,28 @@ target_link_libraries(home_gui PRIVATE
     Qt6::Quick
     Qt6::Network
     Qt6::WebSockets
-    PkgConfig::FFMPEG
 )
+
+if(ANDROID)
+    if(ANDROID_FFMPEG_LIBRARIES)
+        target_link_libraries(home_gui PRIVATE ${ANDROID_FFMPEG_LIBRARIES} z)
+    endif()
+    set_target_properties(home_gui PROPERTIES
+        QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+        QT_ANDROID_TARGET_SDK_VERSION "33"
+        QT_ANDROID_MIN_SDK_VERSION "23"
+    )
+else()
+    if(FFMPEG_FOUND)
+        target_link_libraries(home_gui PRIVATE PkgConfig::FFMPEG)
+    endif()
+endif()
 
 if(Qt6Svg_FOUND)
     target_link_libraries(home_gui PRIVATE Qt6::Svg)
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
     target_link_libraries(home_gui PRIVATE z)
 endif()
 
@@ -152,3 +183,7 @@ endif()
 message(STATUS "HOME_GUI_CROSS_COMPILE=${HOME_GUI_CROSS_COMPILE}")
 message(STATUS "HOME_GUI_TARGET_SYSROOT=${HOME_GUI_TARGET_SYSROOT}")
 message(STATUS "HOME_GUI_TARGET_QT_ROOT=${HOME_GUI_TARGET_QT_ROOT}")
+
+if(COMMAND qt_finalize_target)
+    qt_finalize_target(home_gui)
+endif()

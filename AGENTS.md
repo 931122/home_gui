@@ -24,6 +24,7 @@ There is currently no dedicated `tests/` directory.
 - `bash scripts/build.sh linux`: one-step local Linux build.
 - `bash scripts/build.sh macos`: one-step local macOS build.
 - `bash scripts/build.sh rk3506`: one-step RK3506 cross build (requires Qt 6.x in Buildroot).
+- `bash scripts/build.sh android`: one-step Android build (requires Qt 6 for Android and NDK).
 - `./build/home_gui`: run the locally built application.
 - `cmake -S . -B build-rk3506 -DHOME_GUI_CROSS_COMPILE=ON -DHOME_GUI_TOOLCHAIN_FILE=$PWD/cmake/toolchains/rk3506-buildroot.cmake`: explicit cross-build entry.
 
