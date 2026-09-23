@@ -32,6 +32,56 @@
 #include "ui/videoitem.h"
 
 #if defined(Q_OS_ANDROID)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtCore/QJniObject>
+#include <QtCore/QJniEnvironment>
+#include <QtCore/qnativeinterface.h>
+
+static void setupAndroidImmersiveMode()
+{
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        return;
+    }
+
+    QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+    if (!window.isValid()) {
+        return;
+    }
+
+    const int sdkInt = QNativeInterface::QAndroidApplication::sdkVersion();
+    if (sdkInt >= 28) {
+        QJniObject layoutParams = window.callObjectMethod("getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+        if (layoutParams.isValid()) {
+            layoutParams.setField<jint>("layoutInDisplayCutoutMode", 1);
+            window.callMethod<void>("setAttributes", "(Landroid/view/WindowManager$LayoutParams;)V", layoutParams.object<jobject>());
+        }
+    }
+
+    const jint FLAG_FULLSCREEN = 1024;
+    const jint FLAG_KEEP_SCREEN_ON = 128;
+    window.callMethod<void>("addFlags", "(I)V", FLAG_FULLSCREEN | FLAG_KEEP_SCREEN_ON);
+
+    QJniObject decorView = window.callObjectMethod("getDecorView", "()Landroid/view/View;");
+    if (decorView.isValid()) {
+        const jint SYSTEM_UI_FLAG_LAYOUT_STABLE = 0x00000100;
+        const jint SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION = 0x00000200;
+        const jint SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN = 0x00000400;
+        const jint SYSTEM_UI_FLAG_HIDE_NAVIGATION = 0x00000002;
+        const jint SYSTEM_UI_FLAG_FULLSCREEN = 0x00000400;
+        const jint SYSTEM_UI_FLAG_IMMERSIVE_STICKY = 0x00001000;
+
+        const jint immersiveFlags = SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                  | SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                  | SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                  | SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                  | SYSTEM_UI_FLAG_FULLSCREEN
+                                  | SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+
+        decorView.callMethod<void>("setSystemUiVisibility", "(I)V", immersiveFlags);
+    }
+}
+#else
 #include <QtAndroidExtras/QtAndroid>
 #include <QtAndroidExtras/QAndroidJniObject>
 #include <QtAndroidExtras/QAndroidJniEnvironment>
@@ -85,6 +135,7 @@ static void setupAndroidImmersiveMode()
         }
     });
 }
+#endif
 #endif
 
 // 根据平台确定配置文件路径，在 Android 等沙盒环境中自动从资源释放到可写目录
@@ -404,7 +455,11 @@ int main(int argc, char *argv[])
             bootSplash.reset();
         }
 #if defined(Q_OS_ANDROID)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QNativeInterface::QAndroidApplication::hideSplashScreen(300);
+#else
         QtAndroid::hideSplashScreen(300);
+#endif
         setupAndroidImmersiveMode();
 #endif
         controller.startDeferredServices();

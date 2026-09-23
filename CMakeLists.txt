@@ -11,7 +11,7 @@ option(HOME_GUI_CROSS_COMPILE "Enable embedded cross-compilation settings" OFF)
 set(HOME_GUI_TARGET_QT_ROOT "" CACHE PATH "Target Qt installation prefix for cross-compilation")
 set(HOME_GUI_TARGET_SYSROOT "" CACHE PATH "Target sysroot path for cross-compilation")
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -37,6 +37,7 @@ if(HOME_GUI_CROSS_COMPILE)
         list(PREPEND CMAKE_PREFIX_PATH
             "${HOME_GUI_TARGET_QT_ROOT}"
             "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake"
+            "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake/Qt6"
             "${HOME_GUI_TARGET_QT_ROOT}/lib/cmake/Qt5"
         )
     endif()
@@ -44,8 +45,12 @@ if(HOME_GUI_CROSS_COMPILE)
     add_compile_definitions(HOME_GUI_CROSS_COMPILE)
 endif()
 
-find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
-find_package(Qt5Svg QUIET)
+# 优先探测并加载 Qt6，若未安装则平滑向下兼容 Qt5
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
+find_package(Qt${QT_VERSION_MAJOR}Svg QUIET)
+
+message(STATUS "Configured with Qt ${QT_VERSION_MAJOR}.${QT_VERSION_MINOR}.${QT_VERSION_PATCH}")
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
 if(FFMPEG_FOUND)
     add_compile_definitions(HOME_GUI_HAS_FFMPEG)
@@ -93,17 +98,17 @@ target_include_directories(home_gui PRIVATE src src/3rdparty)
 find_package(ZLIB QUIET)
 
 target_link_libraries(home_gui PRIVATE
-    Qt5::Core
-    Qt5::Gui
-    Qt5::Qml
-    Qt5::Quick
-    Qt5::Network
-    Qt5::WebSockets
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::WebSockets
     PkgConfig::FFMPEG
 )
 
-if(Qt5Svg_FOUND)
-    target_link_libraries(home_gui PRIVATE Qt5::Svg)
+if(Qt${QT_VERSION_MAJOR}Svg_FOUND)
+    target_link_libraries(home_gui PRIVATE Qt${QT_VERSION_MAJOR}::Svg)
 endif()
 
 if(UNIX AND NOT APPLE)

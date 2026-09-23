@@ -283,6 +283,45 @@ bool VideoItem::framePresented() const
 
 QSGNode *VideoItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (m_image.isNull()) {
+        delete oldNode;
+        return nullptr;
+    }
+
+    QSGSimpleTextureNode *node = static_cast<QSGSimpleTextureNode *>(oldNode);
+    if (!node) {
+        node = new QSGSimpleTextureNode();
+        node->setFiltering(QSGTexture::Linear);
+    }
+
+    if (m_imageDirty) {
+        QSGTexture *texture = window()->createTextureFromImage(m_image, QQuickWindow::TextureIsOpaque);
+        node->setTexture(texture);
+        node->setOwnsTexture(true);
+        node->markDirty(QSGNode::DirtyMaterial);
+        m_imageDirty = false;
+    }
+
+    if (node->texture()) {
+        const QRectF target = boundingRect();
+        const qreal imageRatio = qreal(m_image.width()) / qMax(1, m_image.height());
+        const qreal targetRatio = target.width() / qMax<qreal>(1.0, target.height());
+        QRectF drawRect = target;
+        if (imageRatio > targetRatio) {
+            const qreal height = target.width() / imageRatio;
+            drawRect.setY(target.y() + (target.height() - height) / 2.0);
+            drawRect.setHeight(height);
+        } else {
+            const qreal width = target.height() * imageRatio;
+            drawRect.setX(target.x() + (target.width() - width) / 2.0);
+            drawRect.setWidth(width);
+        }
+        node->setRect(drawRect);
+    }
+
+    return node;
+#else
     QSGSimpleTextureNode *node = static_cast<QSGSimpleTextureNode *>(oldNode);
     ReusableVideoTexture *videoTexture = nullptr;
 
@@ -330,6 +369,7 @@ QSGNode *VideoItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     }
 
     return node;
+#endif
 }
 
 void VideoItem::geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry)
