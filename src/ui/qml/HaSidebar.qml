@@ -1079,6 +1079,29 @@ Rectangle {
         }
     }
 
+    // 渐进模糊边缘 (ScrollEdgeBlurView - 顶部与底部边缘渐进失焦)
+    ScrollEdgeBlurView {
+        anchors.top: parent.top
+        anchors.topMargin: root.dp(7)
+        edge: "top"
+        blurDepth: root.dp(20)
+        backgroundSource: root.backgroundSource
+        visible: sidebarFlickable.contentY > 2
+        opacity: Math.min(1.0, sidebarFlickable.contentY / 15.0)
+        z: 30
+    }
+
+    ScrollEdgeBlurView {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.dp(7)
+        edge: "bottom"
+        blurDepth: root.dp(20)
+        backgroundSource: root.backgroundSource
+        visible: sidebarFlickable.contentY < (sidebarCol.implicitHeight - sidebarFlickable.height - 2)
+        opacity: Math.min(1.0, Math.max(0.0, (sidebarCol.implicitHeight - sidebarFlickable.height - sidebarFlickable.contentY) / 15.0))
+        z: 30
+    }
+
     // 全屏展示弹窗
     Popup {
         id: moreDevicesPopup

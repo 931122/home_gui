@@ -5,7 +5,7 @@ Item {
     id: root
 
     // ============================================================
-    // 公开属性 (Public API)
+    // 公开属性 (Public API - 对标 Liquid Glass 2.0)
     // ============================================================
     property string text: ""
     property string subText: ""
@@ -14,10 +14,19 @@ Item {
     property bool checkable: true
     property color accentColor: "#38bdf8"
     property Item backgroundSource: null
-    property real cornerRadius: root.dp(14)
+    property real cornerRadius: isFab ? Math.min(width, height) / 2 : root.dp(14)
     property bool isAvailable: true
 
-    // 滑动关闭支持
+    // 材质风格变体 (Regular / Clear)
+    property int materialVariant: LiquidGlassSurface.MaterialVariant.Regular
+
+    // 悬浮动作按钮模式 (FAB - Floating Action Button)
+    property bool isFab: false
+
+    // 倾斜高光微调向量
+    property vector2d tilt: Qt.vector2d(0, 0)
+
+    // 滑动关闭支持 (Slide-To-Turn-Off)
     property bool isSlideToTurnOff: false
     property real slideProgress: 0.0
     property bool isDraggingSlide: false
@@ -26,11 +35,11 @@ Item {
     signal clicked()
     signal slideCompleted()
 
-    implicitWidth: root.dp(120)
-    implicitHeight: root.dp(52)
+    implicitWidth: isFab ? root.dp(56) : root.dp(120)
+    implicitHeight: isFab ? root.dp(56) : root.dp(52)
 
-    function dp(value) { return Theme.dp(value) }
-    function fs(value) { return Theme.fs(value) }
+    function dp(value) { return (typeof Theme !== "undefined" && Theme) ? Theme.dp(value) : value }
+    function fs(value) { return (typeof Theme !== "undefined" && Theme) ? Theme.fs(value) : value }
 
     // ============================================================
     // 物理弹性按压手感 (Spring Touch Dynamics)
@@ -80,23 +89,26 @@ Item {
             anchors.bottomMargin: -root.dp(3)
             radius: root.cornerRadius
             color: Qt.rgba(0, 0, 0, 0.35)
-            opacity: btnArea.pressed ? 0.20 : 0.45
+            opacity: btnArea.pressed ? 0.20 : (root.isFab ? 0.55 : 0.45)
             z: 0
         }
 
-        // 2. 真实液态玻璃光学着色器层 (LiquidGlassSurface Shader)
+        // 2. Liquid Glass 2.0 原生光学透镜表面
         LiquidGlassSurface {
             id: glassShader
             anchors.fill: parent
             backgroundSource: root.backgroundSource
             cornerRadius: root.cornerRadius
-            baseOpacity: root.checked ? 0.50 : 0.36
+            materialVariant: root.materialVariant
+            tilt: root.tilt
+            dispersion: root.materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 0.22 : 0.16
+            baseOpacity: root.checked ? 0.52 : (root.isFab ? 0.40 : 0.36)
             tintColor: root.checked 
                        ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.65) 
-                       : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-            tintStrength: root.checked ? 0.45 : 0.18
-            highlightIntensity: btnArea.pressed ? 0.95 : (root.checked ? 0.88 : 0.70)
-            edgeFresnelPower: 2.2
+                       : (root.isFab ? Qt.rgba(1.0, 1.0, 1.0, 0.20) : Qt.rgba(1.0, 1.0, 1.0, 0.12))
+            tintStrength: root.checked ? 0.45 : (root.isFab ? 0.25 : 0.18)
+            highlightIntensity: btnArea.pressed ? 0.98 : (root.checked ? 0.90 : 0.72)
+            edgeFresnelPower: root.materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 1.8 : 2.2
             hovered: btnArea.containsMouse
             pressed: btnArea.pressed
             pointerPosition: Qt.point(btnArea.mouseX, btnArea.mouseY)
@@ -104,24 +116,42 @@ Item {
             z: 1
         }
         
-        // 3. 状态轮廓保护层（仅在激活或滑动警告时呈现极微发丝边缘，杜绝任何人工死白月牙）
+        // 3. 状态与微晶轮廓保护层
         Rectangle {
             anchors.fill: parent
             radius: root.cornerRadius
             color: "transparent"
             border.color: (root.isSlideToTurnOff && root.checked && root.showSlideHint)
                           ? Qt.rgba(1, 0.8, 0.4, 0.65)
-                          : (root.checked ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.10))
+                          : (root.checked ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.12))
             border.width: 1
             z: 2
         }
 
-        // 6. 内容排布 (Content Layout)
+        // 4. FAB 悬浮居中模式 (FAB Layout)
+        Item {
+            anchors.fill: parent
+            visible: root.isFab
+            z: 10
+
+            Image {
+                anchors.centerIn: parent
+                width: root.dp(24)
+                height: root.dp(24)
+                source: root.iconSource
+                sourceSize: Qt.size(width, height)
+                smooth: true
+                visible: status === Image.Ready
+            }
+        }
+
+        // 5. 常规按钮内容排布 (Standard Button Layout)
         Row {
             id: contentRow
             anchors.fill: parent
             anchors.margins: root.dp(8)
             spacing: root.dp(10)
+            visible: !root.isFab
             opacity: (root.isSlideToTurnOff && root.checked && (root.isDraggingSlide || root.slideProgress > 0.01))
                      ? Math.max(0.08, 1.0 - root.slideProgress * 2.5) : 1.0
             z: 10
@@ -150,7 +180,7 @@ Item {
                 }
             }
 
-            // 中间文本区域
+            // 中间文本区域 (自适应深浅色高对比度)
             Column {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - root.dp(36 + 10 + 30)
@@ -159,7 +189,8 @@ Item {
                 Text {
                     width: parent.width
                     text: root.text
-                    color: root.checked ? "#ffffff" : "#d8e2ec"
+                    // 🌓 亮度自适应感知：深底白字，浅底深色
+                    color: root.checked ? "#ffffff" : (glassShader.isDarkBackground ? "#f1f5f9" : "#0f172a")
                     font.pixelSize: root.fs(13)
                     font.bold: true
                     elide: Text.ElideRight
@@ -168,7 +199,7 @@ Item {
                 Text {
                     width: parent.width
                     text: root.subText
-                    color: root.checked ? "#86efac" : "#8ea1b4"
+                    color: root.checked ? "#86efac" : (glassShader.isDarkBackground ? "#94a3b8" : "#475569")
                     font.pixelSize: root.fs(10)
                     font.bold: root.checked
                     elide: Text.ElideRight
@@ -206,7 +237,7 @@ Item {
         }
 
         // ============================================================
-        // 7. 苹果纯正水滴液态微透镜滑动关机跑道 (Apple Liquid Glass Slider)
+        // 6. 苹果纯正水滴液态微透镜滑动关机跑道
         // ============================================================
         LiquidGlassSlider {
             id: slideCapsuleTrack

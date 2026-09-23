@@ -107,6 +107,10 @@
         <file alias="qml/LiquidGlassSurface.qml">../src/ui/qml/LiquidGlassSurface.qml</file>
         <file alias="qml/LiquidGlassButton.qml">../src/ui/qml/LiquidGlassButton.qml</file>
         <file alias="qml/LiquidGlassSlider.qml">../src/ui/qml/LiquidGlassSlider.qml</file>
+        <file alias="qml/LiquidGlassTabBar.qml">../src/ui/qml/LiquidGlassTabBar.qml</file>
+        <file alias="qml/LiquidGlassChip.qml">../src/ui/qml/LiquidGlassChip.qml</file>
+        <file alias="qml/ScrollEdgeBlurView.qml">../src/ui/qml/ScrollEdgeBlurView.qml</file>
+        <file alias="qml/LiquidGlassToast.qml">../src/ui/qml/LiquidGlassToast.qml</file>
         <file alias="icons/heater.svg">icons/heater.svg</file>
         <file alias="icons/purifier.svg">icons/purifier.svg</file>
         <file alias="shaders/default.vert.qsb">../src/ui/shaders/default.vert.qsb</file>

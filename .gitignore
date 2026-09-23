@@ -3,6 +3,7 @@ build-*/
 .deps/
 .codex
 android/ffmpeg/
+scratch/
 
 
 # CMake

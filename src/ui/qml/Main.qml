@@ -521,4 +521,18 @@ ApplicationWindow {
         id: bootSplashOverlay
         visible: ((typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android") && !finished
     }
+
+    // 全局 Liquid Glass 2.0 悬浮高透微晶 Toast 胶囊
+    LiquidGlassToast {
+        id: globalToast
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.dp(24)
+        backgroundSource: mainSceneLayer
+        z: 1100
+    }
+
+    function showToast(message, icon) {
+        globalToast.show(message, icon)
+    }
 }
