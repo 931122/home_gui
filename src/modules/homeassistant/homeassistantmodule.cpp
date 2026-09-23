@@ -726,7 +726,7 @@ void HomeAssistantWorker::connectWebSocket()
         startReconnectTimer();
     });
     connect(m_webSocket,
-            QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
+            &QWebSocket::errorOccurred,
             this,
             [this](QAbstractSocket::SocketError) {
         if (m_webSocket != nullptr) {

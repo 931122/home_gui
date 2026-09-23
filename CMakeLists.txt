@@ -77,7 +77,7 @@ if(HOME_GUI_ENABLE_GSTREAMER AND NOT ANDROID)
     endif()
 endif()
 
-add_executable(home_gui
+qt_add_executable(home_gui
     src/main.cpp
     src/core/appconfig.cpp
     src/core/configmanager.cpp
@@ -184,6 +184,3 @@ message(STATUS "HOME_GUI_CROSS_COMPILE=${HOME_GUI_CROSS_COMPILE}")
 message(STATUS "HOME_GUI_TARGET_SYSROOT=${HOME_GUI_TARGET_SYSROOT}")
 message(STATUS "HOME_GUI_TARGET_QT_ROOT=${HOME_GUI_TARGET_QT_ROOT}")
 
-if(COMMAND qt_finalize_target)
-    qt_finalize_target(home_gui)
-endif()

@@ -297,7 +297,7 @@ static void installChineseTranslators(QGuiApplication &app)
 
     QLocale::setDefault(QLocale(QLocale::Chinese, QLocale::China));
 
-    const QString qtTranslationsPath = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
+    const QString qtTranslationsPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
     if (!qtTranslator.load(QStringLiteral("qt_zh_CN"), qtTranslationsPath)) {
         // qWarning() << "Failed to load Qt translator from" << qtTranslationsPath;
     } else {

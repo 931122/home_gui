@@ -442,7 +442,7 @@ void XiaozhiWorker::connectWebSocket()
         }
     });
     connect(m_webSocket,
-            static_cast<void (QWebSocket::*)(QAbstractSocket::SocketError)>(&QWebSocket::error),
+            &QWebSocket::errorOccurred,
             this,
             [this](QAbstractSocket::SocketError error) {
         Q_UNUSED(error)

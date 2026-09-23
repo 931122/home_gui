@@ -17,7 +17,7 @@ extern "C" {
 }
 
 #if defined(Q_OS_ANDROID)
-#include <QtAndroidExtras/QAndroidJniEnvironment>
+#include <QtCore/QJniEnvironment>
 extern "C" {
 #include <libavcodec/jni.h>
 }
@@ -125,7 +125,7 @@ bool LibavDecodeThread::openStream(bool &retryable)
     }
 
 #if defined(HOME_GUI_HAS_FFMPEG) && defined(Q_OS_ANDROID)
-    JavaVM *vm = QAndroidJniEnvironment::javaVM();
+    JavaVM *vm = QJniEnvironment::javaVM();
     if (vm) {
         av_jni_set_java_vm(vm, nullptr);
     }

@@ -12,12 +12,12 @@
 #include <memory>
 
 #include "core/appconfig.h"
+#include "ui/screenpowermanager.h"
 
 class ConfigManager;
 class GlobalState;
 class ModuleManager;
 class BrightnessController;
-class ScreenPowerManager;
 class WeatherService;
 class HolidayService;
 

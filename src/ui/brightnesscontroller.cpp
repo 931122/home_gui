@@ -1,5 +1,6 @@
 #include "brightnesscontroller.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -7,8 +8,8 @@
 #include <QtGlobal>
 
 #if defined(Q_OS_ANDROID)
-#include <QtAndroidExtras/QAndroidJniObject>
-#include <QtAndroidExtras/QtAndroid>
+#include <QtCore/QJniObject>
+#include <QtCore/qcoreapplication_platform.h>
 #endif
 
 qreal BrightnessController::clampBrightness(qreal brightness)
@@ -25,9 +26,9 @@ QString BrightnessController::firstLine(const QString &value)
 bool BrightnessController::initialize()
 {
 #if defined(Q_OS_ANDROID)
-    QAndroidJniObject activity = QtAndroid::androidActivity();
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
     if (activity.isValid()) {
-        jfloat sysBri = QAndroidJniObject::callStaticMethod<jfloat>(
+        jfloat sysBri = QJniObject::callStaticMethod<jfloat>(
             "org/qtproject/example/home_gui/AndroidBrightnessHelper",
             "getSystemBrightness",
             "(Landroid/app/Activity;)F",
@@ -98,9 +99,9 @@ bool BrightnessController::setBrightness(qreal brightness)
 
 #if defined(Q_OS_ANDROID)
     m_brightness = clamped;
-    QAndroidJniObject activity = QtAndroid::androidActivity();
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
     if (activity.isValid()) {
-        QAndroidJniObject::callStaticMethod<void>(
+        QJniObject::callStaticMethod<void>(
             "org/qtproject/example/home_gui/AndroidBrightnessHelper",
             "setWindowBrightness",
             "(Landroid/app/Activity;F)V",
@@ -143,9 +144,9 @@ bool BrightnessController::setBrightness(qreal brightness)
 QString BrightnessController::detectPanelType() const
 {
 #if defined(Q_OS_ANDROID)
-    QAndroidJniObject activity = QtAndroid::androidActivity();
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
     if (activity.isValid()) {
-        QAndroidJniObject jResult = QAndroidJniObject::callStaticObjectMethod(
+        QJniObject jResult = QJniObject::callStaticObjectMethod(
             "org/qtproject/example/home_gui/AndroidBrightnessHelper",
             "detectPanelType",
             "(Landroid/app/Activity;)Ljava/lang/String;",

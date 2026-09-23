@@ -53,8 +53,6 @@ public:
     bool framePresented() const;
     QString activeDecoder() const;
 
-    void geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry) override;
-
 signals:
     void sourceChanged();
     void backendChanged();
@@ -72,6 +70,7 @@ public slots:
     void stop();
 
 protected:
+    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *updatePaintNodeData) override;
 
 private slots:

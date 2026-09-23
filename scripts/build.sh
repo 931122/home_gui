@@ -193,7 +193,22 @@ run_native_build() {
 
     ensure_native_ffmpeg
 
-    cmake -S "${ROOT_DIR}" -B "${build_dir}"
+    local cmake_extra_args=()
+    if [[ -z "${CMAKE_PREFIX_PATH:-}" ]]; then
+        local possible_qt6_paths=(
+            "${HOME}/Android/Qt/6.6.3/gcc_64"
+            "/opt/Qt/6.6.3/gcc_64"
+            "/usr/local/Qt-6.6.3"
+        )
+        for p in "${possible_qt6_paths[@]}"; do
+            if [[ -d "${p}" ]]; then
+                cmake_extra_args+=("-DCMAKE_PREFIX_PATH=${p}")
+                break
+            fi
+        done
+    fi
+
+    cmake -S "${ROOT_DIR}" -B "${build_dir}" "${cmake_extra_args[@]}"
     cmake --build "${build_dir}" --parallel "${build_jobs}"
     echo
     echo "Build finished:"
@@ -241,17 +256,17 @@ run_android_build() {
     local build_jobs
     build_jobs="$(detect_build_jobs)"
 
-    local qt_android_dir="${QT_ANDROID_DIR:-${HOME}/Android/Qt/6.8.0/android}"
+    local qt_android_dir="${QT_ANDROID_DIR:-${HOME}/Android/Qt/6.6.3/android_arm64_v8a}"
     local android_sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
-    local android_ndk_root="${ANDROID_NDK_ROOT:-${HOME}/Android/ndk/21.4.7075529}"
+    local android_ndk_root="${ANDROID_NDK_ROOT:-${HOME}/Android/ndk/android-ndk-r25c}"
     local java_home="${JAVA_HOME:-/usr/lib/jvm/java-11-openjdk-amd64}"
-    local android_platform="${ANDROID_PLATFORM:-android-30}"
-    local android_build_tools="${ANDROID_BUILD_TOOLS:-28.0.3}"
+    local android_platform="${ANDROID_PLATFORM:-android-33}"
+    local android_build_tools="${ANDROID_BUILD_TOOLS:-33.0.2}"
     local android_abi="${ANDROID_ABI:-arm64-v8a}"
 
-    if [[ ! -d "${qt_android_dir}" || (! -x "${qt_android_dir}/bin/qt-cmake" && ! -x "${qt_android_dir}/bin/androiddeployqt") ]]; then
+    if [[ ! -d "${qt_android_dir}" || (! -x "${qt_android_dir}/bin/qt-cmake" && ! -x "${qt_android_dir}/../gcc_64/bin/androiddeployqt") ]]; then
         echo "Error: Qt 6 for Android not found at ${qt_android_dir}" >&2
-        echo "Please install Qt 6 for Android (e.g. Qt 6.8.x arm64-v8a) or export QT_ANDROID_DIR." >&2
+        echo "Please install Qt 6 for Android (e.g. Qt 6.6.3 / 6.8.x arm64-v8a) or export QT_ANDROID_DIR." >&2
         exit 1
     fi
 
@@ -262,12 +277,12 @@ run_android_build() {
     fi
 
     if [[ ! -d "${android_ndk_root}" ]]; then
-        if [[ -d "${android_sdk_root}/ndk/21.4.7075529" ]]; then
-            android_ndk_root="${android_sdk_root}/ndk/21.4.7075529"
+        if [[ -d "${HOME}/Android/ndk/android-ndk-r25c" ]]; then
+            android_ndk_root="${HOME}/Android/ndk/android-ndk-r25c"
         elif [[ -d "${android_sdk_root}/ndk-bundle" ]]; then
             android_ndk_root="${android_sdk_root}/ndk-bundle"
         else
-            echo "Error: Android NDK r21e not found at ${android_ndk_root}" >&2
+            echo "Error: Android NDK not found at ${android_ndk_root}" >&2
             echo "Please export ANDROID_NDK_ROOT." >&2
             exit 1
         fi
@@ -489,42 +504,34 @@ EOF
         qt_cmake_bin="cmake"
     fi
 
+    local qt_host_path="${qt_android_dir}/../gcc_64"
+
     echo "Configuring project with Qt 6 CMake for Android..."
     "${qt_cmake_bin}" \
         -S "${ROOT_DIR}" \
         -B "${build_dir}" \
+        -DQT_HOST_PATH="${qt_host_path}" \
         -DANDROID_ABI="${android_abi}" \
         -DANDROID_PLATFORM="${android_platform}" \
         -DANDROID_SDK_ROOT="${android_sdk_root}" \
         -DANDROID_NDK_ROOT="${android_ndk_root}" \
         -DCMAKE_BUILD_TYPE=Release
 
-    echo "Compiling C++ shared library..."
-    cmake --build "${build_dir}" --parallel "${build_jobs}" --target home_gui
+    echo "Compiling and packaging APK with Qt 6 CMake..."
+    cmake --build "${build_dir}" --parallel "${build_jobs}" --target apk
 
-    local settings_json="${build_dir}/android-home_gui-deployment-settings.json"
-    if [[ ! -f "${settings_json}" ]]; then
-        settings_json="$(find "${build_dir}" -name "*deployment-settings.json" 2>/dev/null | head -n 1)"
-    fi
-
-    echo "Packaging APK with androiddeployqt..."
-    "${qt_android_dir}/bin/androiddeployqt" \
-        --input "${settings_json}" \
-        --output "${build_dir}/android-build" \
-        --android-platform "${android_platform}" \
-        --jdk "${java_home}" \
-        --gradle
-
-    local apk_path="${build_dir}/android-build/build/outputs/apk/debug/android-build-debug.apk"
-    local final_apk="${build_dir}/home_gui-debug.apk"
-    if [[ -f "${apk_path}" ]]; then
+    local apk_path
+    apk_path="$(find "${build_dir}/android-build/build/outputs/apk" -type f -name "*.apk" 2>/dev/null | head -n 1)"
+    local final_apk="${build_dir}/home_gui.apk"
+    if [[ -n "${apk_path}" && -f "${apk_path}" ]]; then
         cp -f "${apk_path}" "${final_apk}"
         local apk_size
         apk_size="$(du -h "${final_apk}" | cut -f1)"
         echo
         echo "================================================================"
         echo " Android build succeeded!"
-        echo "   APK Location : ${final_apk}"
+        echo "   Source APK   : ${apk_path}"
+        echo "   Final APK    : ${final_apk}"
         echo "   APK Size     : ${apk_size}"
         echo "   Target Arch  : ${android_abi}"
         echo
@@ -534,7 +541,7 @@ EOF
         cleanup_android_config
         trap - EXIT INT TERM
     else
-        echo "Error: APK was not generated at expected location: ${apk_path}" >&2
+        echo "Error: APK was not generated at expected location under ${build_dir}/android-build/build/outputs/apk" >&2
         exit 1
     fi
 }
