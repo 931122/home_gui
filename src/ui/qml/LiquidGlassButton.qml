@@ -206,125 +206,18 @@ Item {
         }
 
         // ============================================================
-        // 7. 苹果滑动关机胶囊浮层 (Apple Slide to Off Capsule)
+        // 7. 苹果纯正水滴液态微透镜滑动关机跑道 (Apple Liquid Glass Slider)
         // ============================================================
-        // 7. 苹果纯正水滴液态微透镜滑动关机跑道与弹性水滴滑块 (Apple Liquid Glass Slider)
-        // ============================================================
-        Rectangle {
+        LiquidGlassSlider {
             id: slideCapsuleTrack
             anchors.fill: parent
             anchors.margins: root.dp(4)
-            radius: height / 2
-            color: Qt.rgba(0.06, 0.12, 0.20, 0.48)
-            border.color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 0.45, 0.35, 0.65) : Qt.rgba(1.0, 1.0, 1.0, 0.22)
-            border.width: 1
             visible: root.isSlideToTurnOff && root.checked && (root.isDraggingSlide || root.slideProgress > 0.005)
             z: 25
-
-            // 水滴黏滞拖尾流光 (Viscous Liquid Trail)
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                anchors.margins: root.dp(2)
-                width: Math.max(height, btnKnob.x + btnKnob.width * 0.5)
-                radius: height / 2
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { 
-                        position: 0.0
-                        color: root.slideProgress >= 0.60 ? Qt.rgba(0.95, 0.30, 0.22, 0.38) : Qt.rgba(1.0, 1.0, 1.0, 0.12) 
-                    }
-                    GradientStop { 
-                        position: 1.0
-                        color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 0.48, 0.32, 0.65) : Qt.rgba(1.0, 1.0, 1.0, 0.28) 
-                    }
-                }
-                border.color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 0.55, 0.40, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.30)
-                border.width: 1
-                visible: root.slideProgress > 0.01
-            }
-
-            // 跑道中心微晶流光文字
-            Text {
-                anchors.centerIn: parent
-                text: root.slideProgress >= 0.60 ? qsTr("松手以关闭") : qsTr("向右滑动关闭")
-                color: root.slideProgress >= 0.60 ? "#ffffff" : Qt.rgba(1.0, 1.0, 1.0, 0.82)
-                font.pixelSize: root.fs(12)
-                font.bold: true
-                opacity: root.slideProgress >= 0.60 ? 1.0 : Math.max(0.0, 1.0 - root.slideProgress * 1.8)
-            }
-
-            // 水滴微透镜弹性滑块 (Liquid Glass Pebble Knob)
-            Item {
-                id: btnKnob
-                readonly property real baseD: parent.height - root.dp(6)
-                readonly property real stretchFactor: root.isDraggingSlide ? Math.min(0.26, root.slideProgress * 0.38) : 0.0
-
-                width: baseD * (1.0 + stretchFactor)
-                height: baseD * (1.0 - stretchFactor * 0.35)
-                anchors.verticalCenter: parent.verticalCenter
-                x: root.dp(3) + (parent.width - baseD - root.dp(6)) * root.slideProgress
-
-                Behavior on width { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
-                Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.OutQuad } }
-
-                // 滑块阴影
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.topMargin: root.dp(2)
-                    radius: height / 2
-                    color: Qt.rgba(0, 0, 0, 0.35)
-                }
-
-                // 水滴微晶透镜球体
-                Rectangle {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: root.slideProgress >= 0.60 ? "#ff5252" : "#ffffff"
-                    border.color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 0.7, 0.6, 0.8) : Qt.rgba(1.0, 1.0, 1.0, 0.85)
-                    border.width: 1
-
-                    // 水滴顶部月白晶莹高光弧
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: parent.radius
-                        gradient: Gradient {
-                            GradientStop { 
-                                position: 0.0
-                                color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 1.0, 1.0, 0.85) : Qt.rgba(1.0, 1.0, 1.0, 0.95) 
-                            }
-                            GradientStop { 
-                                position: 0.50
-                                color: root.slideProgress >= 0.60 ? Qt.rgba(1.0, 0.6, 0.5, 0.40) : Qt.rgba(0.92, 0.94, 0.98, 0.60) 
-                            }
-                            GradientStop { 
-                                position: 1.0
-                                color: root.slideProgress >= 0.60 ? Qt.rgba(0.9, 0.2, 0.1, 0.90) : Qt.rgba(0.85, 0.88, 0.94, 0.80) 
-                            }
-                        }
-                    }
-
-                    // 顶部 1px 钻石切面微反光线
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: parent.width * 0.65
-                        height: 1
-                        color: "#ffffff"
-                        opacity: 0.90
-                    }
-
-                    Image {
-                        anchors.centerIn: parent
-                        width: root.dp(16)
-                        height: root.dp(16)
-                        source: root.slideProgress >= 0.60 ? "qrc:/icons/power.svg" : "qrc:/icons/arrow-right.svg"
-                        sourceSize: Qt.size(width, height)
-                        smooth: true
-                    }
-                }
-            }
+            progress: root.slideProgress
+            isDragging: root.isDraggingSlide
+            interactive: false
+            backgroundSource: root.backgroundSource
         }
     }
 
