@@ -121,11 +121,11 @@ Popup {
             anchors.fill: parent
             anchors.margins: -cameraPopupRoot.dp(8)
             property real startY: 0
-            onPressed: {
+            onPressed: (mouse) => {
                 startY = mouse.y
                 cameraPopupRoot.isDraggingDown = true
             }
-            onPositionChanged: {
+            onPositionChanged: (mouse) => {
                 var dy = mouse.y - startY
                 if (dy > 0) {
                     cameraPopupRoot.dragOffsetY = dy
@@ -133,7 +133,7 @@ Popup {
                     cameraPopupRoot.dragOffsetY = dy * 0.2
                 }
             }
-            onReleased: {
+            onReleased: (mouse) => {
                 cameraPopupRoot.isDraggingDown = false
                 if (cameraPopupRoot.dragOffsetY > cameraPopupRoot.dp(55)) {
                     cameraPopupRoot.dragOffsetY = cameraPopupRoot.height

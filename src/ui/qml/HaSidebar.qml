@@ -7,29 +7,29 @@ import "CookerRecipes.js" as RecipesData
 import "SteamerData.js" as SteamerData
 
 Rectangle {
-    id: root
+    id: sidebarRoot
 
     property real scaleUnit: 1.0
     property int panelRadius: dp(18)
     property int cardRadius: dp(14)
     property Item backgroundSource: null
     readonly property bool moreDevicesOpened: moreDevicesPopup.opened
-    readonly property bool hasActionStateData: appController.haActionModels && appController.haActionModels.length > 0
+    readonly property bool hasActionStateData: (typeof appController !== "undefined" && appController && appController.haActionModels) ? appController.haActionModels.length > 0 : false
 
     // 核心大卡片设备（固定展示配置文件中的前 4 个设备，各独占一行）
     readonly property var coreCardModels: {
-        var fullModel = root.hasActionStateData ? appController.haActionModels : appController.haActionNames
+        var fullModel = (typeof appController !== "undefined" && appController) ? (sidebarRoot.hasActionStateData ? appController.haActionModels : appController.haActionNames) : []
         return (fullModel || []).slice(0, 4)
     }
 
     // 小磁贴数据源（从第 5 个设备开始取，横屏下少一行双列共 2 行：3 个设备 + 1 个“更多设备”）
     readonly property var miniTileModel: {
-        var fullModel = root.hasActionStateData ? appController.haActionModels : appController.haActionNames
+        var fullModel = (typeof appController !== "undefined" && appController) ? (sidebarRoot.hasActionStateData ? appController.haActionModels : appController.haActionNames) : []
         if (!fullModel) return []
         var items = fullModel.slice(4)
         var res = []
 
-        var maxTileDevices = root.width > root.dp(320) ? 5 : 3
+        var maxTileDevices = sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3
         for (var i = 0; i < Math.min(items.length, maxTileDevices); ++i) {
             res.push({
                 isDevice: true,
@@ -50,9 +50,9 @@ Rectangle {
 
     // 更多设备弹窗专用数据源：排除大卡片与小磁贴后的所有剩余设备
     readonly property var unlistedDevices: {
-        var fullModel = root.hasActionStateData ? appController.haActionModels : appController.haActionNames
+        var fullModel = (typeof appController !== "undefined" && appController) ? (sidebarRoot.hasActionStateData ? appController.haActionModels : appController.haActionNames) : []
         if (!fullModel) return []
-        var maxTileDevices = root.width > root.dp(320) ? 5 : 3
+        var maxTileDevices = sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3
         var displayedCount = 4 + Math.min(Math.max(0, fullModel.length - 4), maxTileDevices)
         return fullModel.slice(displayedCount)
     }
@@ -60,39 +60,39 @@ Rectangle {
     readonly property bool isAndroidPlatform: (typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android"
 
     // 侧边栏布局高度自适应自动计算（按屏幕可用高度动态伸展，彻底消除底部留白）
-    readonly property bool isWideLayout: root.width > root.dp(340)
+    readonly property bool isWideLayout: sidebarRoot.width > sidebarRoot.dp(340)
     readonly property int coreCardRows: isWideLayout ? 2 : 4
-    readonly property int titleBarHeight: root.dp(20)
-    readonly property int baseMainSpacing: root.dp(4)
-    readonly property int miniGridRowSpacing: root.dp(5)
-    readonly property int miniGridColSpacing: root.dp(6)
+    readonly property int titleBarHeight: sidebarRoot.dp(20)
+    readonly property int baseMainSpacing: sidebarRoot.dp(4)
+    readonly property int miniGridRowSpacing: sidebarRoot.dp(5)
+    readonly property int miniGridColSpacing: sidebarRoot.dp(6)
 
     readonly property int dynamicTileRows: {
         var count = miniTileModel ? miniTileModel.length : 0
-        var cols = isWideLayout ? 4 : (root.width > root.dp(320) ? 3 : 2)
+        var cols = isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(320) ? 3 : 2)
         var rows = Math.ceil(count / cols)
         return Math.max(1, Math.min(3, rows))
     }
 
     readonly property var dynamicLayoutMetrics: {
         var availH = sidebarFlickable.height
-        var rows = root.dynamicTileRows
-        var cRows = root.coreCardRows
-        var minCardH = root.dp(46)
-        var minTileH = root.dp(36)
-        var defMainSpacing = root.baseMainSpacing
-        var defRowSpacing = root.miniGridRowSpacing
+        var rows = sidebarRoot.dynamicTileRows
+        var cRows = sidebarRoot.coreCardRows
+        var minCardH = sidebarRoot.dp(46)
+        var minTileH = sidebarRoot.dp(36)
+        var defMainSpacing = sidebarRoot.baseMainSpacing
+        var defRowSpacing = sidebarRoot.miniGridRowSpacing
 
         if (availH <= 0) {
             return {
-                cardHeight: root.dp(56),
-                tileHeight: root.dp(40),
+                cardHeight: sidebarRoot.dp(56),
+                tileHeight: sidebarRoot.dp(40),
                 mainSpacing: defMainSpacing,
                 rowSpacing: defRowSpacing
             }
         }
 
-        var fixedOverhead = root.titleBarHeight + ((cRows + 1) * defMainSpacing) + (Math.max(0, rows - 1) * defRowSpacing)
+        var fixedOverhead = sidebarRoot.titleBarHeight + ((cRows + 1) * defMainSpacing) + (Math.max(0, rows - 1) * defRowSpacing)
         var netH = availH - fixedOverhead
 
         var weightCard = 1.35
@@ -198,7 +198,7 @@ Rectangle {
         if (!model) return 0.0
         if (isCookerAction(model, name)) {
             if (!model.active) return 0.0
-            var isKw = Boolean(model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1))
+            var isKw = !!(model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1))
             if (isKw) return 0.45
             var lt = RecipesData.formatCookerTime(model)
             var mins = parseInt(lt)
@@ -217,6 +217,7 @@ Rectangle {
             return model.active ? 0.75 : 0.20
         }
         if (isSteamerAction(model, name)) {
+            if (typeof appController === "undefined" || !appController) return 0.0
             if (!appController.steamerRunning) return appController.steamerSocketState ? 0.15 : 0.0
             var totalSec = Math.max(1, appController.steamerTotalMinutes * 60)
             return Math.max(0.05, Math.min(1.0, 1.0 - (appController.steamerRemainSeconds / totalSec)))
@@ -238,7 +239,7 @@ Rectangle {
     // 获取设备专属主题色
     function getDeviceThemeColor(model, name) {
         if (isCookerAction(model, name)) {
-            var isKw = Boolean(model && (model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1)))
+            var isKw = !!(model && (model.cookerIsKeepWarm || model.is_keep_warm || (model.stateText && model.stateText.indexOf("保温") !== -1)))
             return isKw ? "#f59e0b" : "#ff7043"
         }
         if (isWasherAction(model, name)) return "#38bdf8"
@@ -249,7 +250,7 @@ Rectangle {
         return "#4ade80"
     }
 
-    radius: root.panelRadius
+    radius: sidebarRoot.panelRadius
     color: Qt.rgba(0.13, 0.19, 0.29, 0.38)
     border.color: Qt.rgba(1, 1, 1, 0.18)
     border.width: 1
@@ -260,8 +261,8 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.leftMargin: root.panelRadius
-        anchors.rightMargin: root.panelRadius
+        anchors.leftMargin: sidebarRoot.panelRadius
+        anchors.rightMargin: sidebarRoot.panelRadius
         height: 1
         color: "#ffffff"
         opacity: 0.45
@@ -273,10 +274,10 @@ Rectangle {
         Item {
             id: actionDelegate
             Layout.fillWidth: true
-            implicitHeight: root.calculatedCardHeight
-            Layout.preferredHeight: root.calculatedCardHeight
+            implicitHeight: sidebarRoot.calculatedCardHeight
+            Layout.preferredHeight: sidebarRoot.calculatedCardHeight
             anchors.fill: (parent && typeof parent.actionData !== "undefined") ? parent : undefined
-            property real radius: root.cardRadius
+            property real radius: sidebarRoot.cardRadius
             
             readonly property var currentItemData: {
                 if (typeof parent !== "undefined" && parent && typeof parent.actionData !== "undefined" && parent.actionData !== null) {
@@ -292,7 +293,7 @@ Rectangle {
                     return currentItemData
                 }
                 if (typeof currentItemData === "string" && currentItemData !== "") {
-                    var list = appController.haActionModels
+                    var list = (typeof appController !== "undefined" && appController) ? appController.haActionModels : null
                     if (list) {
                         for (var i = 0; i < list.length; ++i) {
                             if (list[i] && (list[i].name === currentItemData || list[i].entityId === currentItemData)) {
@@ -303,18 +304,18 @@ Rectangle {
                 }
                 return null
             }
-            property string actionName: actionModel ? (actionModel.name || actionModel.entityId || "") : (currentItemData ? String(currentItemData) : "")
+            property string actionName: actionModel ? (actionModel.name || actionModel.entityId || "") : (currentItemData ? ("" + currentItemData) : "")
             property bool localActiveOverride: false
             property bool hasLocalOverride: false
             readonly property bool isActive: {
                 if (hasLocalOverride) return localActiveOverride
-                if (root.isSteamerAction(actionModel, actionName)) {
-                    return appController.steamerRunning
+                if (typeof sidebarRoot !== "undefined" && sidebarRoot && sidebarRoot.isSteamerAction && sidebarRoot.isSteamerAction(actionModel, actionName)) {
+                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : false
                 }
-                return actionModel ? Boolean(actionModel.active) : false
+                return actionModel ? !!(actionModel.active) : false
             }
             readonly property bool isAvailable: actionModel ? (actionModel.available !== false) : true
-            readonly property bool isSlideToTurnOff: actionModel ? Boolean(actionModel.slideToTurnOff || actionModel.slideToClose || actionModel.slide_to_turn_off || actionModel.slide_to_close) : false
+            readonly property bool isSlideToTurnOff: actionModel ? !!(actionModel.slideToTurnOff || actionModel.slideToClose || actionModel.slide_to_turn_off || actionModel.slide_to_close) : false
 
             property real slideProgress: 0.0
             property bool isDraggingSlide: false
@@ -340,11 +341,11 @@ Rectangle {
 
             SequentialAnimation {
                 id: shakeAnim
-                NumberAnimation { target: actionDelegate; property: "shakeX"; from: 0; to: -root.dp(6); duration: 45; easing.type: Easing.OutQuad }
-                NumberAnimation { target: actionDelegate; property: "shakeX"; from: -root.dp(6); to: root.dp(6); duration: 60; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: actionDelegate; property: "shakeX"; from: root.dp(6); to: -root.dp(4); duration: 50; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: actionDelegate; property: "shakeX"; from: -root.dp(4); to: root.dp(4); duration: 50; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: actionDelegate; property: "shakeX"; from: root.dp(4); to: 0; duration: 45; easing.type: Easing.InQuad }
+                NumberAnimation { target: actionDelegate; property: "shakeX"; from: 0; to: -sidebarRoot.dp(6); duration: 45; easing.type: Easing.OutQuad }
+                NumberAnimation { target: actionDelegate; property: "shakeX"; from: -sidebarRoot.dp(6); to: sidebarRoot.dp(6); duration: 60; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: actionDelegate; property: "shakeX"; from: sidebarRoot.dp(6); to: -sidebarRoot.dp(4); duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: actionDelegate; property: "shakeX"; from: -sidebarRoot.dp(4); to: sidebarRoot.dp(4); duration: 50; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: actionDelegate; property: "shakeX"; from: sidebarRoot.dp(4); to: 0; duration: 45; easing.type: Easing.InQuad }
             }
 
             Timer {
@@ -383,8 +384,8 @@ Rectangle {
                 }
             }
 
-            readonly property color themeColor: root.getDeviceThemeColor(actionModel, actionName)
-            readonly property real deviceProgress: root.calculateDeviceProgress(actionModel, actionName)
+            readonly property color themeColor: sidebarRoot.getDeviceThemeColor(actionModel, actionName)
+            readonly property real deviceProgress: sidebarRoot.calculateDeviceProgress(actionModel, actionName)
 
             // 物理弹性按压手感 (Liquid Glass Spring Interaction)
             scale: (actionArea.pressed && !actionDelegate.isDraggingSlide && !actionDelegate.isSlideToTurnOff) ? 0.965 : 1.0
@@ -395,8 +396,8 @@ Rectangle {
             // 0. 悬浮暗色软阴影 (Floating Ambient Shadow)
             Rectangle {
                 anchors.fill: parent
-                anchors.topMargin: root.dp(2)
-                anchors.bottomMargin: -root.dp(2)
+                anchors.topMargin: sidebarRoot.dp(2)
+                anchors.bottomMargin: -sidebarRoot.dp(2)
                 radius: actionDelegate.radius
                 color: Qt.rgba(0, 0, 0, 0.35)
                 opacity: (actionArea.pressed && !actionDelegate.isDraggingSlide) ? 0.15 : 0.40
@@ -408,7 +409,7 @@ Rectangle {
             LiquidGlassSurface {
                 id: cardGlassSurface
                 anchors.fill: parent
-                backgroundSource: root.backgroundSource
+                backgroundSource: sidebarRoot.backgroundSource
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: actionDelegate.radius
                 materialVariant: LiquidGlassSurface.MaterialVariant.Clear
@@ -449,8 +450,8 @@ Rectangle {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 anchors.margins: 1
-                width: (parent.width - 2) * (actionArea.brightnessDrag ? actionArea.previewLevel : root.actionLevel(actionModel))
-                visible: root.hasDetailAction(actionModel) && isAvailable
+                width: (parent.width - 2) * (actionArea.brightnessDrag ? actionArea.previewLevel : sidebarRoot.actionLevel(actionModel))
+                visible: !!(typeof sidebarRoot !== "undefined" && sidebarRoot && sidebarRoot.hasDetailAction && sidebarRoot.hasDetailAction(actionModel) && isAvailable)
                 z: 5
                 
                 Behavior on width {
@@ -473,7 +474,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        width: root.dp(3)
+                        width: sidebarRoot.dp(3)
                         color: "#ffffff"
                         opacity: actionArea.brightnessDrag ? 0.95 : 0.60
                     }
@@ -485,15 +486,15 @@ Rectangle {
                 id: liquidSlideCapsule
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.leftMargin: root.dp(4)
-                anchors.rightMargin: root.dp(4)
+                anchors.leftMargin: sidebarRoot.dp(4)
+                anchors.rightMargin: sidebarRoot.dp(4)
                 anchors.verticalCenter: parent.verticalCenter
-                height: Math.min(root.dp(48), parent.height - root.dp(6))
+                height: Math.min(sidebarRoot.dp(48), parent.height - sidebarRoot.dp(6))
                 visible: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && (actionDelegate.isDraggingSlide || actionDelegate.slideProgress > 0.005)
                 z: 25
                 progress: actionDelegate.slideProgress
                 isDragging: actionDelegate.isDraggingSlide
-                backgroundSource: root.backgroundSource
+                backgroundSource: sidebarRoot.backgroundSource
                 scrollSync: sidebarFlickable.contentY
             }
 
@@ -507,7 +508,7 @@ Rectangle {
                 property real startY: 0
                 property bool dragTriggered: false
 
-                onPressed: {
+                onPressed: (mouse) => {
                     startX = mouse.x
                     startY = mouse.y
                     dragTriggered = false
@@ -519,23 +520,23 @@ Rectangle {
                         actionArea.preventStealing = true
                     }
 
-                    if (root.hasDetailAction(actionDelegate.actionModel)) {
-                        previewLevel = root.actionLevel(actionDelegate.actionModel)
+                    if (sidebarRoot.hasDetailAction(actionDelegate.actionModel)) {
+                        previewLevel = sidebarRoot.actionLevel(actionDelegate.actionModel)
                     }
                 }
 
-                onPositionChanged: {
+                onPositionChanged: (mouse) => {
                     var dx = mouse.x - startX
                     var dy = mouse.y - startY
 
                     // 1. 滑动关闭手势处理 (仅在开启且是 slideToTurnOff 开关时触发)
                     if (actionDelegate.isSlideToTurnOff && actionDelegate.isActive) {
                         // 如果还未开始水平拖动且垂直位移明显占优，放开给外层列表滚动
-                        if (!actionDelegate.isDraggingSlide && Math.abs(dy) > root.dp(12) && Math.abs(dy) > Math.abs(dx) * 1.6) {
+                        if (!actionDelegate.isDraggingSlide && Math.abs(dy) > sidebarRoot.dp(12) && Math.abs(dy) > Math.abs(dx) * 1.6) {
                             actionArea.preventStealing = false
                             return
                         }
-                        if (!dragTriggered && (dx > root.dp(4) || Math.abs(dx) > Math.abs(dy))) {
+                        if (!dragTriggered && (dx > sidebarRoot.dp(4) || Math.abs(dx) > Math.abs(dy))) {
                             dragTriggered = true
                             actionDelegate.isDraggingSlide = true
                             actionArea.preventStealing = true
@@ -549,8 +550,8 @@ Rectangle {
                     }
 
                     // 2. 亮度 / 窗帘 / 媒体音量滑动处理
-                    if (root.hasDetailAction(actionDelegate.actionModel)) {
-                        if (!brightnessDrag && Math.abs(dx) > root.dp(10)) {
+                    if (sidebarRoot.hasDetailAction(actionDelegate.actionModel)) {
+                        if (!brightnessDrag && Math.abs(dx) > sidebarRoot.dp(10)) {
                             brightnessDrag = true
                         }
                         if (brightnessDrag) {
@@ -559,7 +560,7 @@ Rectangle {
                     }
                 }
 
-                onReleased: {
+                onReleased: (mouse) => {
                     actionArea.preventStealing = false
 
                     // 1. 滑动关闭释放处理
@@ -579,9 +580,9 @@ Rectangle {
                     // 2. 亮度 / 窗帘 / 媒体音量释放处理
                     if (brightnessDrag) {
                         const name = actionDelegate.actionName
-                        if (root.isLightAction(actionDelegate.actionModel)) appController.setHaLightBrightness(name, Math.max(0.01, previewLevel))
-                        else if (root.isCoverAction(actionDelegate.actionModel)) appController.setHaCoverPosition(name, previewLevel)
-                        else if (root.isMediaPlayerAction(actionDelegate.actionModel)) appController.setHaMediaVolume(name, previewLevel)
+                        if (sidebarRoot.isLightAction(actionDelegate.actionModel)) appController.setHaLightBrightness(name, Math.max(0.01, previewLevel))
+                        else if (sidebarRoot.isCoverAction(actionDelegate.actionModel)) appController.setHaCoverPosition(name, previewLevel)
+                        else if (sidebarRoot.isMediaPlayerAction(actionDelegate.actionModel)) appController.setHaMediaVolume(name, previewLevel)
                         brightnessDrag = false
                     }
                 }
@@ -612,12 +613,12 @@ Rectangle {
                     }
 
                     // 其他设备普通点击
-                    if (root.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                        root.openCooker(actionDelegate.actionModel, actionDelegate.actionName)
-                    } else if (root.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                        root.openWasher(actionDelegate.actionModel, actionDelegate.actionName)
-                    } else if (root.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                        root.openSteamer(actionDelegate.actionModel, actionDelegate.actionName)
+                    if (sidebarRoot.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                        sidebarRoot.openCooker(actionDelegate.actionModel, actionDelegate.actionName)
+                    } else if (sidebarRoot.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                        sidebarRoot.openWasher(actionDelegate.actionModel, actionDelegate.actionName)
+                    } else if (sidebarRoot.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                        sidebarRoot.openSteamer(actionDelegate.actionModel, actionDelegate.actionName)
                     } else {
                         appController.triggerHaAction(actionDelegate.actionName)
                     }
@@ -626,16 +627,16 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.margins: root.dp(8)
-                spacing: root.dp(10)
+                anchors.margins: sidebarRoot.dp(8)
+                spacing: sidebarRoot.dp(10)
                 opacity: liquidSlideCapsule.visible ? Math.max(0.06, 1.0 - actionDelegate.slideProgress * 3.0) : 1.0
                 Behavior on opacity { NumberAnimation { duration: 120 } }
                 z: 10
 
                 // 左侧：苹果微晶玻璃图标底座（晶莹通透透镜圆盘）
                 Rectangle {
-                    Layout.preferredWidth: root.dp(36)
-                    Layout.preferredHeight: root.dp(36)
+                    Layout.preferredWidth: sidebarRoot.dp(36)
+                    Layout.preferredHeight: sidebarRoot.dp(36)
                     Layout.alignment: Qt.AlignVCenter
                     radius: width / 2
                     gradient: Gradient {
@@ -654,9 +655,9 @@ Rectangle {
 
                     Image {
                         anchors.centerIn: parent
-                        width: root.dp(20)
-                        height: root.dp(20)
-                        source: root.getIconPath(actionDelegate.actionModel, actionDelegate.actionName)
+                        width: sidebarRoot.dp(20)
+                        height: sidebarRoot.dp(20)
+                        source: sidebarRoot.getIconPath(actionDelegate.actionModel, actionDelegate.actionName)
                         sourceSize: Qt.size(width, height)
                         smooth: true
                         visible: status === Image.Ready
@@ -665,13 +666,13 @@ Rectangle {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: root.dp(2)
+                    spacing: sidebarRoot.dp(2)
 
                     Text {
                         Layout.fillWidth: true
                         text: actionDelegate.actionName || qsTr("未知设备")
                         color: actionDelegate.isActive ? "#ffffff" : "#c5d1dd"
-                        font.pixelSize: root.fs(13)
+                        font.pixelSize: sidebarRoot.fs(13)
                         font.bold: true
                         elide: Text.ElideRight
                     }
@@ -691,12 +692,12 @@ Rectangle {
                                 }
                                 return qsTr("单击开启")
                             }
-                            if (root.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                            if (sidebarRoot.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
                                 var st = (actionDelegate.actionModel && actionDelegate.actionModel.stateText) ? actionDelegate.actionModel.stateText : qsTr("待机")
                                 if (actionDelegate.isActive && actionDelegate.actionModel) {
                                     var lt = RecipesData.formatCookerTime(actionDelegate.actionModel)
                                     if (lt !== "" && lt !== "--") {
-                                        var isKw = Boolean(actionDelegate.actionModel.cookerIsKeepWarm || actionDelegate.actionModel.is_keep_warm || st.indexOf("保温") !== -1)
+                                        var isKw = !!(actionDelegate.actionModel.cookerIsKeepWarm || actionDelegate.actionModel.is_keep_warm || st.indexOf("保温") !== -1)
                                         if (isKw) {
                                             st += " · " + lt
                                         } else {
@@ -706,7 +707,7 @@ Rectangle {
                                 }
                                 return st
                             }
-                            if (root.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                            if (sidebarRoot.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
                                 var m = actionDelegate.actionModel
                                 var isPwr = m ? (m.washerPower === "on") : false
                                 if (!isPwr) return qsTr("已关机")
@@ -717,11 +718,11 @@ Rectangle {
                                 }
                                 return rSt
                             }
-                            if (root.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                                if (appController.steamerRunning) {
+                            if (sidebarRoot.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                                if (typeof appController !== "undefined" && appController && appController.steamerRunning) {
                                     return qsTr("%1 · 剩%2").arg(appController.steamerDishName).arg(SteamerData.formatRemainTime(appController.steamerRemainSeconds))
                                 }
-                                return appController.steamerSocketState ? qsTr("待机 · 插座通电") : qsTr("待机")
+                                return (typeof appController !== "undefined" && appController && appController.steamerSocketState) ? qsTr("待机 · 插座通电") : qsTr("待机")
                             }
                             return actionDelegate.actionModel ? actionDelegate.actionModel.stateText : ""
                         }
@@ -732,21 +733,21 @@ Rectangle {
                                 return "#86efac"
                             }
                             if (actionDelegate.isActive) {
-                                if (root.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                                    var isKw = Boolean(actionDelegate.actionModel && (actionDelegate.actionModel.cookerIsKeepWarm || actionDelegate.actionModel.is_keep_warm || (actionDelegate.actionModel.stateText && actionDelegate.actionModel.stateText.indexOf("保温") !== -1)))
+                                if (sidebarRoot.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                                    var isKw = !!(actionDelegate.actionModel && (actionDelegate.actionModel.cookerIsKeepWarm || actionDelegate.actionModel.is_keep_warm || (actionDelegate.actionModel.stateText && actionDelegate.actionModel.stateText.indexOf("保温") !== -1)))
                                     return isKw ? "#f3a83c" : "#9af06d"
                                 }
-                                if (root.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                                if (sidebarRoot.isWasherAction(actionDelegate.actionModel, actionDelegate.actionName)) {
                                     return "#38bdf8"
                                 }
-                                if (root.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
+                                if (sidebarRoot.isSteamerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
                                     return "#4ade80"
                                 }
                                 return "#86efac"
                             }
                             return "#7b8ea0"
                         }
-                        font.pixelSize: root.fs(10)
+                        font.pixelSize: sidebarRoot.fs(10)
                         elide: Text.ElideRight
                         visible: text !== ""
                     }
@@ -754,7 +755,7 @@ Rectangle {
                     // 底部微晶刻度进度滑轨 (Apple Frosted Ruler Track)
                     Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.dp(3)
+                        Layout.preferredHeight: sidebarRoot.dp(3)
                         visible: actionDelegate.isActive || actionDelegate.isSlideToTurnOff
 
                         // 底槽轨道
@@ -766,15 +767,15 @@ Rectangle {
                             // 4 个微小等分刻度点 (Tick Dots)
                             Row {
                                 anchors.fill: parent
-                                anchors.leftMargin: root.dp(6)
-                                anchors.rightMargin: root.dp(6)
-                                spacing: (parent.width - root.dp(12) - 4 * root.dp(2)) / 3
+                                anchors.leftMargin: sidebarRoot.dp(6)
+                                anchors.rightMargin: sidebarRoot.dp(6)
+                                spacing: (parent.width - sidebarRoot.dp(12) - 4 * sidebarRoot.dp(2)) / 3
 
                                 Repeater {
                                     model: 4
                                     Rectangle {
-                                        width: root.dp(2)
-                                        height: root.dp(2)
+                                        width: sidebarRoot.dp(2)
+                                        height: sidebarRoot.dp(2)
                                         radius: 1
                                         color: Qt.rgba(1, 1, 1, 0.20)
                                         anchors.verticalCenter: parent.verticalCenter
@@ -800,9 +801,9 @@ Rectangle {
 
                 // 开启状态下且需要滑动关闭时的苹果微晶小指示胶囊
                 Rectangle {
-                    Layout.preferredWidth: root.dp(26)
-                    Layout.preferredHeight: root.dp(24)
-                    radius: root.dp(12)
+                    Layout.preferredWidth: sidebarRoot.dp(26)
+                    Layout.preferredHeight: sidebarRoot.dp(24)
+                    radius: sidebarRoot.dp(12)
                     color: actionDelegate.showSlideHint ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)
                     border.color: actionDelegate.showSlideHint ? Qt.rgba(1, 1, 1, 0.50) : Qt.rgba(1, 1, 1, 0.22)
                     border.width: 1
@@ -810,8 +811,8 @@ Rectangle {
 
                     Image {
                         anchors.centerIn: parent
-                        width: root.dp(11)
-                        height: root.dp(11)
+                        width: sidebarRoot.dp(11)
+                        height: sidebarRoot.dp(11)
                         source: "qrc:/icons/arrow-right.svg"
                         sourceSize: Qt.size(width, height)
                         smooth: true
@@ -835,9 +836,9 @@ Rectangle {
         Item {
             id: tileDelegate
             Layout.fillWidth: true
-            implicitHeight: root.calculatedTileHeight
-            Layout.preferredHeight: root.calculatedTileHeight
-            property real radius: root.dp(10)
+            implicitHeight: sidebarRoot.calculatedTileHeight
+            Layout.preferredHeight: sidebarRoot.calculatedTileHeight
+            property real radius: sidebarRoot.dp(10)
 
             readonly property bool isDevice: modelData && modelData.isDevice === true
             readonly property var itemData: isDevice ? modelData.data : null
@@ -845,7 +846,7 @@ Rectangle {
                 if (!isDevice) return null
                 if (typeof itemData === "object" && itemData !== null) return itemData
                 if (typeof itemData === "string" && itemData !== "") {
-                    var list = appController.haActionModels
+                    var list = (typeof appController !== "undefined" && appController) ? appController.haActionModels : null
                     if (list) {
                         for (var i = 0; i < list.length; ++i) {
                             if (list[i] && (list[i].name === itemData || list[i].entityId === itemData)) {
@@ -856,16 +857,16 @@ Rectangle {
                 }
                 return null
             }
-            readonly property string actionName: isDevice ? (actionModel ? (actionModel.name || actionModel.entityId || "") : (itemData ? String(itemData) : "")) : (modelData ? modelData.name : "")
+            readonly property string actionName: isDevice ? (actionModel ? (actionModel.name || actionModel.entityId || "") : (itemData ? ("" + itemData) : "")) : (modelData ? modelData.name : "")
             readonly property bool isActive: {
-                if (root.isSteamerAction(actionModel, actionName)) {
-                    return appController.steamerRunning
+                if (typeof sidebarRoot !== "undefined" && sidebarRoot && sidebarRoot.isSteamerAction && sidebarRoot.isSteamerAction(actionModel, actionName)) {
+                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : false
                 }
-                return isDevice ? (actionModel ? Boolean(actionModel.active) : false) : false
+                return isDevice ? (actionModel ? !!(actionModel.active) : false) : false
             }
             readonly property bool isAvailable: isDevice ? (actionModel ? (actionModel.available !== false) : true) : true
 
-            readonly property color themeColor: root.getDeviceThemeColor(actionModel, actionName)
+            readonly property color themeColor: sidebarRoot.getDeviceThemeColor(actionModel, actionName)
 
             transform: Rotation {
                 origin.x: tileDelegate.width / 2
@@ -882,8 +883,8 @@ Rectangle {
             // 0. 悬浮暗色软阴影
             Rectangle {
                 anchors.fill: parent
-                anchors.topMargin: root.dp(2)
-                anchors.bottomMargin: -root.dp(2)
+                anchors.topMargin: sidebarRoot.dp(2)
+                anchors.bottomMargin: -sidebarRoot.dp(2)
                 radius: tileDelegate.radius
                 color: Qt.rgba(0, 0, 0, 0.32)
                 opacity: tileArea.pressed ? 0.14 : 0.35
@@ -894,7 +895,7 @@ Rectangle {
             LiquidGlassSurface {
                 id: tileGlassSurface
                 anchors.fill: parent
-                backgroundSource: root.backgroundSource
+                backgroundSource: sidebarRoot.backgroundSource
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: tileDelegate.radius
                 materialVariant: LiquidGlassSurface.MaterialVariant.Clear
@@ -928,10 +929,10 @@ Rectangle {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.topMargin: root.dp(5)
-                anchors.bottomMargin: root.dp(5)
-                anchors.leftMargin: root.dp(7)
-                anchors.rightMargin: root.dp(7)
+                anchors.topMargin: sidebarRoot.dp(5)
+                anchors.bottomMargin: sidebarRoot.dp(5)
+                anchors.leftMargin: sidebarRoot.dp(7)
+                anchors.rightMargin: sidebarRoot.dp(7)
                 spacing: 0
                 z: 10
 
@@ -941,9 +942,9 @@ Rectangle {
 
                     // 图标容器 (22 x 22 苹果微晶底座)
                     Rectangle {
-                        Layout.preferredWidth: root.dp(22)
-                        Layout.preferredHeight: root.dp(22)
-                        radius: root.dp(11)
+                        Layout.preferredWidth: sidebarRoot.dp(22)
+                        Layout.preferredHeight: sidebarRoot.dp(22)
+                        radius: sidebarRoot.dp(11)
                         gradient: Gradient {
                             GradientStop { 
                                 position: 0.0
@@ -963,10 +964,10 @@ Rectangle {
 
                         Image {
                             anchors.centerIn: parent
-                            width: root.dp(12)
-                            height: root.dp(12)
+                            width: sidebarRoot.dp(12)
+                            height: sidebarRoot.dp(12)
                             sourceSize: Qt.size(width, height)
-                            source: !tileDelegate.isDevice ? "qrc:/icons/more.svg" : root.getIconPath(tileDelegate.actionModel, tileDelegate.actionName)
+                            source: !tileDelegate.isDevice ? "qrc:/icons/more.svg" : sidebarRoot.getIconPath(tileDelegate.actionModel, tileDelegate.actionName)
                             smooth: true
                         }
                     }
@@ -976,9 +977,9 @@ Rectangle {
                     // 激活状态发光小圆点（开启时亮起温和柔光绿，未开启时不显示）
                     Rectangle {
                         visible: tileDelegate.isDevice && tileDelegate.isActive
-                        Layout.preferredWidth: root.dp(5)
-                        Layout.preferredHeight: root.dp(5)
-                        radius: root.dp(2.5)
+                        Layout.preferredWidth: sidebarRoot.dp(5)
+                        Layout.preferredHeight: sidebarRoot.dp(5)
+                        radius: sidebarRoot.dp(2.5)
                         color: "#86efac"
                     }
 
@@ -987,7 +988,7 @@ Rectangle {
                         visible: !tileDelegate.isDevice
                         text: "›"
                         color: "#7b8ea0"
-                        font.pixelSize: root.fs(13)
+                        font.pixelSize: sidebarRoot.fs(13)
                         font.bold: true
                     }
                 }
@@ -998,7 +999,7 @@ Rectangle {
                     Layout.fillWidth: true
                     text: tileDelegate.actionName || qsTr("未知")
                     color: tileDelegate.isActive ? "#ffffff" : "#c5d1dd"
-                    font.pixelSize: root.fs(12)
+                    font.pixelSize: sidebarRoot.fs(12)
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -1015,12 +1016,12 @@ Rectangle {
                         return
                     }
 
-                    if (root.isCookerAction(tileDelegate.actionModel, tileDelegate.actionName)) {
-                        root.openCooker(tileDelegate.actionModel, tileDelegate.actionName)
-                    } else if (root.isWasherAction(tileDelegate.actionModel, tileDelegate.actionName)) {
-                        root.openWasher(tileDelegate.actionModel, tileDelegate.actionName)
-                    } else if (root.isSteamerAction(tileDelegate.actionModel, tileDelegate.actionName)) {
-                        root.openSteamer(tileDelegate.actionModel, tileDelegate.actionName)
+                    if (sidebarRoot.isCookerAction(tileDelegate.actionModel, tileDelegate.actionName)) {
+                        sidebarRoot.openCooker(tileDelegate.actionModel, tileDelegate.actionName)
+                    } else if (sidebarRoot.isWasherAction(tileDelegate.actionModel, tileDelegate.actionName)) {
+                        sidebarRoot.openWasher(tileDelegate.actionModel, tileDelegate.actionName)
+                    } else if (sidebarRoot.isSteamerAction(tileDelegate.actionModel, tileDelegate.actionName)) {
+                        sidebarRoot.openSteamer(tileDelegate.actionModel, tileDelegate.actionName)
                     } else {
                         appController.triggerHaAction(tileDelegate.actionName)
                     }
@@ -1033,7 +1034,7 @@ Rectangle {
         id: sidebarFlickable
         anchors.fill: parent
         // Keep the rectangular Flickable viewport inside the rounded panel corners.
-        anchors.margins: Math.max(root.dp(7), root.panelRadius + root.dp(2))
+        anchors.margins: Math.max(sidebarRoot.dp(7), sidebarRoot.panelRadius + sidebarRoot.dp(2))
         contentWidth: width
         contentHeight: sidebarCol.implicitHeight
         clip: true
@@ -1044,16 +1045,16 @@ Rectangle {
         ColumnLayout {
             id: sidebarCol
             width: sidebarFlickable.width
-            spacing: root.calculatedMainSpacing
+            spacing: sidebarRoot.calculatedMainSpacing
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.titleBarHeight
+                Layout.preferredHeight: sidebarRoot.titleBarHeight
 
                 Text {
                     text: qsTr("Smart Home")
                     color: "#ffffff"
-                    font.pixelSize: root.fs(15)
+                    font.pixelSize: sidebarRoot.fs(15)
                     font.bold: true
                     opacity: 0.95
                     Layout.alignment: Qt.AlignVCenter
@@ -1064,12 +1065,12 @@ Rectangle {
             GridLayout {
                 id: coreCardGrid
                 Layout.fillWidth: true
-                columns: root.isWideLayout ? 2 : 1
-                rowSpacing: root.calculatedMainSpacing
-                columnSpacing: root.miniGridColSpacing
+                columns: sidebarRoot.isWideLayout ? 2 : 1
+                rowSpacing: sidebarRoot.calculatedMainSpacing
+                columnSpacing: sidebarRoot.miniGridColSpacing
 
                 Repeater {
-                    model: root.coreCardModels
+                    model: sidebarRoot.coreCardModels
                     delegate: actionComponent
                 }
             }
@@ -1078,12 +1079,12 @@ Rectangle {
             GridLayout {
                 id: miniTileGrid
                 Layout.fillWidth: true
-                columns: root.isWideLayout ? 4 : (root.width > root.dp(320) ? 3 : 2)
-                rowSpacing: root.calculatedRowSpacing
-                columnSpacing: root.miniGridColSpacing
+                columns: sidebarRoot.isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(320) ? 3 : 2)
+                rowSpacing: sidebarRoot.calculatedRowSpacing
+                columnSpacing: sidebarRoot.miniGridColSpacing
 
                 Repeater {
-                    model: root.miniTileModel
+                    model: sidebarRoot.miniTileModel
                     delegate: miniTileComponent
                 }
             }
@@ -1093,10 +1094,10 @@ Rectangle {
     // 渐进模糊边缘 (ScrollEdgeBlurView - 顶部与底部边缘渐进失焦)
     ScrollEdgeBlurView {
         anchors.top: parent.top
-        anchors.topMargin: root.dp(7)
+        anchors.topMargin: sidebarRoot.dp(7)
         edge: "top"
-        blurDepth: root.dp(20)
-        backgroundSource: root.backgroundSource
+        blurDepth: sidebarRoot.dp(20)
+        backgroundSource: sidebarRoot.backgroundSource
         visible: sidebarFlickable.contentY > 2
         opacity: Math.min(1.0, sidebarFlickable.contentY / 15.0)
         z: 30
@@ -1104,10 +1105,10 @@ Rectangle {
 
     ScrollEdgeBlurView {
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: root.dp(7)
+        anchors.bottomMargin: sidebarRoot.dp(7)
         edge: "bottom"
-        blurDepth: root.dp(20)
-        backgroundSource: root.backgroundSource
+        blurDepth: sidebarRoot.dp(20)
+        backgroundSource: sidebarRoot.backgroundSource
         visible: sidebarFlickable.contentY < (sidebarCol.implicitHeight - sidebarFlickable.height - 2)
         opacity: Math.min(1.0, Math.max(0.0, (sidebarCol.implicitHeight - sidebarFlickable.height - sidebarFlickable.contentY) / 15.0))
         z: 30
@@ -1118,8 +1119,8 @@ Rectangle {
         id: moreDevicesPopup
         parent: Overlay.overlay
         anchors.centerIn: Overlay.overlay
-        width: Math.min((parent ? parent.width : 800) * 0.94, root.dp(720))
-        height: Math.min((parent ? parent.height : 480) * 0.90, root.dp(parent && parent.width < parent.height ? 600 : 420))
+        width: Math.min((parent ? parent.width : 800) * 0.94, sidebarRoot.dp(720))
+        height: Math.min((parent ? parent.height : 480) * 0.90, sidebarRoot.dp(parent && parent.width < parent.height ? 600 : 420))
         modal: true
         focus: true
         clip: true
@@ -1130,7 +1131,7 @@ Rectangle {
         }
 
         background: Rectangle {
-            radius: root.panelRadius
+            radius: sidebarRoot.panelRadius
             color: Qt.rgba(0.07, 0.12, 0.18, 0.85)
             border.color: Qt.rgba(1, 1, 1, 0.16)
             border.width: 1
@@ -1141,8 +1142,8 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.leftMargin: root.panelRadius
-                anchors.rightMargin: root.panelRadius
+                anchors.leftMargin: sidebarRoot.panelRadius
+                anchors.rightMargin: sidebarRoot.panelRadius
                 height: 1
                 color: "#ffffff"
                 opacity: 0.28
@@ -1150,34 +1151,34 @@ Rectangle {
             
             // 顶部小抓手饰条
             Rectangle {
-                width: root.dp(40)
-                height: root.dp(4)
+                width: sidebarRoot.dp(40)
+                height: sidebarRoot.dp(4)
                 radius: 2
                 color: Qt.rgba(1, 1, 1, 0.22)
                 anchors.top: parent.top
-                anchors.topMargin: root.dp(8)
+                anchors.topMargin: sidebarRoot.dp(8)
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: root.dp(20)
-            spacing: root.dp(16)
+            anchors.margins: sidebarRoot.dp(20)
+            spacing: sidebarRoot.dp(16)
 
             RowLayout {
                 Layout.fillWidth: true
                 Text {
                     text: qsTr("更多智能设备")
                     color: "#ffffff"
-                    font.pixelSize: root.fs(20)
+                    font.pixelSize: sidebarRoot.fs(20)
                     font.bold: true
                     Layout.fillWidth: true
                 }
                 CloseButton {
-                    implicitWidth: root.dp(36)
-                    implicitHeight: root.dp(36)
-                    iconSize: root.dp(16)
+                    implicitWidth: sidebarRoot.dp(36)
+                    implicitHeight: sidebarRoot.dp(36)
+                    iconSize: sidebarRoot.dp(16)
                     onClicked: moreDevicesPopup.close()
                 }
             }
@@ -1188,18 +1189,18 @@ Rectangle {
                 Layout.fillHeight: true
                 clip: true
                 cellWidth: width / 2
-                cellHeight: root.dp(84)
-                model: root.unlistedDevices
+                cellHeight: sidebarRoot.dp(84)
+                model: sidebarRoot.unlistedDevices
                 visible: count > 0
 
                 delegate: Item {
                     width: moreDevicesGrid.cellWidth
-                    height: root.dp(84)
+                    height: sidebarRoot.dp(84)
 
                     Loader {
                         anchors.centerIn: parent
-                        width: parent.width - root.dp(12)
-                        height: root.dp(72)
+                        width: parent.width - sidebarRoot.dp(12)
+                        height: sidebarRoot.dp(72)
                         sourceComponent: actionComponent
 
                         property var actionData: modelData
@@ -1213,23 +1214,23 @@ Rectangle {
                 Layout.fillHeight: true
                 Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
                 visible: moreDevicesGrid.count === 0
-                spacing: root.dp(12)
+                spacing: sidebarRoot.dp(12)
 
                 Item { Layout.fillHeight: true }
 
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: root.dp(60)
-                    Layout.preferredHeight: root.dp(60)
-                    radius: root.dp(30)
+                    Layout.preferredWidth: sidebarRoot.dp(60)
+                    Layout.preferredHeight: sidebarRoot.dp(60)
+                    radius: sidebarRoot.dp(30)
                     color: Qt.rgba(1, 1, 1, 0.05)
                     border.color: Qt.rgba(1, 1, 1, 0.10)
                     border.width: 1
 
                     Image {
                         anchors.centerIn: parent
-                        width: root.dp(28)
-                        height: root.dp(28)
+                        width: sidebarRoot.dp(28)
+                        height: sidebarRoot.dp(28)
                         source: "qrc:/icons/check.svg"
                         sourceSize: Qt.size(width, height)
                         smooth: true
@@ -1240,7 +1241,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("常用设备已全部在侧边栏展示")
                     color: "#ffffff"
-                    font.pixelSize: root.fs(16)
+                    font.pixelSize: sidebarRoot.fs(16)
                     font.bold: true
                 }
 
@@ -1248,7 +1249,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignHCenter
                     text: qsTr("如需控制更多设备，可在 config.yaml 中配置追加实体")
                     color: "#7b8ea0"
-                    font.pixelSize: root.fs(12)
+                    font.pixelSize: sidebarRoot.fs(12)
                 }
 
                 Item { Layout.fillHeight: true }
@@ -1263,7 +1264,7 @@ Rectangle {
         }
         var m = model
         if (!m && name) {
-            var list = appController.haActionModels
+            var list = (typeof appController !== "undefined" && appController) ? appController.haActionModels : null
             if (list) {
                 for (var i = 0; i < list.length; ++i) {
                     if (list[i] && list[i].name === name) {
@@ -1276,7 +1277,7 @@ Rectangle {
         if (!m) {
             m = { name: (name || "电饭煲"), isCooker: true, available: true }
         }
-        root.cookerRequested(m)
+        sidebarRoot.cookerRequested(m)
     }
 
     signal washerRequested(var washerData)
@@ -1286,7 +1287,7 @@ Rectangle {
         }
         var m = model
         if (!m && name) {
-            var list = appController.haActionModels
+            var list = (typeof appController !== "undefined" && appController) ? appController.haActionModels : null
             if (list) {
                 for (var i = 0; i < list.length; ++i) {
                     if (list[i] && list[i].name === name) {
@@ -1299,7 +1300,7 @@ Rectangle {
         if (!m) {
             m = { name: (name || "滚筒洗衣机"), isWasher: true, available: true }
         }
-        root.washerRequested(m)
+        sidebarRoot.washerRequested(m)
     }
 
     signal steamerRequested(var steamerData)
@@ -1309,7 +1310,7 @@ Rectangle {
         }
         var m = model
         if (!m && name) {
-            var list = appController.haActionModels
+            var list = (typeof appController !== "undefined" && appController) ? appController.haActionModels : null
             if (list) {
                 for (var i = 0; i < list.length; ++i) {
                     if (list[i] && list[i].name === name) {
@@ -1322,7 +1323,7 @@ Rectangle {
         if (!m) {
             m = { name: (name || "智能蒸煮"), isSteamer: true, available: true }
         }
-        root.steamerRequested(m)
+        sidebarRoot.steamerRequested(m)
     }
 
     function closeMoreDevices() {

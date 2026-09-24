@@ -62,12 +62,12 @@ Rectangle {
             onTriggered: gestureArea.swipeLocked = false
         }
 
-        onPressed: {
+        onPressed: (mouse) => {
             pressX = mouse.x
             pressY = mouse.y
             pressTimestamp = Date.now()
         }
-        onReleased: {
+        onReleased: (mouse) => {
             const dx = mouse.x - pressX
             const dy = mouse.y - pressY
             const elapsed = Date.now() - pressTimestamp

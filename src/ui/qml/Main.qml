@@ -319,11 +319,9 @@ ApplicationWindow {
                 anchors.top: root.videoFullscreen ? parent.top : topBar.bottom
                 anchors.topMargin: root.videoFullscreen ? 0 : root.dp(8)
                 anchors.left: parent.left
-                anchors.right: (root.videoFullscreen || root.isPortrait) ? parent.right : undefined
-                width: (root.videoFullscreen || root.isPortrait) ? undefined : root.landscapeVisionWidth
-                anchors.bottom: root.videoFullscreen ? parent.bottom : undefined
+                width: root.videoFullscreen ? parent.width : (root.isPortrait ? parent.width : root.landscapeVisionWidth)
                 height: {
-                    if (root.videoFullscreen) return undefined
+                    if (root.videoFullscreen) return parent.height
                     if (root.isPortrait) return Math.min(Math.round(parent.height * 0.36), Math.round(parent.width * 9 / 16 + root.dp(48)))
                     return Math.round(root.landscapeVisionWidth * 9 / 16)
                 }
@@ -421,7 +419,7 @@ ApplicationWindow {
         onLoaded: {
             item.scaleUnit = root.su
             item.panelRadius = root.panelRadius
-            item.closed.connect(function() { root.forceActiveFocus() })
+            item.closed.connect(function() { root.contentItem.forceActiveFocus() })
             item.openForToday()
         }
     }
@@ -434,7 +432,7 @@ ApplicationWindow {
             item.scaleUnit = root.su
             item.panelRadius = root.panelRadius
             item.cardRadius = root.cardRadius
-            item.closed.connect(function() { root.forceActiveFocus() })
+            item.closed.connect(function() { root.contentItem.forceActiveFocus() })
             item.open()
         }
     }
@@ -448,7 +446,7 @@ ApplicationWindow {
             item.panelRadius = root.panelRadius
             item.cardRadius = root.cardRadius
             item.chipRadius = root.chipRadius
-            item.closed.connect(function() { root.forceActiveFocus() })
+            item.closed.connect(function() { root.contentItem.forceActiveFocus() })
             root.videoFullscreen = false
             item.open()
         }
@@ -465,7 +463,7 @@ ApplicationWindow {
                 item.panelRadius = root.panelRadius
                 item.cardRadius = root.cardRadius
                 item.chipRadius = root.chipRadius
-                item.closed.connect(function() { root.forceActiveFocus() })
+                item.closed.connect(function() { root.contentItem.forceActiveFocus() })
                 if (!signalConnected && item.wifiRequested) {
                     item.wifiRequested.connect(wifiLoader.openWifi)
                     signalConnected = true
@@ -498,7 +496,7 @@ ApplicationWindow {
         panelRadius: root.panelRadius
         cardRadius: root.cardRadius
         chipRadius: root.chipRadius
-        onClosed: root.forceActiveFocus()
+        onClosed: root.contentItem.forceActiveFocus()
     }
 
     WasherPopup {
@@ -507,7 +505,7 @@ ApplicationWindow {
         panelRadius: root.panelRadius
         cardRadius: root.cardRadius
         chipRadius: root.chipRadius
-        onClosed: root.forceActiveFocus()
+        onClosed: root.contentItem.forceActiveFocus()
     }
 
     SteamerPopup {
@@ -516,7 +514,7 @@ ApplicationWindow {
         panelRadius: root.panelRadius
         cardRadius: root.cardRadius
         chipRadius: root.chipRadius
-        onClosed: root.forceActiveFocus()
+        onClosed: root.contentItem.forceActiveFocus()
     }
 
     // 灭屏防误触与轻触唤醒层 (Tap to Wake)

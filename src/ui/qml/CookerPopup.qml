@@ -498,11 +498,11 @@ Popup {
                 anchors.fill: parent
                 anchors.margins: -root.dp(8)
                 property real startY: 0
-                onPressed: {
+                onPressed: (mouse) => {
                     startY = mouse.y
                     root.isDraggingDown = true
                 }
-                onPositionChanged: {
+                onPositionChanged: (mouse) => {
                     var dy = mouse.y - startY
                     if (dy > 0) {
                         root.dragOffsetY = dy
@@ -510,7 +510,7 @@ Popup {
                         root.dragOffsetY = dy * 0.2
                     }
                 }
-                onReleased: {
+                onReleased: (mouse) => {
                     root.isDraggingDown = false
                     if (root.dragOffsetY > root.dp(55)) {
                         root.dragOffsetY = root.height

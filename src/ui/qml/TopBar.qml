@@ -18,7 +18,7 @@ Rectangle {
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }
 
-    readonly property bool isCompact: width < dp(520)
+    readonly property bool isCompact: width < dp(560)
 
     radius: panelRadius
     color: Qt.rgba(0.12, 0.18, 0.26, 0.52)
@@ -57,8 +57,8 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: root.dp(16)
-        anchors.rightMargin: root.dp(16)
+        anchors.leftMargin: root.isCompact ? root.dp(12) : root.dp(16)
+        anchors.rightMargin: root.isCompact ? root.dp(14) : root.dp(16)
         spacing: root.isCompact ? root.dp(6) : root.dp(10)
 
         HeaderActionButton {
@@ -86,7 +86,7 @@ Rectangle {
 
         MouseArea {
             id: weatherArea
-            Layout.preferredWidth: root.isCompact ? root.dp(108) : root.dp(148)
+            Layout.preferredWidth: root.isCompact ? root.dp(108) : root.dp(136)
             Layout.preferredHeight: root.dp(36)
             hoverEnabled: true
             onClicked: root.weatherClicked()
@@ -153,12 +153,13 @@ Rectangle {
 
         MouseArea {
             id: calendarArea
-            Layout.preferredWidth: root.isCompact ? root.dp(110) : root.dp(160)
+            Layout.preferredWidth: Math.max(root.isCompact ? root.dp(86) : root.dp(100), timeCol.implicitWidth + root.dp(4))
             Layout.preferredHeight: root.dp(36)
             Layout.alignment: Qt.AlignVCenter
             onClicked: root.calendarClicked()
 
             Column {
+                id: timeCol
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
