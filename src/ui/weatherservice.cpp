@@ -2,12 +2,14 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QSslError>
 #include <QUrlQuery>
 
 namespace {
@@ -195,6 +197,19 @@ QJsonObject extractJsonObject(const QString &text, const QString &varName)
     return QJsonObject();
 }
 
+QString lookupDefaultAreaId(const QString &city)
+{
+    const QString c = city.trimmed();
+    if (c == QStringLiteral("历城") || c == QStringLiteral("历城区")) return QStringLiteral("101010100");
+    if (c == QStringLiteral("济南") || c == QStringLiteral("济南市")) return QStringLiteral("101120101");
+    if (c == QStringLiteral("北京") || c == QStringLiteral("北京市")) return QStringLiteral("101010100");
+    if (c == QStringLiteral("上海") || c == QStringLiteral("上海市")) return QStringLiteral("101020100");
+    if (c == QStringLiteral("广州") || c == QStringLiteral("广州市")) return QStringLiteral("101280101");
+    if (c == QStringLiteral("深圳") || c == QStringLiteral("深圳市")) return QStringLiteral("101280601");
+    if (c == QStringLiteral("杭州") || c == QStringLiteral("杭州市")) return QStringLiteral("101210101");
+    return QString();
+}
+
 } // namespace
 
 WeatherService::WeatherService(QObject *parent)
@@ -290,6 +305,15 @@ void WeatherService::resolveAndFetchWeather(const QString &city, const QString &
     searchUrl.setQuery(query);
 
     m_searchReply = m_networkAccessManager.get(makeChinaWeatherRequest(searchUrl));
+    connect(m_searchReply, &QNetworkReply::sslErrors, this, [reply = m_searchReply](const QList<QSslError> &errors) {
+        for (const auto &err : errors) {
+            qWarning() << "WeatherService: Search SSL warning:" << err.errorString();
+        }
+        if (reply) {
+            reply->ignoreSslErrors();
+        }
+    });
+
     connect(m_searchReply, &QNetworkReply::finished, this, [this, reply = m_searchReply, city, serial]() {
         if (!reply) {
             return;
@@ -306,6 +330,15 @@ void WeatherService::resolveAndFetchWeather(const QString &city, const QString &
         }
 
         if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "WeatherService: City search network error for" << city << ":" << reply->error() << reply->errorString();
+            const QString fallbackId = lookupDefaultAreaId(city);
+            if (!fallbackId.isEmpty()) {
+                qWarning() << "WeatherService: Falling back to predefined areaId for" << city << "->" << fallbackId;
+                m_resolvedAreaId = fallbackId;
+                m_resolvedCity = city;
+                fetchWeatherIndex(fallbackId, serial);
+                return;
+            }
             setState(tr("城市搜索失败"), city, reply->errorString());
             return;
         }
@@ -333,8 +366,13 @@ void WeatherService::resolveAndFetchWeather(const QString &city, const QString &
         }
 
         if (foundAreaId.isEmpty()) {
-            setState(tr("未匹配到城市代码"), city);
-            return;
+            const QString fallbackId = lookupDefaultAreaId(city);
+            if (!fallbackId.isEmpty()) {
+                foundAreaId = fallbackId;
+            } else {
+                setState(tr("未匹配到城市代码"), city);
+                return;
+            }
         }
 
         m_resolvedAreaId = foundAreaId;
@@ -354,6 +392,15 @@ void WeatherService::fetchWeatherIndex(const QString &areaId, quint64 serial)
     weatherUrl.setQuery(query);
 
     m_weatherReply = m_networkAccessManager.get(makeChinaWeatherRequest(weatherUrl));
+    connect(m_weatherReply, &QNetworkReply::sslErrors, this, [reply = m_weatherReply](const QList<QSslError> &errors) {
+        for (const auto &err : errors) {
+            qWarning() << "WeatherService: WeatherIndex SSL warning:" << err.errorString();
+        }
+        if (reply) {
+            reply->ignoreSslErrors();
+        }
+    });
+
     connect(m_weatherReply, &QNetworkReply::finished, this, [this, reply = m_weatherReply, areaId, serial]() {
         if (!reply) {
             return;
@@ -370,6 +417,7 @@ void WeatherService::fetchWeatherIndex(const QString &areaId, quint64 serial)
         }
 
         if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "WeatherService: Weather fetch error for areaId" << areaId << ":" << reply->error() << reply->errorString();
             setState(tr("天气获取失败"), QString(), reply->errorString());
             return;
         }
