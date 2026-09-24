@@ -45,6 +45,7 @@ Item {
     property bool edgeHighlightEnabled: true
     property real edgeHighlightWidth: 1.5
     property real edgeHighlightOpacity: 1.0
+    property bool overlayRimEnabled: false
     property bool backdropBlurEnabled: true
     property bool sensorHighlightEnabled: true
     property bool adaptiveTint: true
@@ -72,10 +73,20 @@ Item {
     // 👆 按压液态凸起/凹陷幅度
     property real pressBulge: 1.0
 
-    // 🌓 亮度与背景感知 (Luminance Sensing)
+    // 🌓 亮度与背景感知 (Luminance Sensing with 0.60 / 0.45 Hysteresis)
     // 0.0 ~ 1.0: 供上层容器或文字图标自适应深浅色反色
     readonly property real detectedLuminance: _calcLuminance
-    readonly property bool isDarkBackground: detectedLuminance < 0.45
+    property bool _isDarkHysteresis: true
+    readonly property bool isDarkBackground: _isDarkHysteresis
+
+    onDetectedLuminanceChanged: {
+        // 双阈值滞回：高于 0.60 判定为亮色底，低于 0.45 判定为暗色底，中间保持状态防闪烁
+        if (detectedLuminance >= 0.60) {
+            _isDarkHysteresis = false
+        } else if (detectedLuminance <= 0.45) {
+            _isDarkHysteresis = true
+        }
+    }
 
     // ♿ 无障碍降级与节能模式 (Accessibility / Battery Saver Fallback)
     // 在高对比度或极端低功耗芯片上，直接退化为原生扁平高对比度矩形，零 Shader 开销
@@ -330,7 +341,7 @@ Item {
         anchors.margins: 1
         height: Math.max(2, Math.round(parent.height * 0.44))
         radius: root.cornerRadius
-        visible: !root.accessibleFallback
+        visible: root.overlayRimEnabled && !root.accessibleFallback
         z: 2
 
         gradient: Gradient {
@@ -354,7 +365,7 @@ Item {
         radius: root.cornerRadius
         color: "transparent"
         border.width: 1
-        visible: !root.accessibleFallback
+        visible: root.overlayRimEnabled && !root.accessibleFallback
         border.color: root.pressed
                     ? Qt.rgba(1.0, 1.0, 1.0, 0.42) 
                     : (root.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.28) : Qt.rgba(1.0, 1.0, 1.0, 0.16))

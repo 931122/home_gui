@@ -39,7 +39,9 @@ Item {
         anchors.fill: parent
         visible: root.glassEnabled
         backgroundSource: root.backgroundSource
-        cornerRadius: root.groupCornerRadius
+        cornerRadius: root.position === LiquidGlassListItem.Position.Middle
+                    ? root.innerCornerRadius
+                    : (root.position === LiquidGlassListItem.Position.Single ? root.groupCornerRadius : Math.max(root.innerCornerRadius, root.groupCornerRadius * 0.8))
         baseOpacity: 0.34
         tintColor: Qt.rgba(0.82, 0.90, 1.0, 0.18)
         tintStrength: 0.16

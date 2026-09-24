@@ -200,9 +200,9 @@ void main() {
             * (ubuf.materialStyle > 0.5 ? 1.8 : 1.0);
     float disp = dispFactor * (slope + compressionRing * 0.5);
 
-    vec2 uvG = clamp(uv + offset / ubuf.resolution, 0.0, 1.0);
-    vec2 uvR = clamp(uv + (offset * (1.0 - disp)) / ubuf.resolution, 0.0, 1.0);
-    vec2 uvB = clamp(uv + (offset * (1.0 + disp)) / ubuf.resolution, 0.0, 1.0);
+    vec2 uvG = uv + offset / ubuf.resolution;
+    vec2 uvR = uv + (offset * (1.0 - disp)) / ubuf.resolution;
+    vec2 uvB = uv + (offset * (1.0 + disp)) / ubuf.resolution;
 
     // ============================================================
     // 4. 背景高斯磨砂虚化与滚动渐进模糊 (Progressive Blur)
