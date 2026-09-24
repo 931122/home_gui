@@ -376,9 +376,13 @@ Rectangle {
             readonly property real deviceProgress: sidebarRoot.calculateDeviceProgress(actionModel, actionName)
 
             // 物理弹性按压手感 (Liquid Glass Spring Interaction)
-            scale: (actionArea.pressed && !actionDelegate.isDraggingSlide && !actionDelegate.isSlideToTurnOff) ? 0.965 : 1.0
+            scale: (actionArea.pressed && !actionDelegate.isDraggingSlide) ? 0.965 : 1.0
             Behavior on scale {
-                NumberAnimation { duration: 120; easing.type: Easing.OutBack }
+                NumberAnimation {
+                    duration: actionArea.pressed ? 75 : 180
+                    easing.type: actionArea.pressed ? Easing.OutQuad : Easing.OutBack
+                    easing.overshoot: 1.12
+                }
             }
 
             // 0. 悬浮暗色软阴影 (Floating Ambient Shadow)
@@ -393,24 +397,24 @@ Rectangle {
             }
 
             // 1. 真实液态玻璃光学表面 (Liquid Glass Optical Surface)
-            // 接入主屏环境光场，产生真实透镜折射、三棱镜微色散与菲涅尔全反射边缘
+            // 接入主屏环境光场与前景内容捕获，产生真实水滴物理凹凸形变、三棱镜微色散与透镜折射
             LiquidGlassSurface {
                 id: cardGlassSurface
                 anchors.fill: parent
                 backgroundSource: sidebarRoot.backgroundSource
+                foregroundSource: cardContentWrapper
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: actionDelegate.radius
                 materialVariant: LiquidGlassSurface.MaterialVariant.Clear
-                baseOpacity: actionDelegate.isActive ? 0.40 : 0.24
+                baseOpacity: actionDelegate.isActive ? 0.36 : 0.22
                 tintColor: actionDelegate.isActive 
-                           ? Qt.rgba(actionDelegate.themeColor.r, actionDelegate.themeColor.g, actionDelegate.themeColor.b, 0.52)
+                           ? Qt.rgba(actionDelegate.themeColor.r, actionDelegate.themeColor.g, actionDelegate.themeColor.b, 0.46)
                            : Qt.rgba(1.0, 1.0, 1.0, 0.10)
-                tintStrength: actionDelegate.isActive ? 0.34 : 0.12
-                lensMagnification: actionArea.pressed ? 0.42 : 0.28
-                dispersion: 0.26
-                blurAmount: 0.30
-                distortionStrength: 0.024
-                highlightIntensity: (actionArea.pressed || actionDelegate.isActive) ? 0.92 : 0.68
+                tintStrength: actionDelegate.isActive ? 0.30 : 0.12
+                lensMagnification: 0.34
+                blurAmount: 0.28
+                distortionStrength: 0.035
+                highlightIntensity: actionDelegate.isActive ? 0.88 : 0.72
                 edgeFresnelPower: 2.2
                 hovered: actionArea.containsMouse
                 pressed: actionArea.pressed
@@ -604,15 +608,20 @@ Rectangle {
                 }
             }
 
-            RowLayout {
+            Item {
+                id: cardContentWrapper
                 anchors.fill: parent
-                anchors.margins: sidebarRoot.dp(8)
-                spacing: sidebarRoot.dp(10)
-                opacity: liquidSlideCapsule.visible ? Math.max(0.06, 1.0 - actionDelegate.slideProgress * 3.0) : 1.0
-                Behavior on opacity { NumberAnimation { duration: 120 } }
                 z: 10
 
-                // 左侧：苹果微晶玻璃图标底座（晶莹通透透镜圆盘）
+                RowLayout {
+                    id: cardContentRow
+                    anchors.fill: parent
+                    anchors.margins: sidebarRoot.dp(8)
+                    spacing: sidebarRoot.dp(10)
+                    opacity: liquidSlideCapsule.visible ? Math.max(0.18, 1.0 - actionDelegate.slideProgress * 2.2) : 1.0
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                // 左侧：微晶玻璃图标底座
                 Rectangle {
                     Layout.preferredWidth: sidebarRoot.dp(36)
                     Layout.preferredHeight: sidebarRoot.dp(36)
@@ -621,11 +630,11 @@ Rectangle {
                     gradient: Gradient {
                         GradientStop { 
                             position: 0.0
-                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.14) 
+                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.14)
                         }
                         GradientStop { 
                             position: 1.0
-                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04) 
+                            color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04)
                         }
                     }
                     border.color: actionDelegate.isActive ? Qt.rgba(1, 1, 1, 0.36) : Qt.rgba(1, 1, 1, 0.16)
@@ -650,7 +659,7 @@ Rectangle {
                     Text {
                         Layout.fillWidth: true
                         text: actionDelegate.actionName || qsTr("未知设备")
-                        color: actionDelegate.isActive ? "#ffffff" : "#c5d1dd"
+                        color: actionArea.pressed ? "#ffffff" : (actionDelegate.isActive ? "#ffffff" : "#c5d1dd")
                         font.pixelSize: sidebarRoot.fs(13)
                         font.bold: true
                         elide: Text.ElideRight
@@ -807,6 +816,7 @@ Rectangle {
             }
         }
     }
+    }
 
     // 六宫格小磁贴组件（78dp x 44dp）
     Component {
@@ -847,6 +857,15 @@ Rectangle {
 
             readonly property color themeColor: sidebarRoot.getDeviceThemeColor(actionModel, actionName)
 
+            scale: tileArea.pressed ? 0.96 : 1.0
+            Behavior on scale {
+                NumberAnimation {
+                    duration: tileArea.pressed ? 75 : 180
+                    easing.type: tileArea.pressed ? Easing.OutQuad : Easing.OutBack
+                    easing.overshoot: 1.12
+                }
+            }
+
             transform: Rotation {
                 origin.x: tileDelegate.width / 2
                 origin.y: tileDelegate.height / 2
@@ -875,19 +894,19 @@ Rectangle {
                 id: tileGlassSurface
                 anchors.fill: parent
                 backgroundSource: sidebarRoot.backgroundSource
+                foregroundSource: tileContentWrapper
                 scrollSync: sidebarFlickable.contentY
                 cornerRadius: tileDelegate.radius
                 materialVariant: LiquidGlassSurface.MaterialVariant.Clear
-                baseOpacity: tileDelegate.isActive ? 0.38 : 0.22
+                baseOpacity: tileDelegate.isActive ? 0.36 : 0.20
                 tintColor: tileDelegate.isActive 
-                           ? Qt.rgba(tileDelegate.themeColor.r, tileDelegate.themeColor.g, tileDelegate.themeColor.b, 0.50)
+                           ? Qt.rgba(tileDelegate.themeColor.r, tileDelegate.themeColor.g, tileDelegate.themeColor.b, 0.48)
                            : Qt.rgba(1.0, 1.0, 1.0, 0.09)
-                tintStrength: tileDelegate.isActive ? 0.32 : 0.11
-                lensMagnification: tileArea.pressed ? 0.40 : 0.26
-                dispersion: 0.26
-                blurAmount: 0.30
-                distortionStrength: 0.024
-                highlightIntensity: (tileArea.pressed || tileDelegate.isActive) ? 0.88 : 0.65
+                tintStrength: tileDelegate.isActive ? 0.30 : 0.11
+                lensMagnification: 0.32
+                blurAmount: 0.28
+                distortionStrength: 0.035
+                highlightIntensity: tileDelegate.isActive ? 0.88 : 0.70
                 edgeFresnelPower: 2.2
                 hovered: tileArea.containsMouse
                 pressed: tileArea.pressed
@@ -906,36 +925,41 @@ Rectangle {
                 z: 2
             }
 
-            ColumnLayout {
+            Item {
+                id: tileContentWrapper
                 anchors.fill: parent
-                anchors.topMargin: sidebarRoot.dp(5)
-                anchors.bottomMargin: sidebarRoot.dp(5)
-                anchors.leftMargin: sidebarRoot.dp(7)
-                anchors.rightMargin: sidebarRoot.dp(7)
-                spacing: 0
                 z: 10
+
+                ColumnLayout {
+                    id: tileContentCol
+                    anchors.fill: parent
+                    anchors.topMargin: sidebarRoot.dp(5)
+                    anchors.bottomMargin: sidebarRoot.dp(5)
+                    anchors.leftMargin: sidebarRoot.dp(7)
+                    anchors.rightMargin: sidebarRoot.dp(7)
+                    spacing: 0
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 0
 
-                    // 图标容器 (22 x 22 苹果微晶底座)
+                    // 图标容器 (22 x 22 苹果微晶底座 - 水滴焦平面)
                     Rectangle {
                         Layout.preferredWidth: sidebarRoot.dp(22)
                         Layout.preferredHeight: sidebarRoot.dp(22)
                         radius: sidebarRoot.dp(11)
                         gradient: Gradient {
-                            GradientStop { 
+                            GradientStop {
                                 position: 0.0
                                 color: !tileDelegate.isDevice 
                                        ? Qt.rgba(1, 1, 1, 0.20) 
-                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)) 
+                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12))
                             }
-                            GradientStop { 
+                            GradientStop {
                                 position: 1.0
                                 color: !tileDelegate.isDevice 
                                        ? Qt.rgba(1, 1, 1, 0.06) 
-                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03)) 
+                                       : (tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
                             }
                         }
                         border.color: tileDelegate.isActive ? Qt.rgba(1, 1, 1, 0.35) : Qt.rgba(1, 1, 1, 0.16)
@@ -977,11 +1001,12 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     text: tileDelegate.actionName || qsTr("未知")
-                    color: tileDelegate.isActive ? "#ffffff" : "#c5d1dd"
+                    color: tileArea.pressed ? "#ffffff" : (tileDelegate.isActive ? "#ffffff" : "#c5d1dd")
                     font.pixelSize: sidebarRoot.fs(12)
                     font.bold: true
                     elide: Text.ElideRight
                 }
+            }
             }
 
             MouseArea {

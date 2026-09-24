@@ -50,8 +50,8 @@ layout(std140, binding = 0) uniform buf {
     float secondaryActive;
     float sminFactor;
     float pressBulge;
+    float hasContent;
     float _pad0;
-    float _pad1;
 } ubuf;
 
 void main()

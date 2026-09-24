@@ -86,31 +86,28 @@ void main() {
 
     // 6. 凸透镜物理放大与折射计算
     vec2 totalOffset = vec2(0.0);
-    float distToCenter = length(p - p1);
+    float distToCenter = length(p1_local);
     float normDist = distToCenter / max(curKnobR, 1.0);
 
     if (normDist < 1.0) {
         float lensShape = sqrt(max(0.0, 1.0 - normDist * normDist));
-        float mag = 0.28 * pow(lensShape, 0.85);
-        vec2 magnifyOffset = -(p - p1) * mag;
-        vec2 edgeRefract = n * (-4.5 * (1.0 - lensShape));
+        float mag = 0.45 * pow(lensShape, 0.85);
+        vec2 magnifyOffset = -p1_local * mag;
+        vec2 edgeRefract = n * (-9.5 * (1.0 - lensShape));
         totalOffset = magnifyOffset + edgeRefract;
     } else if (dFluid < 0.0) {
         float bridgeSlope = clamp(1.0 - (-dFluid) / 4.0, 0.0, 1.0);
-        totalOffset = n * (-5.0 * bridgeSlope);
+        totalOffset = n * (-8.0 * bridgeSlope);
     }
 
-    // 7. 色散真实光学采样
-    vec2 uvR = clamp(uv + (totalOffset * 1.02) / ubuf.resolution, 0.0, 1.0);
-    vec2 uvG = clamp(uv + totalOffset / ubuf.resolution, 0.0, 1.0);
-    vec2 uvB = clamp(uv + (totalOffset * 0.98) / ubuf.resolution, 0.0, 1.0);
+    // 7. 纯净光学折射采样（无彩虹色散杂色）
+    vec2 uvRefr = clamp(uv + totalOffset / ubuf.resolution, 0.0, 1.0);
 
     vec4 baseCol = texture(source, uv);
-    vec3 refrCol = vec3(
-        texture(source, uvR).r,
-        texture(source, uvG).g,
-        texture(source, uvB).b
-    );
+    vec4 sRefr = texture(source, uvRefr);
+
+    vec3 unpBase = baseCol.a > 0.001 ? (baseCol.rgb / baseCol.a) : baseCol.rgb;
+    vec3 refrCol = sRefr.a > 0.001 ? (sRefr.rgb / sRefr.a) : sRefr.rgb;
 
     // 8. 苹果双对称高光瓣
     vec2 lightDir = normalize(vec2(-0.55, -0.83));
@@ -122,23 +119,21 @@ void main() {
     float specRim = hair * (lobeF + lobeB) * 0.98;
 
     // 水滴表面穹顶光泽与中心高光
-    float domeSheen = smoothstep(-0.2, 0.9, -n.y) * clamp(-dFluid / curKnobR, 0.0, 1.0) * 0.25;
-    float centerSpot = pow(clamp(1.0 - normDist, 0.0, 1.0), 3.0) * 0.15;
+    float domeSheen = smoothstep(-0.2, 0.9, -n.y) * clamp(-dFluid / curKnobR, 0.0, 1.0) * 0.28;
+    float centerSpot = pow(clamp(1.0 - normDist, 0.0, 1.0), 3.0) * 0.18;
 
     // 9. 颜色调和与警报红宝石流体
-    vec3 normalGlassTint = vec3(0.95, 0.97, 1.0);
+    vec3 normalGlassTint = vec3(0.96, 0.98, 1.0);
     vec3 alertGlassTint  = vec3(1.0, 0.24, 0.20);
     vec3 currentTint = mix(normalGlassTint, alertGlassTint, ubuf.alertFactor);
 
-    vec3 waterDropColor = mix(refrCol, currentTint, mix(0.14, 0.60, ubuf.alertFactor));
+    vec3 waterDropColor = mix(refrCol, currentTint, mix(0.16, 0.62, ubuf.alertFactor));
     waterDropColor += vec3(1.0) * (specRim + domeSheen + centerSpot);
 
     // 10. 最终覆盖合成
     float covFluid = clamp(0.5 - dFluid / 1.5, 0.0, 1.0);
-    float fluidAlpha = mix(0.40, 0.72, ubuf.alertFactor) * covFluid;
-
-    vec3 finalRGB = mix(baseCol.rgb, waterDropColor, covFluid);
-    float finalAlpha = max(baseCol.a, fluidAlpha) * covTrack;
+    vec3 finalRGB = mix(unpBase, waterDropColor, covFluid);
+    float finalAlpha = clamp(mix(baseCol.a, mix(0.85, 0.92, ubuf.alertFactor), covFluid), 0.0, 1.0) * covTrack;
 
     fragColor = vec4(finalRGB * finalAlpha, finalAlpha) * ubuf.qt_Opacity;
 }

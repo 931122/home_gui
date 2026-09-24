@@ -51,11 +51,12 @@ layout(std140, binding = 0) uniform buf {
     float secondaryActive;
     float sminFactor;
     float pressBulge;
+    float hasContent;
     float _pad0;
-    float _pad1;
 } ubuf;
 
 layout(binding = 1) uniform sampler2D source;
+layout(binding = 2) uniform sampler2D contentSource;
 
 vec2 backdropUV(vec2 glassUV)
 {
@@ -167,31 +168,47 @@ void main() {
     // 透镜边缘焦散压缩环 (Caustic Compression Ring)
     // 在靠近边缘转折处背景像素向心强烈聚拢，呈现真实厚玻璃杯底的压缩环
     float compressionRing = sin(clamp(t * 3.14159, 0.0, 3.14159)) * exp(-1.8 * t);
-    float totalRefr = (refrBase + minDim * 0.12 * ubuf.pressState + ubuf.distortion * minDim) * (slope + compressionRing * 0.75);
+    float totalRefr = (refrBase + ubuf.distortion * minDim) * (slope + compressionRing * 0.75);
     if (ubuf.refractionNoFold > 0.5) {
         totalRefr = min(totalRefr, bevel * 0.5);
     }
     vec2 offset = n * totalRefr * (ubuf.refractionOutward > 0.5 ? 1.0 : -1.0);
 
-    // Broad convex-lens magnification: compress source coordinates toward the lens center.
-    float lensStrength = clamp(ubuf.lensMagnification, 0.0, 0.85);
+    // 微晶玻璃透镜剖面
+    float lensStrength = clamp(ubuf.lensMagnification, 0.0, 0.90);
     if (lensStrength > 0.001) {
         float rNorm = clamp(length(p / halfSize), 0.0, 1.0);
-        float lensCurvature = pow(clamp(1.0 - rNorm * rNorm, 0.0, 1.0), 0.85);
+        float lensCurvature = pow(clamp(1.0 - rNorm * rNorm, 0.0, 1.0), 0.72);
         offset -= p * (lensStrength * lensCurvature);
+    }
+
+    // 手指按压水滴流体曲率与弹性凹凸形变 (Fluid Meniscus Touch Refraction)
+    vec2 fluidOffset = vec2(0.0);
+    vec3 fluidPerturb = vec3(0.0);
+    if (ubuf.pressState > 0.001) {
+        vec2 tp = p - (ubuf.pointer - vec2(0.5)) * ubuf.resolution;
+        float tr = length(tp);
+        float rPress = max(minDim * 0.42, 22.0);
+        vec2 u_dir = (tr > 0.001) ? (tp / tr) : vec2(0.0);
+
+        // 手指触点中心凹陷与周围表面张力环形隆起 (Dent & Annular Bulge Wave)
+        float normTr = tr / rPress;
+        float dentSlope = normTr * exp(-normTr * normTr * 2.2);
+        float crestWave = sin(clamp(normTr * 3.14159, 0.0, 3.14159)) * exp(-1.4 * normTr);
+
+        float fluidAmp = ubuf.pressState * 32.0 * max(ubuf.pressBulge, 0.5);
+        fluidOffset = u_dir * (dentSlope * fluidAmp - crestWave * (fluidAmp * 0.45));
+        offset += fluidOffset;
+
+        // 保存水滴凹陷与环形波峰法线，供后续 3D 光照着色
+        fluidPerturb = normalize(vec3(-u_dir.x * dentSlope * 1.8, -u_dir.y * dentSlope * 1.8, 1.0));
     }
 
 
     // ============================================================
-    // 3. 物理三通道光谱色散 (Chromatic Aberration)
+    // 3. 背景折射采样坐标 (Backdrop Refraction)
     // ============================================================
-    float dispFactor = max(ubuf.dispersion, 0.0) * max(ubuf.aberrationIntensity, 0.0)
-            * (ubuf.materialStyle > 0.5 ? 1.8 : 1.0);
-    float disp = dispFactor * (slope + compressionRing * 0.5);
-
-    vec2 uvG = uv + offset / ubuf.resolution;
-    vec2 uvR = uv + (offset * (1.0 - disp)) / ubuf.resolution;
-    vec2 uvB = uv + (offset * (1.0 + disp)) / ubuf.resolution;
+    vec2 uvRefr = uv + offset / ubuf.resolution;
 
     // ============================================================
     // 4. 背景高斯磨砂虚化与滚动渐进模糊 (Progressive Blur)
@@ -216,23 +233,21 @@ void main() {
         vec2 sourceSize = ubuf.resolution + ubuf.capturePadding * 2.0;
         vec2 texel = vec2(1.0 / max(sourceSize.x / max(ubuf.downsampleScale, 1.0), 1.0),
                           1.0 / max(sourceSize.y / max(ubuf.downsampleScale, 1.0), 1.0)) * mix(0.35, 3.2, clamp(ubuf.blurAmount, 0.0, 1.0));
-        vec3 c0 = sampleBackdrop(uvG) * 0.2270;
-        vec3 c1 = sampleBackdrop(uvG + vec2(-texel.x, -texel.y)) * 0.1470;
-        vec3 c2 = sampleBackdrop(uvG + vec2( texel.x, -texel.y)) * 0.1470;
-        vec3 c3 = sampleBackdrop(uvG + vec2(-texel.x,  texel.y)) * 0.1470;
-        vec3 c4 = sampleBackdrop(uvG + vec2( texel.x,  texel.y)) * 0.1470;
-        vec3 c5 = sampleBackdrop(uvG + vec2(-texel.x * 2.2, 0.0)) * 0.0462;
-        vec3 c6 = sampleBackdrop(uvG + vec2( texel.x * 2.2, 0.0)) * 0.0462;
-        vec3 c7 = sampleBackdrop(uvG + vec2(0.0, -texel.y * 2.2)) * 0.0462;
-        vec3 c8 = sampleBackdrop(uvG + vec2(0.0,  texel.y * 2.2)) * 0.0462;
+        vec3 c0 = sampleBackdrop(uvRefr) * 0.2270;
+        vec3 c1 = sampleBackdrop(uvRefr + vec2(-texel.x, -texel.y)) * 0.1470;
+        vec3 c2 = sampleBackdrop(uvRefr + vec2( texel.x, -texel.y)) * 0.1470;
+        vec3 c3 = sampleBackdrop(uvRefr + vec2(-texel.x,  texel.y)) * 0.1470;
+        vec3 c4 = sampleBackdrop(uvRefr + vec2( texel.x,  texel.y)) * 0.1470;
+        vec3 c5 = sampleBackdrop(uvRefr + vec2(-texel.x * 2.2, 0.0)) * 0.0462;
+        vec3 c6 = sampleBackdrop(uvRefr + vec2( texel.x * 2.2, 0.0)) * 0.0462;
+        vec3 c7 = sampleBackdrop(uvRefr + vec2(0.0, -texel.y * 2.2)) * 0.0462;
+        vec3 c8 = sampleBackdrop(uvRefr + vec2(0.0,  texel.y * 2.2)) * 0.0462;
 
         vec3 blurred = c0 + c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8;
 
-        // 三通道色散结合清晰与模糊
-        float rCol = sampleBackdrop(uvR).r * (1.0 - blurWeight) + blurred.r * blurWeight;
-        float gCol = sampleBackdrop(uvG).g * (1.0 - blurWeight) + blurred.g * blurWeight;
-        float bCol = sampleBackdrop(uvB).b * (1.0 - blurWeight) + blurred.b * blurWeight;
-        bgColor = vec3(rCol, gCol, bCol);
+        // 纯净背景折射结合清晰与模糊（无彩虹色散杂色）
+        vec3 clearCol = sampleBackdrop(uvRefr);
+        bgColor = mix(clearCol, blurred, blurWeight);
 
         // 苹果 Vibrancy 饱和度提亮
         detectedLum = dot(bgColor, vec3(0.2126, 0.7152, 0.0722));
@@ -257,6 +272,9 @@ void main() {
     // 构建微拱顶 3D 法线
     float domeZ = sqrt(max(0.001, 1.0 - slope * slope));
     vec3 normal3D = normalize(vec3(n.x * slope, n.y * slope, domeZ));
+    if (length(fluidPerturb) > 0.001) {
+        normal3D = normalize(mix(normal3D, fluidPerturb, ubuf.pressState * 0.70));
+    }
 
     // Blinn-Phong 镜面高光反射
     vec3 halfVec = normalize(lightDir3D + viewDir);
@@ -296,7 +314,7 @@ void main() {
         glassColor = mix(glassColor, adaptiveTint, ubuf.tintStr * 0.6);
         glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim * 1.25 + fresnelRim * 1.35 + topSheen);
         volumeOpacity = ubuf.opacity_ * 0.72 + hair * 0.24 + fresnelRim * 0.22;
-        volumeOpacity = clamp(volumeOpacity, 0.10, 0.92) * cov;
+        volumeOpacity = clamp(volumeOpacity, 0.10, 0.92);
     } else {
         // [Regular 材质]：Apple 磨砂经典、高可读性深色吸光层
         vec3 darkBed = vec3(0.04, 0.08, 0.14);
@@ -305,12 +323,29 @@ void main() {
         glassColor = mix(glassColor, adaptiveTint, ubuf.tintStr);
         glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim + fresnelRim + topSheen);
         volumeOpacity = ubuf.opacity_ + hair * 0.20 + glow * 0.12 + fresnelRim * 0.15;
-        volumeOpacity = clamp(volumeOpacity, 0.15, 0.96) * cov;
+        volumeOpacity = clamp(volumeOpacity, 0.15, 0.96);
     }
 
     // 微晶噪点 (Subsurface Micro-Grain)
     float noiseGrain = (hash(uv * ubuf.resolution + vec2(1.7, 3.4)) - 0.5) * 0.022 * ubuf.noise;
     glassColor += vec3(noiseGrain);
 
+    // ============================================================
+    // 8. 前景内容（图标、文字等）水滴物理折射与合成 (Foreground Content Refraction)
+    // ============================================================
+    if (ubuf.hasContent > 0.5) {
+        // 前景内容仅产生物理流体水滴推挤形变，无彩虹色散杂色，色彩纯净保真
+        vec2 uvFg = clamp(uv + fluidOffset / ubuf.resolution, 0.0, 1.0);
+        vec4 fg = texture(contentSource, uvFg);
+
+        vec3 unpFg = fg.a > 0.001 ? (fg.rgb / fg.a) : fg.rgb;
+        float fgAlpha = fg.a;
+
+        // 将水滴折射后的前景内容以真实物理光学混合叠加到玻璃表面
+        glassColor = mix(glassColor, unpFg, fgAlpha);
+        volumeOpacity = max(volumeOpacity, fgAlpha);
+    }
+
+    volumeOpacity *= cov;
     fragColor = vec4(glassColor * volumeOpacity, volumeOpacity) * ubuf.qt_Opacity;
 }

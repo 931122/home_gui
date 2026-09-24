@@ -31,8 +31,8 @@ Item {
     property real elevation: 0
     property color shadowColor: Qt.rgba(0, 0, 0, 0.3)
 
-    // 🌈 物理色散 (Chromatic Aberration - 三通道光谱分离)
-    property real dispersion: 0.16
+    // 纯净无色散（杜绝任何彩虹杂色边缘）
+    property real dispersion: 0.0
     property real refractionHeight: materialVariant === LiquidGlassSurface.MaterialVariant.Clear ? 38 : 27
     property real bevelWidth: 18
     property real refractionFalloff: 2.0
@@ -153,14 +153,59 @@ Item {
         onPointChanged: root.pointerPosition = point.position
     }
 
+    // 💧 水滴流体触控折射开关 (Fluid Touch Refraction)
+    // true: 开启苹果水滴流体折射。按压时前景（图标、文字）与背景均产生物理弯月面凹陷、表面张力环形波纹与光谱色散。
+    // false: 经典微晶玻璃。前景内容以标准 QML 直出渲染（零离屏纹理与零 Shader 混合开销），背景保持静止透镜质感。
+    property bool fluidTouchRefraction: true
+
+    // 仿生流体弹性按压与微光波纹状态追踪 (Organic Fluid Spring Physics)
+    property real _fluidPressState: (root.pressed && root.fluidTouchRefraction) ? 1.0 : 0.0
+    Behavior on _fluidPressState {
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
+        NumberAnimation {
+            duration: root.pressed ? 100 : 280
+            easing.type: root.pressed ? Easing.OutQuad : Easing.OutBack
+            easing.overshoot: 1.25 // 表面张力回弹超调
+        }
+    }
+
+    property real _fluidHoverState: root.hovered ? 1.0 : 0.0
+    Behavior on _fluidHoverState {
+        enabled: typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled
+        NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
+    }
+
+    // 前景内容捕获（图标、文字通过水滴透镜折射与色散呈现）
+    property Item foregroundSource: null
+    readonly property bool _hasForegroundContent: root.fluidTouchRefraction && ((foregroundSource !== null) || (contentContainer.children.length > 0))
+    readonly property Item _effectiveForegroundItem: foregroundSource ? foregroundSource : (contentContainer.children.length > 0 ? contentContainer : null)
+
+    // 内容容器（默认插槽：放入 LiquidGlassSurface 内的子组件）
+    Item {
+        id: contentContainer
+        anchors.fill: parent
+        z: root._hasForegroundContent ? 0 : 2
+    }
+
+    ShaderEffectSource {
+        id: contentCapture
+        sourceItem: root._effectiveForegroundItem ? root._effectiveForegroundItem : defaultBackdropItem
+        hideSource: root._hasForegroundContent && !root.accessibleFallback
+        live: root._hasForegroundContent && root.visible && !root.accessibleFallback
+        smooth: true
+        recursive: false
+        anchors.fill: parent
+        visible: false
+    }
+
     function updateEffectiveValues() {
         var baseHighlight = highlightIntensity
-        if (pressed) baseHighlight += 0.40
-        else if (hovered) baseHighlight += 0.22
+        if (pressed) baseHighlight += 0.20
+        else if (hovered) baseHighlight += 0.10
         _effectiveHighlight = baseHighlight
 
         var baseDistortion = distortionStrength
-        if (pressed) baseDistortion += 0.010
+        if (pressed) baseDistortion += 0.015
         else if (hovered) baseDistortion += 0.005
         _effectiveDistortion = baseDistortion
     }
@@ -275,6 +320,7 @@ Item {
         z: 1
 
         property var source: bgCapture
+        property var contentSource: contentCapture
         property real hasSource: root._effectiveBackgroundSource ? 1.0 : 0.0
 
         // Kept in the uniform block for shader layout compatibility. Motion comes
@@ -290,8 +336,8 @@ Item {
         property real distortion: root._effectiveDistortion
         property real highlight: root._effectiveHighlight
         property real fresnel: root.edgeFresnelPower
-        property real hoverState: root.hovered ? 1.0 : 0.0
-        property real pressState: root.pressed ? 1.0 : 0.0
+        property real hoverState: root._fluidHoverState
+        property real pressState: root._fluidPressState
         property real cornerRadius: root.cornerRadius
         property real lensMagnification: root.lensMagnification
         property real refractionHeight: root.refractionHeight
@@ -323,8 +369,8 @@ Item {
         property real secondaryActive: root.secondaryActive
         property real sminFactor: root.sminFactor
         property real pressBulge: root.pressBulge
+        property real hasContent: root._hasForegroundContent ? 1.0 : 0.0
         property real _pad0: 0.0
-        property real _pad1: 0.0
 
         vertexShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/liquid_glass_surface.vert.qsb"
         fragmentShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/liquid_glass_surface.frag.qsb"
@@ -345,12 +391,5 @@ Item {
                     ? Qt.rgba(1.0, 1.0, 1.0, 0.42) 
                     : (root.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.28) : Qt.rgba(1.0, 1.0, 1.0, 0.16))
         z: 3
-    }
-
-    // 内容容器
-    Item {
-        id: contentContainer
-        anchors.fill: parent
-        z: 10
     }
 }
