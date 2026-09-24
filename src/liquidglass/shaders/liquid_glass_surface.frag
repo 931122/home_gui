@@ -87,6 +87,19 @@ float smin(float a, float b, float k) {
     return min(a, b) - h * h * k * 0.25;
 }
 
+// 将触点钳位在圆角矩形内或其圆角轮廓上 (避免触点漂移出画布外角死区)
+vec2 clampToRoundedBox(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + vec2(r);
+    if (q.x > 0.0 && q.y > 0.0) {
+        vec2 c = (b - vec2(r)) * sign(p);
+        vec2 v = p - c;
+        float lv = length(v);
+        return (lv > r) ? (c + (v / lv) * r) : p;
+    } else {
+        return clamp(p, -b, b);
+    }
+}
+
 // 综合 SDF 距离场计算 (支持次级形状平滑黏连与按压物理流体边缘形变)
 float evalSceneSDF(vec2 p, vec2 halfSize, float rad) {
     // 1. 主形状 SDF (基础圆角矩形)
@@ -103,33 +116,33 @@ float evalSceneSDF(vec2 p, vec2 halfSize, float rad) {
 
     // 3. 手指按压水滴边缘弹性形变 (Fluid Meniscus Rim Bulge)
     if (ubuf.pressState > 0.01) {
-        vec2 pPtr = clamp((ubuf.pointer - vec2(0.5)) * ubuf.resolution, -halfSize, halfSize);
+        // 触点约束在圆角外轮廓内，绝不溢出到角落空白区
+        vec2 pRaw = (ubuf.pointer - vec2(0.5)) * ubuf.resolution;
+        vec2 pPtr = clampToRoundedBox(pRaw, halfSize, rad);
 
-        // 圆角保护各向异性衰减 (Smooth Radial Corner Damping)：
-        // 沿四条直边：v.x 或 v.y 必有至少一个分量为 0，diag 严格为 0，inCorner 为 0，100% 保持流体边缘触控弹性形变；
-        // 靠近 4 个角时，根据角向与径向平滑渐变回原始完美圆角 d0，杜绝直角溢出，也杜绝截断产生短弧线。
+        // 仅根据触点本身离角点的接近度做平滑表面张力约束 (全向严格外凸，浑然一体，绝无向内凹弧)
         vec2 vPtr = max(abs(pPtr) - (halfSize - vec2(rad)), vec2(0.0));
-        float dotPtr = dot(vPtr, vPtr);
-        float diagPtr = dotPtr > 0.001 ? (2.0 * vPtr.x * vPtr.y) / dotPtr : 0.0;
-        float inCornerPtr = diagPtr * smoothstep(rad * 0.3, rad * 1.1, sqrt(dotPtr));
+        float inCorner = (vPtr.x > 0.0 && vPtr.y > 0.0)
+                       ? clamp(min(vPtr.x, vPtr.y) / max(rad * 0.707, 1.0), 0.0, 1.0)
+                       : 0.0;
+        float cornerDamp = smoothstep(0.0, 1.0, inCorner);
 
-        vec2 vP = max(abs(p) - (halfSize - vec2(rad)), vec2(0.0));
-        float dotP = dot(vP, vP);
-        float diagP = dotP > 0.001 ? (2.0 * vP.x * vP.y) / dotP : 0.0;
-        float inCornerP = diagP * smoothstep(rad * 0.3, rad * 1.1, sqrt(dotP));
+        // 直边保持饱满强劲的水滴拉伸；拐角处表面张力增强自然紧致，保证轮廓永远在 Quad 内安全圆滑过渡
+        float minDim = min(ubuf.resolution.x, ubuf.resolution.y);
+        float rPressBase = max(minDim * 0.35, 18.0);
+        float rPressMin = max(rad * 0.22, 3.5);
+        float rPress = mix(rPressBase, rPressMin, cornerDamp);
 
-        float inCorner = clamp(max(inCornerPtr, inCornerP), 0.0, 1.0);
+        float bulgeKBase = 16.0 * ubuf.pressState * max(ubuf.pressBulge, 0.5);
+        float bulgeKMin = max(rad * 0.22, 3.2) * ubuf.pressState * max(ubuf.pressBulge, 0.5);
+        float bulgeK = mix(bulgeKBase, bulgeKMin, cornerDamp);
 
         vec2 tp = p - pPtr;
         float tr = length(tp);
-        float minDim = min(ubuf.resolution.x, ubuf.resolution.y);
-        float rPress = max(minDim * 0.35, 18.0);
         float dent = (tr - rPress) * 0.8 * max(ubuf.pressBulge, 0.5);
-        float bulgeK = 16.0 * ubuf.pressState * max(ubuf.pressBulge, 0.5) * (1.0 - inCornerPtr * 0.85);
-        float dLiquid = smin(d0, dent, bulgeK);
 
-        // 沿边缘完整呈现水滴流动；在角点处平滑融合为 d0 纯圆角
-        d = mix(dLiquid, d0, inCorner);
+        // 单一连续光滑 smin，纯凸集流体张力融合，无截断、无凹陷、无多余线条
+        d = smin(d0, dent, bulgeK);
     }
 
     return d;
