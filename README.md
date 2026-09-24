@@ -4,13 +4,59 @@
 
 ## 1. 常用命令
 
-### 环境与编译 (Buildroot/uClibc)
+### 环境与编译
 
 ```bash
-cmake -S . -B build && cmake --build build
+# 本地 Native 构建（自动检测 Linux / macOS）
+bash scripts/build.sh native
+
+# macOS 本地构建
 bash scripts/build.sh macos
+
+# RK3506 交叉编译（需指定 BUILDROOT_OUTPUT）
 bash scripts/build.sh rk3506
+
+# Android APK 一键打包（默认 arm64-v8a）
+bash scripts/build.sh android
 ```
+
+### Android 移动端编译说明
+
+运行 `bash scripts/build.sh android` 可一键编译并生成 Release APK，脚本会自动处理 FFmpeg 交叉编译（带 MediaCodec 硬解补丁）、QSB Shader 编译以及 APK 签名打包。
+
+#### 前置环境要求
+
+- **Qt 6 for Android**：建议 Qt 6.6.3+（需包含 `android_arm64_v8a` 架构套件及同版本 Host `gcc_64`）。
+- **Android SDK & NDK**：
+  - Android SDK (API Level 31+)；
+  - Android NDK (推荐 r25c 或 r21e)；
+  - Build Tools (33.0.0+)；
+  - Java JDK 17 (或 JDK 11)。
+- **OpenSSL for Android**：推荐使用 [KDAB/android_openssl](https://github.com/KDAB/android_openssl)。
+
+#### 环境变量配置（可选）
+
+若工具链未安装在标准默认路径，可通过环境变量指定：
+
+```bash
+export QT_ANDROID_DIR="$HOME/Android/Qt/6.6.3/android_arm64_v8a"
+export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+export ANDROID_NDK_ROOT="$HOME/Android/ndk/android-ndk-r25c"
+export ANDROID_OPENSSL_ROOT="$HOME/Android/android_openssl"
+export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+
+# 执行一键打包
+bash scripts/build.sh android
+```
+
+#### 产物位置与特性
+
+- **输出路径**：`build-android/home_gui.apk`
+- **特性支持**：
+  - 自动适配手机竖屏与横屏模式（横屏下自动启用 Dock 工具栏扩展）；
+  - 完整集成 Liquid Glass 2.0 动效与重力感应器倾斜高光联动；
+  - 首次启动自动释放可写配置文件，支持热重载。
+
 
 ### 运行与调试
 
@@ -43,7 +89,8 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 | 平台 | 渲染后端 (QPA) | 加速技术 | 建议 UI 框架 |
 | :--- | :--- | :--- | :--- |
 | **RK3568** | `eglfs` | Mali-G52 GPU (OpenGL ES 3.2) | Qt Quick / QML |
-| **RK3506** | `linuxfb` | RGA 2D Accelerator |Qt Quick / QML |
+| **RK3506** | `linuxfb` | RGA 2D Accelerator | Qt Quick / QML |
+| **Android** | `android` (Vulkan / GLES 3.0+) | Adreno / Mali GPU (MediaCodec 硬解) | Qt Quick / QML |
 
 ### 屏幕规范
 * **固定分辨率**: 800 x 480。(后续可能升级)
