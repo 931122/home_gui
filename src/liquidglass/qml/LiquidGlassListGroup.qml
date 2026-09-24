@@ -45,11 +45,12 @@ Item {
         }
 
         function updateItems() {
+            var isSeparated = (root.style === LiquidGlassListGroup.Style.Separated)
             for (var i = 0; i < children.length; ++i) {
                 var child = children[i]
                 if (child.configureGlass) {
-                    child.position = children.length === 1 ? 0 : (i === 0 ? 1 : (i === children.length - 1 ? 3 : 2))
-                    child.configureGlass(root.style === LiquidGlassListGroup.Style.Separated, root.backgroundSource, root.cornerRadius)
+                    child.position = isSeparated ? 0 : (children.length === 1 ? 0 : (i === 0 ? 1 : (i === children.length - 1 ? 3 : 2)))
+                    child.configureGlass(isSeparated, root.backgroundSource, root.cornerRadius)
                 }
             }
         }

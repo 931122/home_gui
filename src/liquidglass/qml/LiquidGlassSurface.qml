@@ -45,7 +45,7 @@ Item {
     property bool edgeHighlightEnabled: true
     property real edgeHighlightWidth: 1.5
     property real edgeHighlightOpacity: 1.0
-    property bool overlayRimEnabled: false
+    property bool overlayRimEnabled: true
     property bool backdropBlurEnabled: true
     property bool sensorHighlightEnabled: true
     property bool adaptiveTint: true
