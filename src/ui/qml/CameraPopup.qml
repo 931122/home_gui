@@ -82,18 +82,6 @@ Popup {
             radius: width / 2
             color: Qt.rgba(0.42, 0.22, 0.68, 0.08)
         }
-
-        // 顶部 1px 月白光折射线（避开两端大圆角）
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: cameraPopupRoot.panelRadius
-            anchors.rightMargin: cameraPopupRoot.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.22
-        }
     }
 
     // 顶部居中下滑把手指示条 (支持向下滑动关闭)
@@ -341,17 +329,6 @@ Popup {
 
                     Behavior on scale { NumberAnimation { duration: 90 } }
                     Behavior on color { ColorAnimation { duration: 100 } }
-
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: cameraDelegate.popupRef ? cameraDelegate.popupRef.cardRadius : 14
-                        anchors.rightMargin: cameraDelegate.popupRef ? cameraDelegate.popupRef.cardRadius : 14
-                        height: 1
-                        color: "#ffffff"
-                        opacity: index === appController.currentCameraIndex ? 0.35 : 0.10
-                    }
                 }
 
                 // 监控视频渲染区

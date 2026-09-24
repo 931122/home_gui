@@ -136,34 +136,6 @@ Item {
             return p ? Qt.rgba(0.60, 1.00, 0.72, 0.90) : (h ? Qt.rgba(0.48, 0.95, 0.62, 0.70) : Qt.rgba(0.38, 0.88, 0.52, 0.50))
         }
 
-        // 3. 苹果凸透镜穹顶曲面高光 (Crescent Lens Specular Highlight)
-        // 柔和羽化渐变弧光，赋予按钮水珠般的饱满光泽
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.topMargin: 1
-            anchors.leftMargin: Math.max(2, Math.round(root.effectiveRadius * 0.4))
-            anchors.rightMargin: Math.max(2, Math.round(root.effectiveRadius * 0.4))
-            height: Math.max(2, Math.round(parent.height * 0.48))
-            radius: root.effectiveRadius
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: Qt.rgba(1.0, 1.0, 1.0, root.isPressed ? 0.55 : (root.isHovered ? 0.42 : 0.28))
-                }
-                GradientStop {
-                    position: 0.85
-                    color: Qt.rgba(1.0, 1.0, 1.0, 0.02)
-                }
-                GradientStop {
-                    position: 1.0
-                    color: "transparent"
-                }
-            }
-            opacity: root.disabled ? 0.10 : 1.0
-            Behavior on opacity { NumberAnimation { duration: 100 } }
-        }
 
         // 4. 触控压感水波提亮层 (Liquid Touch Flash)
         Rectangle {

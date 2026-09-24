@@ -23,18 +23,6 @@ Rectangle {
     border.width: fullscreen ? 0 : 1
     clip: true
 
-    // 顶部月白玻璃边缘折射高光
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: panel.panelRadius
-        anchors.rightMargin: panel.panelRadius
-        height: 1
-        color: "#ffffff"
-        opacity: fullscreen ? 0.0 : 0.18
-    }
-
     Loader {
         id: videoLoader
         anchors.fill: parent
@@ -155,18 +143,6 @@ Rectangle {
         border.width: 1
         clip: true
         visible: globalState.onvifAvailable
-
-        // 顶部微白玻璃边缘高光
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: panel.cardRadius
-            anchors.rightMargin: panel.cardRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.22
-        }
 
         function snapToBottomRight() {
             if (!parent) {

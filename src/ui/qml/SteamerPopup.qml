@@ -77,18 +77,6 @@ Popup {
         border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
         border.width: 1
         clip: true
-
-        // 顶部月白折射高光线
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: root.panelRadius
-            anchors.rightMargin: root.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.35
-        }
     }
 
     contentItem: Item {

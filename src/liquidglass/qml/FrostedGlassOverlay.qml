@@ -91,17 +91,4 @@ Item {
         }
     }
 
-    // 顶部月白发丝高光微光漫射
-    Rectangle {
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: Math.max(1, Math.round(root.height * 0.30))
-        z: 4
-        opacity: 0.30 * root.blurFactor
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.12) }
-            GradientStop { position: 1.0; color: "transparent" }
-        }
-    }
 }

@@ -78,8 +78,6 @@ Popup {
             border.width: 1
         }
 
-        Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: root.panelRadius; anchors.rightMargin: root.panelRadius; height: 1; color: "#ffffff"; opacity: 0.22 }
-
         // 顶部居中下滑把手指示条
         Item {
             id: handleBar

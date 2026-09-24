@@ -192,19 +192,6 @@ Item {
             color: sliderRoot.currentKnobColor
             opacity: sliderRoot.motherStrength * 0.95
 
-            // 母水滴顶部微晶弧光
-            Rectangle {
-                anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.topMargin: 1
-                width: parent.width * 0.60
-                height: parent.height * 0.38
-                radius: width / 2
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.90) }
-                    GradientStop { position: 1.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.0) }
-                }
-            }
         }
 
         // 2. 表面张力粘连流体水带 (Metaball Liquid Bridge)
@@ -337,31 +324,6 @@ Item {
                     }
                 }
 
-                // 顶部椭圆月牙高光 (安全内嵌，不越界)
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.topMargin: 2
-                    width: parent.width * 0.60
-                    height: parent.height * 0.38
-                    radius: width / 2
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.90) }
-                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.0) }
-                    }
-                }
-
-                // 顶部 1px 钻石切面微反光线
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.topMargin: 1.0
-                    width: parent.width * 0.55
-                    height: 1
-                    radius: 0.5
-                    color: "#ffffff"
-                    opacity: 0.95
-                }
 
                 // 水滴中心指示箭头 (正常态下深灰色水银触感)
                 Shape {

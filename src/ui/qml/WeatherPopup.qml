@@ -92,18 +92,6 @@ Popup {
                 GradientStop { position: 1.0; color: "transparent" }
             }
         }
-
-        // 3. 顶部月白玻璃边缘微折射高光（Specular Rim）
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.leftMargin: root.panelRadius
-            anchors.rightMargin: root.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.28
-        }
     }
 
     // 实况快捷数据源
@@ -406,18 +394,6 @@ Popup {
                 border.width: 1
                 clip: true
 
-                // 顶部微白玻璃反射线
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.leftMargin: root.cardRadius
-                    anchors.rightMargin: root.cardRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: 0.20
-                }
-
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: root.dp(12)
@@ -711,18 +687,6 @@ Popup {
                         color: index === 0 ? Qt.rgba(0.13, 0.30, 0.46, 0.55) : Qt.rgba(1, 1, 1, 0.04)
                         border.color: index === 0 ? Qt.rgba(0.35, 0.72, 1.0, 0.45) : Qt.rgba(1, 1, 1, 0.08)
                         border.width: index === 0 ? 1.5 : 1
-
-                        // 卡片顶部月白/冰蓝高光线
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.leftMargin: root.cardRadius
-                            anchors.rightMargin: root.cardRadius
-                            height: 1
-                            color: index === 0 ? "#80d0ff" : "#ffffff"
-                            opacity: index === 0 ? 0.45 : 0.15
-                        }
 
                         Column {
                             anchors.fill: parent

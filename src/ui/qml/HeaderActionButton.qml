@@ -7,7 +7,7 @@ Item {
 
     property real scaleUnit: 1.0
     property int cornerRadius: dp(14)
-    property bool isCapsule: true
+    property bool isCapsule: false
     property string label: ""
     property string iconText: ""
     property string iconSource: ""
@@ -15,10 +15,6 @@ Item {
     property color pressedColor: Qt.rgba(1, 1, 1, 0.22)
     property color activeBorderColor: Qt.rgba(1, 1, 1, 0.18)
     property color pressedBorderColor: Qt.rgba(1, 1, 1, 0.40)
-    property color activeGlowColor: "transparent"
-    property color pressedGlowColor: "transparent"
-    property color activeInnerColor: "transparent"
-    property color pressedInnerColor: "transparent"
     property color activeIconColor: "#8fe4ff"
     property color pressedIconColor: "#ffffff"
     property color activeTextColor: "#f0f6fc"

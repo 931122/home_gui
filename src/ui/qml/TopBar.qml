@@ -26,18 +26,6 @@ Rectangle {
     border.width: 1
     clip: true
 
-    // 顶部微白玻璃边缘折射高光
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: root.panelRadius
-        anchors.rightMargin: root.panelRadius
-        height: 1
-        color: "#ffffff"
-        opacity: 0.30
-    }
-
     function getTopBarWeatherIcon() {
         var cur = appController.weatherCurrent || ({})
         if (cur.icon && cur.icon.length > 0) return cur.icon
@@ -64,6 +52,7 @@ Rectangle {
         HeaderActionButton {
             scaleUnit: root.scaleUnit
             cornerRadius: root.chipRadius
+            isCapsule: false
             implicitWidth: root.isCompact ? root.dp(76) : root.dp(92)
             iconSource: "qrc:/icons/camera.svg"
             label: qsTr("Camera")
@@ -75,6 +64,7 @@ Rectangle {
             visible: true
             scaleUnit: root.scaleUnit
             cornerRadius: root.chipRadius
+            isCapsule: false
             implicitWidth: root.isCompact ? root.dp(76) : root.dp(92)
             iconSource: "qrc:/icons/settings.svg"
             label: qsTr("Settings")
@@ -102,7 +92,7 @@ Rectangle {
 
             LiquidGlassSurface {
                 anchors.fill: parent
-                cornerRadius: height / 2
+                cornerRadius: root.chipRadius
                 materialVariant: LiquidGlassSurface.MaterialVariant.Clear
                 baseOpacity: weatherArea.pressed ? 0.28 : 0.20
                 tintColor: Qt.rgba(0.75, 0.88, 1.0, weatherArea.pressed ? 0.18 : 0.10)
@@ -115,6 +105,15 @@ Rectangle {
                 hovered: weatherArea.containsMouse
                 pressed: weatherArea.pressed
                 pointerPosition: Qt.point(weatherArea.mouseX, weatherArea.mouseY)
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: root.chipRadius
+                color: "transparent"
+                border.width: 1
+                border.color: weatherArea.pressed ? Qt.rgba(1, 1, 1, 0.38)
+                                                  : (weatherArea.containsMouse ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.16))
             }
 
             Row {

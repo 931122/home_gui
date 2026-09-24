@@ -256,18 +256,6 @@ Rectangle {
     border.width: 1
     clip: false
 
-    // 顶部月白玻璃边缘折射高光
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: sidebarRoot.panelRadius
-        anchors.rightMargin: sidebarRoot.panelRadius
-        height: 1
-        color: "#ffffff"
-        opacity: 0.45
-    }
-
     // 复用按钮组件
     Component {
         id: actionComponent
@@ -469,15 +457,6 @@ Rectangle {
                         GradientStop { position: 1.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.35) }
                     }
 
-                    // 弯月面水波高光边缘
-                    Rectangle {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: sidebarRoot.dp(3)
-                        color: "#ffffff"
-                        opacity: actionArea.brightnessDrag ? 0.95 : 0.60
-                    }
                 }
             }
 
@@ -1137,17 +1116,6 @@ Rectangle {
             border.width: 1
             clip: true
 
-            // 顶部月白玻璃微折射高光线
-            Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.leftMargin: sidebarRoot.panelRadius
-                anchors.rightMargin: sidebarRoot.panelRadius
-                height: 1
-                color: "#ffffff"
-                opacity: 0.28
-            }
             
             // 顶部小抓手饰条
             Rectangle {

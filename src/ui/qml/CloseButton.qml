@@ -52,25 +52,6 @@ Item {
         border.color: root.isPressed ? Qt.rgba(1, 1, 1, 0.45) : (root.isHovered ? Qt.rgba(1, 1, 1, 0.30) : Qt.rgba(1, 1, 1, 0.18))
         border.width: 1
 
-        // 2. 穹顶透镜曲面高光 (弧形渐隐聚光)
-        Rectangle {
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.topMargin: 1
-            width: Math.round(parent.width * 0.72)
-            height: Math.round(parent.height * 0.45)
-            radius: width / 2
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: Qt.rgba(1.0, 1.0, 1.0, root.isPressed ? 0.50 : (root.isHovered ? 0.38 : 0.25))
-                }
-                GradientStop {
-                    position: 1.0
-                    color: "transparent"
-                }
-            }
-        }
 
         // 3. 触压波纹提亮
         Rectangle {

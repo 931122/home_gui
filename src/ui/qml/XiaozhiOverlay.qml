@@ -68,17 +68,6 @@ Item {
             Behavior on color { ColorAnimation { duration: 250 } }
         }
 
-        // 顶部 1px 月白光折射线
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: root.panelRadius
-            anchors.rightMargin: root.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.25
-        }
 
         // 左侧指示呼吸竖条
         Rectangle {
@@ -164,16 +153,6 @@ Item {
                 border.width: 1
                 clip: true
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.cardRadius
-                    anchors.rightMargin: root.cardRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: 0.10
-                }
 
                 Text {
                     anchors.fill: parent
@@ -212,14 +191,6 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 150 } }
         Behavior on color { ColorAnimation { duration: 120 } }
 
-        Rectangle {
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: parent.width * 0.55
-            height: 1
-            color: "#ffffff"
-            opacity: 0.35
-        }
 
         Image {
             anchors.centerIn: parent

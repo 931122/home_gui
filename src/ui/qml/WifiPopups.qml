@@ -111,17 +111,6 @@ Item {
                 radius: width / 2
                 color: Qt.rgba(0.42, 0.22, 0.68, 0.08)
             }
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: root.panelRadius
-                anchors.rightMargin: root.panelRadius
-                height: 1
-                color: "#ffffff"
-                opacity: 0.22
-            }
         }
 
         ColumnLayout {
@@ -350,17 +339,6 @@ Item {
             border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
             border.width: 1
             clip: true
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: root.panelRadius
-                anchors.rightMargin: root.panelRadius
-                height: 1
-                color: "#ffffff"
-                opacity: 0.22
-            }
         }
 
         ColumnLayout {
@@ -486,17 +464,6 @@ Item {
             border.color: Qt.rgba(1.0, 1.0, 1.0, 0.16)
             border.width: 1
             clip: true
-
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: root.panelRadius
-                anchors.rightMargin: root.panelRadius
-                height: 1
-                color: "#ffffff"
-                opacity: 0.22
-            }
         }
 
         ColumnLayout {

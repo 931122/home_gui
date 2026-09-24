@@ -21,18 +21,6 @@ Rectangle {
     border.width: 1
     clip: true
 
-    // 顶部微晶流光折射高光线
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: cardRoot.cardRadius
-        anchors.rightMargin: cardRoot.cardRadius
-        height: 1
-        color: "#ffffff"
-        opacity: 0.30
-    }
-
     // 智能提取全屋所有“灯光”相关实体
     readonly property var allHaActions: globalState.haActionStates || []
 

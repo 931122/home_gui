@@ -456,18 +456,6 @@ Popup {
             radius: width / 2
             color: Qt.rgba(0.42, 0.22, 0.68, 0.06)
         }
-
-        // 顶部 1px 月白光折射线（避开两端大圆角）
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: root.panelRadius
-            anchors.rightMargin: root.panelRadius
-            height: 1
-            color: "#ffffff"
-            opacity: 0.35
-        }
     }
 
     Item {
@@ -807,17 +795,6 @@ Popup {
                     border.color: Qt.rgba(1.0, 1.0, 1.0, 0.15)
                     border.width: 1
                     clip: true
-
-                    Rectangle {
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.leftMargin: root.cardRadius
-                        anchors.rightMargin: root.cardRadius
-                        height: 1
-                        color: "#ffffff"
-                        opacity: 0.22
-                    }
 
                     RowLayout {
                         anchors.fill: parent
@@ -1547,17 +1524,6 @@ Popup {
                         border.width: 1
                         clip: true
 
-                        Rectangle {
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.leftMargin: root.dp(10)
-                            anchors.rightMargin: root.dp(10)
-                            height: 1
-                            color: "#ffffff"
-                            opacity: 0.18
-                        }
-
                         Flickable {
                             id: moreDetailFlickable
                             anchors.fill: parent
@@ -1896,17 +1862,6 @@ Popup {
                 border.width: 1
                 clip: true
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.chipRadius
-                    anchors.rightMargin: root.chipRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: root.isStrictCooking ? 0.35 : 0.20
-                }
-
                 RowLayout {
                     anchors.fill: parent
                     anchors.margins: root.dp(7)
@@ -1992,18 +1947,6 @@ Popup {
                 height: root.dp(200)
                 radius: width / 2
                 color: Qt.rgba(0.42, 0.22, 0.68, 0.06)
-            }
-
-            // 顶部 1px 月白光折射线
-            Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: root.panelRadius
-                anchors.rightMargin: root.panelRadius
-                height: 1
-                color: "#ffffff"
-                opacity: 0.30
             }
 
             // 阻断底层点击穿透

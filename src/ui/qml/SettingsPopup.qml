@@ -63,17 +63,6 @@ GlassPopup {
                 implicitHeight: root.dp(100)
                 clip: true
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.cardRadius
-                    anchors.rightMargin: root.cardRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: 0.12
-                }
-
                 Column {
                     anchors.fill: parent
                     anchors.margins: root.dp(14)
@@ -184,17 +173,6 @@ GlassPopup {
                 Behavior on scale { NumberAnimation { duration: 100 } }
                 Behavior on color { ColorAnimation { duration: 100 } }
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.cardRadius
-                    anchors.rightMargin: root.cardRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: 0.12
-                }
-
                 MouseArea {
                     id: wifiMouseArea
                     anchors.fill: parent
@@ -268,17 +246,6 @@ GlassPopup {
                 border.width: 1
                 implicitHeight: screenPowerCol.implicitHeight + root.dp(28)
                 clip: true
-
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: root.cardRadius
-                    anchors.rightMargin: root.cardRadius
-                    height: 1
-                    color: "#ffffff"
-                    opacity: 0.12
-                }
 
                 ColumnLayout {
                     id: screenPowerCol

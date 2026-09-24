@@ -330,31 +330,6 @@ Item {
         fragmentShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/liquid_glass_surface.frag.qsb"
     }
 
-    // ============================================================
-    // 4. 苹果凸透镜穹顶微弧光反光层 (Crescent Lens Specular Highlight)
-    // ============================================================
-    Rectangle {
-        id: topSheen
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.margins: 1
-        height: Math.max(2, Math.round(parent.height * 0.44))
-        radius: root.cornerRadius
-        visible: root.overlayRimEnabled && !root.accessibleFallback
-        z: 2
-
-        gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: Qt.rgba(1.0, 1.0, 1.0, root.pressed ? 0.35 : (root.hovered ? 0.24 : 0.16))
-            }
-            GradientStop {
-                position: 1.0
-                color: Qt.rgba(1.0, 1.0, 1.0, 0.0)
-            }
-        }
-    }
 
     // ============================================================
     // 5. 360° 物理全反射微晶描边 (360° Specular Rim)
