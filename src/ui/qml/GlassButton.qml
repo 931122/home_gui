@@ -43,7 +43,7 @@ Item {
         }
     }
 
-    // 0. 悬浮弥散软环境光晕 / 投影 (苹果拟物光学悬浮感)
+    // 0. 悬浮微投影（苹果轻量微阴影）
     Rectangle {
         id: ambientGlow
         anchors.fill: parent
@@ -51,19 +51,7 @@ Item {
         radius: root.effectiveRadius + root.dp(1)
         z: 0
         visible: !root.disabled
-        color: {
-            if (root.styleType === "primary") {
-                return Qt.rgba(0.20, 0.85, 0.45, root.isPressed ? 0.28 : (root.isHovered ? 0.20 : 0.12))
-            }
-            if (root.styleType === "danger") {
-                return Qt.rgba(0.95, 0.27, 0.27, root.isPressed ? 0.28 : (root.isHovered ? 0.20 : 0.12))
-            }
-            if (root.styleType === "accent") {
-                return Qt.rgba(0.15, 0.65, 1.00, root.isPressed ? 0.28 : (root.isHovered ? 0.20 : 0.12))
-            }
-            // secondary / neutral 悬浮深灰软投影
-            return Qt.rgba(0.0, 0.0, 0.0, root.isPressed ? 0.35 : (root.isHovered ? 0.25 : 0.15))
-        }
+        color: Qt.rgba(0.0, 0.0, 0.0, root.isPressed ? 0.30 : (root.isHovered ? 0.20 : 0.12))
         Behavior on color { ColorAnimation { duration: 120 } }
     }
 
@@ -137,14 +125,6 @@ Item {
         }
 
 
-        // 4. 触控压感水波提亮层 (Liquid Touch Flash)
-        Rectangle {
-            anchors.fill: parent
-            radius: root.effectiveRadius
-            color: "#ffffff"
-            opacity: root.isPressed ? 0.12 : 0.0
-            Behavior on opacity { NumberAnimation { duration: root.isPressed ? 60 : 140 } }
-        }
 
         // 5. 内容排版（图标 + 苹果 SF 质感文字）
         RowLayout {

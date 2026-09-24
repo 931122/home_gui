@@ -181,17 +181,6 @@ void main() {
         offset -= p * (lensStrength * lensCurvature);
     }
 
-    // 手指按压水银波纹流体推挤
-    if (ubuf.pressState > 0.01) {
-        vec2 tp = p - (ubuf.pointer - vec2(0.5)) * ubuf.resolution;
-        float tr = length(tp);
-        float rMax = max(minDim * 0.45, 16.0);
-        float bump = ubuf.pressState * exp(-(tr * tr) / (rMax * rMax * 0.45));
-        float ripple = ubuf.pressState * sin(clamp(tr / rMax * 3.14159, 0.0, 3.14159)) * 0.85;
-        if (tr > 0.5) {
-            offset -= (tp / tr) * ((bump * 1.35 + ripple) * totalRefr * 0.6);
-        }
-    }
 
     // ============================================================
     // 3. 物理三通道光谱色散 (Chromatic Aberration)
@@ -293,11 +282,6 @@ void main() {
     float fresnelRim = pow(1.0 - t, fresnelFactor) * (ubuf.materialStyle > 0.5 ? 0.45 : 0.28) * ubuf.highlight * ubuf.edgeHighlightEnabled * ubuf.edgeHighlightOpacity;
     float topSheen = smoothstep(-0.2, 0.9, -n.y) * smoothstep(bevel * 1.5, 0.0, abs(d + bevel * 0.4)) * 0.22 * ubuf.highlight;
 
-    // 触摸流光与衍射光环
-    float pointerDist = length(uv - ubuf.pointer);
-    float pointerHighlight = exp(-pointerDist * pointerDist * 36.0) * ubuf.highlight * (ubuf.hoverState * 0.28 + ubuf.pressState * 0.60);
-    float touchHalo = exp(-pow(pointerDist - 0.18, 2.0) * 110.0) * ubuf.highlight * (ubuf.pressState * 0.28);
-
     // ============================================================
     // 7. 材质变体 (Regular / Clear) 与亮度自适应合成
     // ============================================================
@@ -310,7 +294,7 @@ void main() {
         glassColor = mix(bgColor, clearBed, 0.14);
         vec3 adaptiveTint = mix(ubuf.tint.rgb, vec3(1.0) - ubuf.tint.rgb, smoothstep(0.72, 0.96, detectedLum) * ubuf.adaptiveTint);
         glassColor = mix(glassColor, adaptiveTint, ubuf.tintStr * 0.6);
-        glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim * 1.25 + fresnelRim * 1.35 + topSheen + pointerHighlight + touchHalo);
+        glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim * 1.25 + fresnelRim * 1.35 + topSheen);
         volumeOpacity = ubuf.opacity_ * 0.72 + hair * 0.24 + fresnelRim * 0.22;
         volumeOpacity = clamp(volumeOpacity, 0.10, 0.92) * cov;
     } else {
@@ -319,7 +303,7 @@ void main() {
         glassColor = mix(bgColor, darkBed, 0.38);
         vec3 adaptiveTint = mix(ubuf.tint.rgb, vec3(1.0) - ubuf.tint.rgb, smoothstep(0.72, 0.96, detectedLum) * ubuf.adaptiveTint);
         glassColor = mix(glassColor, adaptiveTint, ubuf.tintStr);
-        glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim + fresnelRim + topSheen + pointerHighlight + touchHalo);
+        glassColor += mix(vec3(1.0), ubuf.edgeColor.rgb, 0.35) * (specRim + fresnelRim + topSheen);
         volumeOpacity = ubuf.opacity_ + hair * 0.20 + glow * 0.12 + fresnelRim * 0.15;
         volumeOpacity = clamp(volumeOpacity, 0.15, 0.96) * cov;
     }

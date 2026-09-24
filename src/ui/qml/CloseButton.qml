@@ -53,14 +53,6 @@ Item {
         border.width: 1
 
 
-        // 3. 触压波纹提亮
-        Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: "#ffffff"
-            opacity: root.isPressed ? 0.15 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 80 } }
-        }
     }
 
     // 4. 双重矢量抗锯齿交叉矩形 (免疫字体缺失导致的方框方块)
