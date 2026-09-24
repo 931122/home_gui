@@ -87,10 +87,11 @@ float smin(float a, float b, float k) {
     return min(a, b) - h * h * k * 0.25;
 }
 
-// 综合 SDF 距离场计算 (支持次级形状平滑黏连与按压物理凸起/凹陷)
+// 综合 SDF 距离场计算 (支持次级形状平滑黏连与按压物理流体边缘形变)
 float evalSceneSDF(vec2 p, vec2 halfSize, float rad) {
-    // 1. 主形状 SDF
-    float d = sdRoundedBox(p, halfSize, rad);
+    // 1. 主形状 SDF (基础圆角矩形)
+    float d0 = sdRoundedBox(p, halfSize, rad);
+    float d = d0;
 
     // 2. 次级液态形状 smin 融合 (Metaball 粘连拉丝)
     if (ubuf.secondaryActive > 0.01) {
@@ -100,15 +101,35 @@ float evalSceneSDF(vec2 p, vec2 halfSize, float rad) {
         d = smin(d, d2, k);
     }
 
-    // 3. 手指按压液态形变 (Press Fluid Dent & Bulge)
+    // 3. 手指按压水滴边缘弹性形变 (Fluid Meniscus Rim Bulge)
     if (ubuf.pressState > 0.01) {
-        vec2 tp = p - (ubuf.pointer - vec2(0.5)) * ubuf.resolution;
+        vec2 pPtr = clamp((ubuf.pointer - vec2(0.5)) * ubuf.resolution, -halfSize, halfSize);
+
+        // 圆角保护各向异性衰减 (Smooth Radial Corner Damping)：
+        // 沿四条直边：v.x 或 v.y 必有至少一个分量为 0，diag 严格为 0，inCorner 为 0，100% 保持流体边缘触控弹性形变；
+        // 靠近 4 个角时，根据角向与径向平滑渐变回原始完美圆角 d0，杜绝直角溢出，也杜绝截断产生短弧线。
+        vec2 vPtr = max(abs(pPtr) - (halfSize - vec2(rad)), vec2(0.0));
+        float dotPtr = dot(vPtr, vPtr);
+        float diagPtr = dotPtr > 0.001 ? (2.0 * vPtr.x * vPtr.y) / dotPtr : 0.0;
+        float inCornerPtr = diagPtr * smoothstep(rad * 0.3, rad * 1.1, sqrt(dotPtr));
+
+        vec2 vP = max(abs(p) - (halfSize - vec2(rad)), vec2(0.0));
+        float dotP = dot(vP, vP);
+        float diagP = dotP > 0.001 ? (2.0 * vP.x * vP.y) / dotP : 0.0;
+        float inCornerP = diagP * smoothstep(rad * 0.3, rad * 1.1, sqrt(dotP));
+
+        float inCorner = clamp(max(inCornerPtr, inCornerP), 0.0, 1.0);
+
+        vec2 tp = p - pPtr;
         float tr = length(tp);
-        float rPress = max(min(ubuf.resolution.x, ubuf.resolution.y) * 0.35, 16.0);
-        // 按压中心为凹陷，周围环形隆起
-        float dent = (tr - rPress) * 0.8 * max(ubuf.pressBulge, 0.0);
-        float bulgeK = 18.0 * ubuf.pressState * max(ubuf.pressBulge, 0.0);
-        d = smin(d, dent, bulgeK);
+        float minDim = min(ubuf.resolution.x, ubuf.resolution.y);
+        float rPress = max(minDim * 0.35, 18.0);
+        float dent = (tr - rPress) * 0.8 * max(ubuf.pressBulge, 0.5);
+        float bulgeK = 16.0 * ubuf.pressState * max(ubuf.pressBulge, 0.5) * (1.0 - inCornerPtr * 0.85);
+        float dLiquid = smin(d0, dent, bulgeK);
+
+        // 沿边缘完整呈现水滴流动；在角点处平滑融合为 d0 纯圆角
+        d = mix(dLiquid, d0, inCorner);
     }
 
     return d;
@@ -198,10 +219,15 @@ void main() {
 
         float fluidAmp = ubuf.pressState * 32.0 * max(ubuf.pressBulge, 0.5);
         fluidOffset = u_dir * (dentSlope * fluidAmp - crestWave * (fluidAmp * 0.45));
+
+        // 边界张力钉扎 (Surface Tension Rim Pinning)：靠近物理边缘平滑衰减归零，杜绝穿透边界
+        float edgePin = clamp(-d / 6.0, 0.0, 1.0);
+        fluidOffset *= edgePin;
+
         offset += fluidOffset;
 
         // 保存水滴凹陷与环形波峰法线，供后续 3D 光照着色
-        fluidPerturb = normalize(vec3(-u_dir.x * dentSlope * 1.8, -u_dir.y * dentSlope * 1.8, 1.0));
+        fluidPerturb = normalize(vec3(-u_dir.x * dentSlope * 1.8 * edgePin, -u_dir.y * dentSlope * 1.8 * edgePin, 1.0));
     }
 
 
@@ -335,8 +361,10 @@ void main() {
     // ============================================================
     if (ubuf.hasContent > 0.5) {
         // 前景内容仅产生物理流体水滴推挤形变，无彩虹色散杂色，色彩纯净保真
-        vec2 uvFg = clamp(uv + fluidOffset / ubuf.resolution, 0.0, 1.0);
-        vec4 fg = texture(contentSource, uvFg);
+        vec2 uvFg = uv + fluidOffset / ubuf.resolution;
+        vec4 fg = (uvFg.x >= 0.0 && uvFg.x <= 1.0 && uvFg.y >= 0.0 && uvFg.y <= 1.0)
+                ? texture(contentSource, uvFg)
+                : vec4(0.0);
 
         vec3 unpFg = fg.a > 0.001 ? (fg.rgb / fg.a) : fg.rgb;
         float fgAlpha = fg.a;
