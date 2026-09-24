@@ -276,7 +276,7 @@ void WeatherService::refresh()
 
     QString city = m_config.city.trimmed();
     if (city.isEmpty()) {
-        city = QStringLiteral("历城");
+        city = QStringLiteral("北京");
     }
     const QString areaId = m_config.areaId.trimmed();
 
@@ -437,14 +437,14 @@ void WeatherService::fetchWeatherIndex(const QString &areaId, quint64 serial)
         const QString weather = weatherName(weatherCode, dataSK.value(QStringLiteral("weather")).toString());
         const QString emoji = weatherEmoji(weatherCode, weather);
         const QString temp = normalizeTemp(dataSK.value(QStringLiteral("temp")).toString());
-        const QString cityName = dataSK.value(QStringLiteral("cityname")).toString(!m_config.city.isEmpty() ? m_config.city : QStringLiteral("历城"));
+        const QString cityName = dataSK.value(QStringLiteral("cityname")).toString(!m_config.city.isEmpty() ? m_config.city : QStringLiteral("北京"));
 
         const QString nextSummary = QStringLiteral("%1 %2°C").arg(weather, temp);
         QString nextLocation;
         if (!m_resolvedProvince.isEmpty()) {
             nextLocation = QStringLiteral("%1 · %2").arg(m_resolvedProvince, cityName);
-        } else if (m_config.areaId == QStringLiteral("101010100") || m_config.city == QStringLiteral("历城") || cityName == QStringLiteral("历城")) {
-            nextLocation = QStringLiteral("山东 · %1").arg(cityName);
+        } else if (m_config.areaId == QStringLiteral("101010100") || m_config.city == QStringLiteral("北京") || cityName == QStringLiteral("北京")) {
+            nextLocation = QStringLiteral("北京 · %1").arg(cityName);
         } else {
             nextLocation = cityName;
         }

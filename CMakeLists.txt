@@ -129,13 +129,23 @@ target_link_libraries(home_gui PRIVATE
 )
 
 if(ANDROID)
+    # androiddeployqt otherwise emits an unsigned Release APK, which Android
+    # refuses to install. Qt uses the local debug keystore by default when
+    # QT_ANDROID_SIGN_APK is enabled; production builds can override the
+    # keystore through QT_ANDROID_KEYSTORE_* environment variables.
+    set(QT_ANDROID_SIGN_APK ON CACHE BOOL "Sign Android APKs during packaging")
+
     if(ANDROID_FFMPEG_LIBRARIES)
         target_link_libraries(home_gui PRIVATE ${ANDROID_FFMPEG_LIBRARIES} z)
     endif()
 
     # OpenSSL 支持库集成 (KDAB android_openssl，确保 HTTPS / TLS 网络请求正常)
     if(NOT ANDROID_OPENSSL_ROOT)
-        set(ANDROID_OPENSSL_ROOT "${HOME}/Android/android_openssl")
+        if(DEFINED ENV{ANDROID_OPENSSL_ROOT})
+            set(ANDROID_OPENSSL_ROOT "$ENV{ANDROID_OPENSSL_ROOT}")
+        elseif(EXISTS "$ENV{HOME}/Android/android_openssl")
+            set(ANDROID_OPENSSL_ROOT "$ENV{HOME}/Android/android_openssl")
+        endif()
     endif()
     if(EXISTS "${ANDROID_OPENSSL_ROOT}/android_openssl.cmake")
         message(STATUS "Found Android OpenSSL: ${ANDROID_OPENSSL_ROOT}")

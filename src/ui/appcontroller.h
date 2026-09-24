@@ -219,6 +219,8 @@ private:
     void evaluateScreenPowerSchedule();
     bool isInScreenBlankWindow(const QTime &now) const;
     bool setFramebufferBlank(bool blanked);
+    QString steamerSocketEntityId() const;
+    QString washerEntityId(const QString &domain, const QString &propertySuffix) const;
 
     ConfigManager *m_configManager;
     GlobalState *m_globalState;

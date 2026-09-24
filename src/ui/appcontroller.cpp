@@ -34,7 +34,6 @@ QString currentWeekLabel(int dayOfWeek)
 
 }
 
-static const QString kSteamerSocketEntityId = QStringLiteral("switch.zimi_cn_1000000002_zncz01_on_p_2_1");
 
 static QUrl applyCredentialsToStreamUrl(const QString &streamUrl,
                                         const QString &username,
@@ -146,7 +145,7 @@ AppController::AppController(ConfigManager *configManager,
             const QVariantMap item = itemVar.toMap();
             const QString entityId = item.value(QStringLiteral("entityId")).toString();
             const bool active = item.value(QStringLiteral("active")).toBool();
-            if (entityId == kSteamerSocketEntityId) {
+            if (entityId == steamerSocketEntityId() || entityId.contains(QStringLiteral("steamer")) || entityId.contains(QStringLiteral("zncz01"))) {
                 socketActive = active;
             }
             if (entityId == QStringLiteral("script.timed_cook_runner")
@@ -722,21 +721,21 @@ void AppController::cookerKeepWarm()
 void AppController::setWasherPower(bool on)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("switch.midea_123456789012345_power"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("switch"), QStringLiteral("power")));
     callHaCustomService(QStringLiteral("switch"), on ? QStringLiteral("turn_on") : QStringLiteral("turn_off"), data);
 }
 
 void AppController::setWasherStartPause(bool start)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("switch.midea_123456789012345_control_status"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("switch"), QStringLiteral("control_status")));
     callHaCustomService(QStringLiteral("switch"), start ? QStringLiteral("turn_on") : QStringLiteral("turn_off"), data);
 }
 
 void AppController::setWasherProgram(const QString &program)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_program"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("program")));
     data.insert(QStringLiteral("option"), program);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -744,7 +743,7 @@ void AppController::setWasherProgram(const QString &program)
 void AppController::setWasherTemperature(const QString &temp)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_temperature"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("temperature")));
     data.insert(QStringLiteral("option"), temp);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -752,7 +751,7 @@ void AppController::setWasherTemperature(const QString &temp)
 void AppController::setWasherSpinSpeed(const QString &speed)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_dehydration_speed"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("dehydration_speed")));
     data.insert(QStringLiteral("option"), speed);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -760,7 +759,7 @@ void AppController::setWasherSpinSpeed(const QString &speed)
 void AppController::setWasherRinseCount(const QString &count)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_soak_count"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("soak_count")));
     data.insert(QStringLiteral("option"), count);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -768,7 +767,7 @@ void AppController::setWasherRinseCount(const QString &count)
 void AppController::setWasherWaterLevel(const QString &level)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_water_level"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("water_level")));
     data.insert(QStringLiteral("option"), level);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -776,7 +775,7 @@ void AppController::setWasherWaterLevel(const QString &level)
 void AppController::setWasherDetergent(const QString &detergent)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("select.midea_123456789012345_detergent"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("select"), QStringLiteral("detergent")));
     data.insert(QStringLiteral("option"), detergent);
     callHaCustomService(QStringLiteral("select"), QStringLiteral("select_option"), data);
 }
@@ -784,21 +783,21 @@ void AppController::setWasherDetergent(const QString &detergent)
 void AppController::setWasherChildLock(bool locked)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("lock.midea_123456789012345_lock"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("lock"), QStringLiteral("lock")));
     callHaCustomService(QStringLiteral("lock"), locked ? QStringLiteral("lock") : QStringLiteral("unlock"), data);
 }
 
 void AppController::setWasherWindDispel(bool on)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("switch.midea_123456789012345_wind_dispel"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("switch"), QStringLiteral("wind_dispel")));
     callHaCustomService(QStringLiteral("switch"), on ? QStringLiteral("turn_on") : QStringLiteral("turn_off"), data);
 }
 
 void AppController::setWasherNightly(bool on)
 {
     QVariantMap data;
-    data.insert(QStringLiteral("entity_id"), QStringLiteral("switch.midea_123456789012345_nightly"));
+    data.insert(QStringLiteral("entity_id"), washerEntityId(QStringLiteral("switch"), QStringLiteral("nightly")));
     callHaCustomService(QStringLiteral("switch"), on ? QStringLiteral("turn_on") : QStringLiteral("turn_off"), data);
 }
 
@@ -1201,13 +1200,65 @@ void AppController::stopSteamer()
     callHaCustomService(QStringLiteral("script"), QStringLiteral("turn_off"), scriptData);
 
     QVariantMap socketData;
-    socketData.insert(QStringLiteral("entity_id"), kSteamerSocketEntityId);
+    socketData.insert(QStringLiteral("entity_id"), steamerSocketEntityId());
     callHaCustomService(QStringLiteral("switch"), QStringLiteral("turn_off"), socketData);
 }
 
 void AppController::toggleSteamerSocket()
 {
     QVariantMap socketData;
-    socketData.insert(QStringLiteral("entity_id"), kSteamerSocketEntityId);
+    socketData.insert(QStringLiteral("entity_id"), steamerSocketEntityId());
     callHaCustomService(QStringLiteral("switch"), QStringLiteral("toggle"), socketData);
+}
+
+QString AppController::steamerSocketEntityId() const
+{
+    if (m_configManager) {
+        for (const auto &action : m_configManager->config().homeAssistant.actions) {
+            if (action.domain == QStringLiteral("switch") &&
+                (action.name.contains(QStringLiteral("插座")) || action.entityId.contains(QStringLiteral("steamer")) || action.entityId.contains(QStringLiteral("socket")))) {
+                return action.entityId;
+            }
+        }
+    }
+    return QStringLiteral("switch.dining_socket");
+}
+
+QString AppController::washerEntityId(const QString &domain, const QString &propertySuffix) const
+{
+    QString devId;
+    if (m_globalState) {
+        const QVariantList states = m_globalState->haActionStates();
+        for (const QVariant &v : states) {
+            const QVariantMap item = v.toMap();
+            if (item.value(QStringLiteral("isWasher")).toBool()) {
+                devId = item.value(QStringLiteral("washerDeviceId")).toString();
+                if (!devId.isEmpty()) {
+                    break;
+                }
+            }
+        }
+    }
+
+    if (devId.isEmpty() && m_configManager) {
+        for (const auto &action : m_configManager->config().homeAssistant.actions) {
+            if (action.domain.contains(QStringLiteral("washer")) || action.name.contains(QStringLiteral("洗衣机"))) {
+                static const QRegularExpression devIdRegex(QStringLiteral(R"((?:midea_)?(\d{6,})|(?:washer_[a-zA-Z0-9]+))"));
+                const auto match = devIdRegex.match(action.entityId);
+                if (match.hasMatch()) {
+                    devId = match.captured(1).isEmpty() ? match.captured(0) : match.captured(1);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (devId.isEmpty()) {
+        devId = QStringLiteral("washer");
+    }
+
+    if (devId.startsWith(QStringLiteral("washer")) || !devId.contains(QRegularExpression(QStringLiteral(R"(^\d+$)")))) {
+        return QStringLiteral("%1.%2_%3").arg(domain, devId, propertySuffix);
+    }
+    return QStringLiteral("%1.midea_%2_%3").arg(domain, devId, propertySuffix);
 }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-DEFAULT_RK3506_OUTPUT="${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox"
+DEFAULT_RK3506_OUTPUT="${BUILDROOT_OUTPUT:-${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox}"
 PLATFORM="${1:-}"
 
 usage() {
@@ -33,7 +33,7 @@ Examples:
   ./scripts/build.sh rk3506
   ./scripts/build.sh clean
   ./scripts/build.sh clean native
-  BUILDROOT_OUTPUT=${HOME}/work/.../rockchip_rk3506_luckfox ./scripts/build.sh rk3506
+  BUILDROOT_OUTPUT=/path/to/rockchip_rk3506_luckfox ./scripts/build.sh rk3506
   BUILD_JOBS=8 ./scripts/build.sh native
 EOF
 }
@@ -88,9 +88,9 @@ choose_platform() {
 }
 
 ensure_qsb_shaders() {
-    local qsb_bin="${HOME}/Android/Qt/6.6.3/gcc_64/bin/qsb"
+    local qsb_bin="${QT_HOST_PATH:-${HOME}/Android/Qt/6.6.3/gcc_64}/bin/qsb"
     if [[ ! -x "${qsb_bin}" ]]; then
-        qsb_bin="$(find ${HOME}/Android/Qt -name "qsb" -type f -perm /111 2>/dev/null | head -n 1)"
+        qsb_bin="$(find "${HOME}/Android/Qt" -name "qsb" -type f -perm /111 2>/dev/null | head -n 1)"
     fi
     if [[ ! -x "${qsb_bin}" ]]; then
         qsb_bin="$(command -v qsb || true)"
@@ -284,6 +284,10 @@ run_android_build() {
     local android_platform="${ANDROID_PLATFORM:-android-33}"
     local android_build_tools="${ANDROID_BUILD_TOOLS:-33.0.2}"
     local android_abi="${ANDROID_ABI:-arm64-v8a}"
+    local android_keystore_path="${QT_ANDROID_KEYSTORE_PATH:-${HOME}/.android/debug.keystore}"
+    local android_keystore_alias="${QT_ANDROID_KEYSTORE_ALIAS:-androiddebugkey}"
+    local android_keystore_store_pass="${QT_ANDROID_KEYSTORE_STORE_PASS:-android}"
+    local android_keystore_key_pass="${QT_ANDROID_KEYSTORE_KEY_PASS:-android}"
 
     if [[ ! -d "${qt_android_dir}" || (! -x "${qt_android_dir}/bin/qt-cmake" && ! -x "${qt_android_dir}/../gcc_64/bin/androiddeployqt") ]]; then
         echo "Error: Qt 6 for Android not found at ${qt_android_dir}" >&2
@@ -318,12 +322,16 @@ run_android_build() {
     export ANDROID_SDK_ROOT="${android_sdk_root}"
     export ANDROID_HOME="${android_sdk_root}"
     export ANDROID_NDK_ROOT="${android_ndk_root}"
+    export QT_ANDROID_KEYSTORE_PATH="${android_keystore_path}"
+    export QT_ANDROID_KEYSTORE_ALIAS="${android_keystore_alias}"
+    export QT_ANDROID_KEYSTORE_STORE_PASS="${android_keystore_store_pass}"
+    export QT_ANDROID_KEYSTORE_KEY_PASS="${android_keystore_key_pass}"
     export ANDROID_NDK_HOST="linux-x86_64"
     export JAVA_HOME="${java_home}"
     export PATH="${qt_android_dir}/bin:${java_home}/bin:${PATH}"
 
     # 检查并自动准备 Android 专属依赖 (OpenSSL & FFmpeg)
-    local openssl_dir="${HOME}/Android/android_openssl"
+    local openssl_dir="${ANDROID_OPENSSL_ROOT:-${HOME}/Android/android_openssl}"
     if [[ ! -f "${openssl_dir}/openssl.pri" ]]; then
         echo "正在获取 Qt Android OpenSSL 支持库..."
         git clone --depth 1 https://github.com/KDAB/android_openssl.git "${openssl_dir}" 2>/dev/null || true
@@ -502,24 +510,6 @@ EOF
     mkdir -p "${build_dir}"
     cd "${build_dir}"
 
-    local example_config="${ROOT_DIR}/config.yaml.example"
-    local local_config="${ROOT_DIR}/config.yaml"
-    local backup_config="${ROOT_DIR}/config.yaml.example.tmp_bak"
-
-    cleanup_android_config() {
-        if [[ -f "${ROOT_DIR}/config.yaml.example.tmp_bak" ]]; then
-            cp -f "${ROOT_DIR}/config.yaml.example.tmp_bak" "${ROOT_DIR}/config.yaml.example"
-            rm -f "${ROOT_DIR}/config.yaml.example.tmp_bak"
-        fi
-    }
-    trap cleanup_android_config EXIT INT TERM
-
-    if [[ -f "${local_config}" ]]; then
-        echo "检测到本地配置文件 config.yaml，临时注入打包资源..."
-        cp -f "${example_config}" "${backup_config}"
-        cp -f "${local_config}" "${example_config}"
-    fi
-
     local qt_cmake_bin="${qt_android_dir}/bin/qt-cmake"
     if [[ ! -x "${qt_cmake_bin}" ]]; then
         qt_cmake_bin="cmake"
@@ -539,6 +529,7 @@ EOF
         -DANDROID_SDK_ROOT="${android_sdk_root}" \
         -DANDROID_NDK_ROOT="${android_ndk_root}" \
         -DANDROID_OPENSSL_ROOT="${openssl_dir}" \
+        -DQT_ANDROID_SIGN_APK=ON \
         -DCMAKE_BUILD_TYPE=Release
 
     echo "Compiling and packaging APK with Qt 6 CMake..."
@@ -562,8 +553,6 @@ EOF
         echo " To install on your phone via ADB:"
         echo "   adb install -r ${final_apk}"
         echo "================================================================"
-        cleanup_android_config
-        trap - EXIT INT TERM
     else
         echo "Error: APK was not generated at expected location under ${build_dir}/android-build/build/outputs/apk" >&2
         exit 1

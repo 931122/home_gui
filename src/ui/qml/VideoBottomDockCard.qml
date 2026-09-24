@@ -335,10 +335,10 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { name: qsTr("回家模式"), icon: "qrc:/icons/dock-home.svg", hint: qsTr("迎宾开灯·撤防"), color: "#00c6ff", action: "switch.zimi_cn_1000000001_zncz01_on_p_2_1" },
-                        { name: qsTr("离家布防"), icon: "qrc:/icons/dock-leave.svg", hint: qsTr("全屋关灯·警戒"), color: "#ff7675", action: "switch.zimi_cn_1000000001_zncz01_on_p_2_1" },
-                        { name: qsTr("睡眠警戒"), icon: "qrc:/icons/dock-sleep.svg", hint: qsTr("伴睡夜灯·静音"), color: "#a29bfe", action: "switch.lumi_cn_1000000004_b1nc01_on_p_2_1" },
-                        { name: qsTr("会客影音"), icon: "qrc:/icons/dock-movie.svg", hint: qsTr("氛围灯光·影音"), color: "#fdcb6e", action: "switch.lumi_cn_1000000003_b2nc01_on_p_2_1" }
+                        { name: qsTr("回家模式"), icon: "qrc:/icons/dock-home.svg", hint: qsTr("迎宾开灯·撤防"), color: "#00c6ff", action: "scene.home" },
+                        { name: qsTr("离家布防"), icon: "qrc:/icons/dock-leave.svg", hint: qsTr("全屋关灯·警戒"), color: "#ff7675", action: "scene.away" },
+                        { name: qsTr("睡眠警戒"), icon: "qrc:/icons/dock-sleep.svg", hint: qsTr("伴睡夜灯·静音"), color: "#a29bfe", action: "scene.sleep" },
+                        { name: qsTr("会客影音"), icon: "qrc:/icons/dock-movie.svg", hint: qsTr("氛围灯光·影音"), color: "#fdcb6e", action: "scene.movie" }
                     ]
 
                     Rectangle {

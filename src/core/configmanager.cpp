@@ -558,7 +558,7 @@ bool ConfigManager::parseConfig(const QByteArray &payload, AppConfig &nextConfig
     nextConfig.weather.enabled = getYamlBool(weather, "enabled", false);
     nextConfig.weather.provider = getYamlString(weather, "provider", QStringLiteral("china_weather"));
     nextConfig.weather.city = getYamlString(weather, "city",
-        getYamlString(weather, "cityName", QStringLiteral("历城"))
+        getYamlString(weather, "cityName", QStringLiteral("北京"))
     ).trimmed();
     nextConfig.weather.areaId = getYamlString(weather, "areaId").trimmed();
     nextConfig.weather.apiKey = getYamlString(weather, "apiKey");

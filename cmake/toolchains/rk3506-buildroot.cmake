@@ -3,9 +3,14 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 
 # Buildroot output root on the Linux build server.
 # You can override this when invoking cmake:
-#   -DBUILDROOT_OUTPUT=${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox
-set(BUILDROOT_OUTPUT "${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox"
-    CACHE PATH "Buildroot output directory")
+#   -DBUILDROOT_OUTPUT=/path/to/buildroot/output/rockchip_rk3506_luckfox
+if(NOT BUILDROOT_OUTPUT)
+    if(DEFINED ENV{BUILDROOT_OUTPUT})
+        set(BUILDROOT_OUTPUT "$ENV{BUILDROOT_OUTPUT}" CACHE PATH "Buildroot output directory")
+    elseif(EXISTS "$ENV{HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox")
+        set(BUILDROOT_OUTPUT "$ENV{HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox" CACHE PATH "Buildroot output directory")
+    endif()
+endif()
 
 set(TOOLCHAIN_TRIPLE "arm-buildroot-linux-gnueabihf"
     CACHE STRING "Cross toolchain target triple")

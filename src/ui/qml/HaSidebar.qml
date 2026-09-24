@@ -152,7 +152,7 @@ Rectangle {
         if (model) {
             if (model.isWasher === true || model.domain === "washer" || model.domain === "washing_machine") return true
             if (model.name && model.name.indexOf("洗衣机") !== -1) return true
-            if (model.entityId && (model.entityId.indexOf("123456789012345") !== -1 || model.entityId.indexOf("washer") !== -1)) return true
+            if (model.entityId && (model.entityId.indexOf("washer") !== -1 || model.entityId.indexOf("xi_yi") !== -1)) return true
         }
         if (name && name.indexOf("洗衣机") !== -1) return true
         return false

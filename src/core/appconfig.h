@@ -55,7 +55,7 @@ struct WeatherConfig
 {
     bool enabled = false;
     QString provider = QStringLiteral("china_weather");
-    QString city = QStringLiteral("历城");
+    QString city = QStringLiteral("北京");
     QString areaId = QStringLiteral("101010100");
     QString apiKey;
     QString cityAdcode;

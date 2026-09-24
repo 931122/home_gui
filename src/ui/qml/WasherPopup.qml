@@ -54,7 +54,7 @@ Popup {
     readonly property bool isNightly: liveModel ? Boolean(liveModel.washerNightly) : false
     readonly property real waterUsage: liveModel ? Number(liveModel.washerWaterUsage || 0.0) : 0.0
     readonly property real powerUsage: liveModel ? Number(liveModel.washerPowerUsage || 0.0) : 0.0
-    readonly property string lanIp: liveModel ? (liveModel.washerLanIp || "192.168.1.180") : "192.168.1.180"
+    readonly property string lanIp: liveModel ? (liveModel.washerLanIp || "") : ""
 
     readonly property bool isBusy: WasherData.isRunning(runningStatus, liveModel ? liveModel.washerPower : "off", currentProgress, liveModel ? liveModel.washerControlStatus : "off")
     readonly property bool isPaused: runningStatus === "pause" || (isPoweredOn && runningStatus !== "standby" && runningStatus !== "idle" && runningStatus !== "off" && liveModel && liveModel.washerControlStatus === "off" && remainTime && remainTime !== "0")

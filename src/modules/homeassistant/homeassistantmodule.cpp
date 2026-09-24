@@ -1236,13 +1236,24 @@ QVariantList HomeAssistantWorker::buildActionStates() const
         } else {
             const bool isWasher = action.domain.compare(QStringLiteral("washer"), Qt::CaseInsensitive) == 0
                                || action.domain.compare(QStringLiteral("washing_machine"), Qt::CaseInsensitive) == 0
-                               || action.entityId.contains(QStringLiteral("123456789012345"))
                                || action.entityId.contains(QStringLiteral("washer"))
+                               || action.entityId.contains(QStringLiteral("xi_yi"))
                                || action.name.contains(QStringLiteral("洗衣机"));
             if (isWasher) {
                 item.insert(QStringLiteral("isWasher"), true);
-                item.insert(QStringLiteral("washerDeviceId"), QStringLiteral("123456789012345"));
-                item.insert(QStringLiteral("washerModel"), QStringLiteral("TG100V86WMDY5"));
+
+                // 动态提取洗衣机设备特征 ID（如从 midea_123456789012345 提取 123456789012345，或使用 washer）
+                QString washerDeviceId;
+                static const QRegularExpression devIdRegex(QStringLiteral(R"((?:midea_)?(\d{6,})|(?:washer_[a-zA-Z0-9]+))"));
+                const auto match = devIdRegex.match(action.entityId);
+                if (match.hasMatch()) {
+                    washerDeviceId = match.captured(1).isEmpty() ? match.captured(0) : match.captured(1);
+                }
+                if (washerDeviceId.isEmpty()) {
+                    washerDeviceId = QStringLiteral("washer");
+                }
+                item.insert(QStringLiteral("washerDeviceId"), washerDeviceId);
+                item.insert(QStringLiteral("washerModel"), QStringLiteral("SmartWasher"));
 
                 QString runningStatus;
                 QString progress;
@@ -1273,7 +1284,10 @@ QVariantList HomeAssistantWorker::buildActionStates() const
 
                 for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
                     const QString &eid = it.key();
-                    if (!eid.contains(QStringLiteral("123456789012345")) && !eid.contains(QStringLiteral("washer")) && !eid.contains(QStringLiteral("xi_yi"))) {
+                    const bool matchDevice = (!washerDeviceId.isEmpty() && eid.contains(washerDeviceId))
+                                          || eid.contains(QStringLiteral("washer"))
+                                          || eid.contains(QStringLiteral("xi_yi"));
+                    if (!matchDevice) {
                         continue;
                     }
                     const QVariantMap &stateMap = it.value();
@@ -1342,8 +1356,11 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                         lanIp = stateVal;
                     }
 
-                    // 补充：检查聚合设备状态（包含 binary_sensor.midea_123456789012345 等）
-                    if (eid == QStringLiteral("binary_sensor.midea_123456789012345") || eid.contains(QStringLiteral("_device_status"))) {
+                    // 补充：检查聚合设备状态（包含 binary_sensor.midea_<id> 等）
+                    const bool isAggregateDevice = (!washerDeviceId.isEmpty() && eid == QStringLiteral("binary_sensor.midea_%1").arg(washerDeviceId))
+                                                || eid.contains(QStringLiteral("_device_status"))
+                                                || (eid.startsWith(QStringLiteral("binary_sensor.")) && eid.contains(QStringLiteral("washer")));
+                    if (isAggregateDevice) {
                         if (attrs.contains(QStringLiteral("power")) && powerStatus == QStringLiteral("off")) {
                             const QString attrPower = attrs.value(QStringLiteral("power")).toString().trimmed().toLower();
                             if (attrPower == QStringLiteral("on")) {

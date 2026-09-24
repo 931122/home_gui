@@ -9,12 +9,14 @@ CONFIG(debug, debug|release) {
 TEMPLATE = app
 TARGET = home_gui
 
-RK3506_DEFAULT_BUILDROOT_OUTPUT = ${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox
 isEmpty(BUILDROOT_OUTPUT) {
     BUILDROOT_OUTPUT = $$(BUILDROOT_OUTPUT)
 }
 isEmpty(BUILDROOT_OUTPUT) {
-    BUILDROOT_OUTPUT = $$RK3506_DEFAULT_BUILDROOT_OUTPUT
+    RK3506_DEFAULT_BUILDROOT_OUTPUT = $$(HOME)/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox
+    exists($$RK3506_DEFAULT_BUILDROOT_OUTPUT) {
+        BUILDROOT_OUTPUT = $$RK3506_DEFAULT_BUILDROOT_OUTPUT
+    }
 }
 
 RK3506_TOOLCHAIN_TRIPLE = arm-buildroot-linux-gnueabihf
@@ -156,9 +158,17 @@ android {
     QMAKE_CXXFLAGS += -ffunction-sections -fdata-sections
     QMAKE_LFLAGS += -Wl,--gc-sections
 
-    exists(${HOME}/Android/android_openssl/openssl.pri) {
-        include(${HOME}/Android/android_openssl/openssl.pri)
-        message("Android OpenSSL included from ${HOME}/Android/android_openssl")
+    isEmpty(ANDROID_OPENSSL_ROOT) {
+        ANDROID_OPENSSL_ROOT = $$(ANDROID_OPENSSL_ROOT)
+    }
+    isEmpty(ANDROID_OPENSSL_ROOT) {
+        exists($$(HOME)/Android/android_openssl) {
+            ANDROID_OPENSSL_ROOT = $$(HOME)/Android/android_openssl
+        }
+    }
+    !isEmpty(ANDROID_OPENSSL_ROOT):exists($$ANDROID_OPENSSL_ROOT/openssl.pri) {
+        include($$ANDROID_OPENSSL_ROOT/openssl.pri)
+        message("Android OpenSSL included from $$ANDROID_OPENSSL_ROOT")
     }
 
     exists($$PWD/android/ffmpeg/lib/libavformat.a) {

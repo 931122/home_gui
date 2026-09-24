@@ -121,7 +121,7 @@ Popup {
     readonly property string curLifeTitle: cur.lifeTitle || "舒适度"
     readonly property string curReportTime: cur.reportTime || ""
     readonly property string curLocation: (appController.weatherLocation && appController.weatherLocation !== "") 
-                                          ? appController.weatherLocation : "北京 · 朝阳"
+                                          ? appController.weatherLocation : qsTr("北京 · 朝阳")
 
     // 预报数据响应式属性绑定（强监听 appController 变化）
     readonly property var forecastList: appController.weatherForecast

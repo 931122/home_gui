@@ -202,7 +202,7 @@ RTSP 直连：
 {
   "enabled": true,
   "renderer": "video",
-  "url": "rtsp://192.168.1.102:554/live/main",
+  "url": "rtsp://192.168.1.101:554/live/main",
   "backend": "libav",
   "decoder": "auto",
   "cameraName": "仓库摄像头",
@@ -217,7 +217,7 @@ GStreamer 后端：
 {
   "enabled": true,
   "renderer": "video",
-  "url": "rtsp://192.168.1.102:554/live/main",
+  "url": "rtsp://192.168.1.101:554/live/main",
   "backend": "gstreamer",
   "decoder": "auto",
   "cameraName": "硬解测试摄像头",

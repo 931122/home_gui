@@ -879,7 +879,9 @@ Rectangle {
                         onClicked: {
                             airPurifierBtn.active = !airPurifierBtn.active
                             if (airPurifierBtn.active) {
-                                appController.triggerHaAction("switch.zimi_cn_1000000001_zncz01_on_p_2_1")
+                                if (appController.haActionNames && appController.haActionNames.length > 0) {
+                                    appController.triggerHaAction(appController.haActionNames[0])
+                                }
                             }
                         }
                     }
