@@ -16,10 +16,5 @@
         <file alias="qml/LiquidGlassListItem.qml">../src/liquidglass/qml/LiquidGlassListItem.qml</file>
         <file alias="qml/LiquidGlassListGroup.qml">../src/liquidglass/qml/LiquidGlassListGroup.qml</file>
         <file alias="qml/LiquidGlassDialog.qml">../src/liquidglass/qml/LiquidGlassDialog.qml</file>
-        <file alias="shaders/liquid_glass_surface.vert.qsb">../src/liquidglass/shaders/liquid_glass_surface.vert.qsb</file>
-        <file alias="shaders/liquid_glass_surface.frag.qsb">../src/liquidglass/shaders/liquid_glass_surface.frag.qsb</file>
-        <file alias="shaders/frosted_glass.vert.qsb">../src/liquidglass/shaders/frosted_glass.vert.qsb</file>
-        <file alias="shaders/frosted_glass.frag.qsb">../src/liquidglass/shaders/frosted_glass.frag.qsb</file>
-        <file alias="shaders/liquid_glass_slider.frag.qsb">../src/liquidglass/shaders/liquid_glass_slider.frag.qsb</file>
     </qresource>
 </RCC>

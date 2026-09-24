@@ -104,6 +104,5 @@
         <file alias="qml/VideoBottomStatusCard.qml">../src/ui/qml/VideoBottomStatusCard.qml</file>
         <file alias="icons/heater.svg">icons/heater.svg</file>
         <file alias="icons/purifier.svg">icons/purifier.svg</file>
-        <file alias="shaders/default.vert.qsb">../src/ui/shaders/default.vert.qsb</file>
     </qresource>
 </RCC>

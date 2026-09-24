@@ -29,3 +29,6 @@ CMakeUserPresets.json
 /config.yaml
 *.local.yaml
 !/config.yaml.example
+
+# Compiled shaders
+*.qsb

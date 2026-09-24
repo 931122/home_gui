@@ -89,11 +89,29 @@ choose_platform() {
 
 ensure_qsb_shaders() {
     local qsb_bin="${QT_HOST_PATH:-${HOME}/Android/Qt/6.6.3/gcc_64}/bin/qsb"
-    if [[ ! -x "${qsb_bin}" ]]; then
-        qsb_bin="$(find "${HOME}/Android/Qt" -name "qsb" -type f -perm /111 2>/dev/null | head -n 1)"
+    if [[ ! -x "${qsb_bin}" && -d "${HOME}/Android/Qt" ]]; then
+        qsb_bin="$(find "${HOME}/Android/Qt" -name "qsb" -type f -perm /111 2>/dev/null | head -n 1 || true)"
     fi
     if [[ ! -x "${qsb_bin}" ]]; then
-        qsb_bin="$(command -v qsb || true)"
+        qsb_bin="$(command -v qsb 2>/dev/null || true)"
+    fi
+    if [[ ! -x "${qsb_bin}" ]]; then
+        local candidate_qsb_paths=(
+            "/opt/homebrew/opt/qtshadertools/bin/qsb"
+            "/usr/local/opt/qtshadertools/bin/qsb"
+            "/opt/homebrew/bin/qsb"
+            "/usr/local/bin/qsb"
+            "/opt/homebrew/opt/qt/bin/qsb"
+            "/usr/local/opt/qt/bin/qsb"
+            "/opt/homebrew/opt/qt6/bin/qsb"
+            "/usr/local/opt/qt6/bin/qsb"
+        )
+        for candidate in "${candidate_qsb_paths[@]}"; do
+            if [[ -x "${candidate}" ]]; then
+                qsb_bin="${candidate}"
+                break
+            fi
+        done
     fi
 
     if [[ -n "${qsb_bin}" && -x "${qsb_bin}" ]]; then

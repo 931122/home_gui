@@ -37,13 +37,22 @@ else()
     find_program(QSB_EXECUTABLE NAMES qsb
         PATHS
             ${_qt_search_bins}
-            $ENV{HOME}/Android/Qt/6.6.3/gcc_64/bin
+            /opt/homebrew/opt/qtshadertools/bin
+            /usr/local/opt/qtshadertools/bin
+            /opt/homebrew/bin
+            /usr/local/bin
+            /opt/homebrew/opt/qt/bin
+            /usr/local/opt/qt/bin
             /opt/homebrew/opt/qt6/bin
             /opt/homebrew/opt/qt6/libexec
-            /opt/homebrew/opt/qt/bin
             /usr/local/opt/qt6/bin
-            /usr/local/opt/qt/bin
+            /usr/local/opt/qt6/libexec
+            $ENV{HOME}/Android/Qt/6.6.3/gcc_64/bin
     )
+endif()
+
+if(NOT QSB_EXECUTABLE)
+    message(FATAL_ERROR "Qt Shader Baker (qsb) not found. Please install Qt Shader Tools (e.g. 'brew install qtshadertools' on macOS) or specify QSB_EXECUTABLE/QT_HOST_PATH.")
 endif()
 
 message(STATUS "LiquidGlass QSB Compiler: ${QSB_EXECUTABLE}")
@@ -61,27 +70,15 @@ set(LIQUIDGLASS_QSB_RESOURCES "")
 foreach(_shader IN LISTS LIQUIDGLASS_SHADERS)
     set(_src "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_shader}")
     set(_out "${CMAKE_CURRENT_BINARY_DIR}/shaders/${_shader}.qsb")
-    set(_fallback "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${_shader}.qsb")
 
-    if(QSB_EXECUTABLE)
-        add_custom_command(
-            OUTPUT "${_out}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-            COMMAND "${QSB_EXECUTABLE}" --qt6 -b -o "${_out}" "${_src}"
-            DEPENDS "${_src}"
-            COMMENT "Building QSB shader: ${_shader} -> ${CMAKE_CURRENT_BINARY_DIR}/shaders/${_shader}.qsb"
-            VERBATIM
-        )
-    else()
-        add_custom_command(
-            OUTPUT "${_out}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_fallback}" "${_out}"
-            DEPENDS "${_fallback}"
-            COMMENT "Using precompiled fallback shader: ${_shader}.qsb"
-            VERBATIM
-        )
-    endif()
+    add_custom_command(
+        OUTPUT "${_out}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders"
+        COMMAND "${QSB_EXECUTABLE}" --qt6 -b -o "${_out}" "${_src}"
+        DEPENDS "${_src}"
+        COMMENT "Building QSB shader: ${_shader} -> ${CMAKE_CURRENT_BINARY_DIR}/shaders/${_shader}.qsb"
+        VERBATIM
+    )
 
     set_source_files_properties("${_out}" PROPERTIES
         GENERATED TRUE
