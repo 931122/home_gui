@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 /**
  * 液态毛玻璃通用基础弹窗 (GlassPopup)

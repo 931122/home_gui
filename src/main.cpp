@@ -29,7 +29,7 @@
 #include "core/tstranslator.h"
 #include "ui/appcontroller.h"
 #include "ui/bootsplash.h"
-#include "ui/glassruntime.h"
+#include "liquidglass/glassruntime.h"
 #include "ui/videoitem.h"
 
 #if defined(Q_OS_ANDROID)
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<WifiConfig>("WifiConfig");
     qRegisterMetaType<XiaozhiConfig>("XiaozhiConfig");
     qmlRegisterType<VideoItem>("HomeGui", 1, 0, "VideoItem");
-    qmlRegisterSingletonType(QUrl(QStringLiteral("qrc:/qml/AppTheme.qml")), "HomeGui", 1, 0, "Theme");
+    qmlRegisterSingletonType(QUrl(QStringLiteral("qrc:/qt/qml/HomeGui/LiquidGlass/qml/GlassTheme.qml")), "HomeGui", 1, 0, "Theme");
 
     const QString configPath = resolveConfigPath();
     const PlatformConfig bootPlatformConfig = loadBootPlatformConfig(configPath);

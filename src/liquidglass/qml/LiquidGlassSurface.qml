@@ -315,8 +315,8 @@ Item {
         property real _pad0: 0.0
         property real _pad1: 0.0
 
-        vertexShader: "qrc:/shaders/liquid_glass_surface.vert.qsb"
-        fragmentShader: "qrc:/shaders/liquid_glass_surface.frag.qsb"
+        vertexShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/liquid_glass_surface.vert.qsb"
+        fragmentShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/liquid_glass_surface.frag.qsb"
     }
 
     // ============================================================

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 Rectangle {
     id: root

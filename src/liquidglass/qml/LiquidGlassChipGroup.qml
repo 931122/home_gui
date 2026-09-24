@@ -1,5 +1,4 @@
 import QtQuick
-import HomeGui 1.0
 
 Flickable {
     id: root
@@ -10,8 +9,8 @@ Flickable {
     property bool singleSelection: true
     property bool selectionRequired: false
     property bool singleLine: false
-    property real horizontalSpacing: Theme.dp(8)
-    property real verticalSpacing: Theme.dp(8)
+    property real horizontalSpacing: GlassTheme.dp(8)
+    property real verticalSpacing: GlassTheme.dp(8)
     property Item backgroundSource: null
     property color accentColor: "#38bdf8"
 
@@ -21,7 +20,7 @@ Flickable {
     contentHeight: chipFlow.implicitHeight
     interactive: singleLine
     boundsBehavior: Flickable.StopAtBounds
-    height: singleLine ? Math.max(Theme.dp(32), chipFlow.implicitHeight) : chipFlow.implicitHeight
+    height: singleLine ? Math.max(GlassTheme.dp(32), chipFlow.implicitHeight) : chipFlow.implicitHeight
     clip: singleLine
 
     Flow {

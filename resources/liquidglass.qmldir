@@ -1,0 +1,17 @@
+module HomeGui.LiquidGlass
+prefer :/qt/qml/HomeGui/LiquidGlass/
+singleton GlassTheme 1.0 qml/GlassTheme.qml
+FrostedGlassOverlay 1.0 qml/FrostedGlassOverlay.qml
+LiquidGlassSurface 1.0 qml/LiquidGlassSurface.qml
+LiquidGlassButton 1.0 qml/LiquidGlassButton.qml
+LiquidGlassSlider 1.0 qml/LiquidGlassSlider.qml
+LiquidGlassTabBar 1.0 qml/LiquidGlassTabBar.qml
+LiquidGlassChip 1.0 qml/LiquidGlassChip.qml
+ScrollEdgeBlurView 1.0 qml/ScrollEdgeBlurView.qml
+LiquidGlassToast 1.0 qml/LiquidGlassToast.qml
+LiquidGlassFab 1.0 qml/LiquidGlassFab.qml
+LiquidGlassTabLayout 1.0 qml/LiquidGlassTabLayout.qml
+LiquidGlassChipGroup 1.0 qml/LiquidGlassChipGroup.qml
+LiquidGlassListItem 1.0 qml/LiquidGlassListItem.qml
+LiquidGlassListGroup 1.0 qml/LiquidGlassListGroup.qml
+LiquidGlassDialog 1.0 qml/LiquidGlassDialog.qml

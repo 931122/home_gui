@@ -1,5 +1,6 @@
 import QtQuick
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 Item {
     id: root

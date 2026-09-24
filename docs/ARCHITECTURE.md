@@ -156,7 +156,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    A[src/**/*.cpp + src/ui/qml/*.qml] --> B[lupdate]
+    A[src/**/*.cpp + src/ui/qml/*.qml + src/liquidglass/qml/*.qml] --> B[lupdate]
     C[resources/qml.qrc] --> B
     B --> D[i18n/home_gui_zh_CN.ts]
     D --> E[qrc:/i18n/home_gui_zh_CN.ts]
@@ -265,7 +265,21 @@ sequenceDiagram
 - [src/modules/homeassistant/homeassistantmodule.cpp](../src/modules/homeassistant/homeassistantmodule.cpp)
   Home Assistant REST 控制。
 
-## 9. Recommended Follow-up
+## 9. LiquidGlass Module
+
+LiquidGlass is packaged as the reusable `HomeGui.LiquidGlass 1.0` QML module.
+Its QML controls, `GlassRuntime`, and QSB shaders live under `src/liquidglass/`.
+Application QML imports the module explicitly; CMake links the
+`home_gui_liquidglass` target, while the Qt Creator qmake project embeds the
+same module through `resources/liquidglass.qrc`.
+
+The application owns `GlassRuntime` and exposes it as the `glassRuntime`
+context property. This keeps platform sensor and accessibility integration in
+the host application while allowing the visual controls to render without it.
+The module's `GlassTheme` is independent of the application's legacy
+`HomeGui.Theme` singleton; `Main.qml` synchronizes their scale factor.
+
+## 10. Recommended Follow-up
 
 - 给 `VideoModule` 增加明确的“探测失败原因”枚举，而不只是状态文本。
 - 给 `WifiModule` 增加删除网络、隐藏 SSID、错误码分类。

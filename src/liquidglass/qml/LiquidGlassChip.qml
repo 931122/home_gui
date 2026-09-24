@@ -12,8 +12,8 @@ Item {
     property bool checkable: true
     property Item backgroundSource: null
     property color accentColor: "#38bdf8"
-    function dp(v) { return (typeof Theme !== "undefined" && Theme) ? Theme.dp(v) : v }
-    function fs(v) { return (typeof Theme !== "undefined" && Theme) ? Theme.fs(v) : v }
+    function dp(v) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.dp(v) : v }
+    function fs(v) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.fs(v) : v }
 
     property real cornerRadius: root.dp(16)
     property int materialVariant: LiquidGlassSurface.MaterialVariant.Regular

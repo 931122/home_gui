@@ -1,5 +1,4 @@
 import QtQuick
-import HomeGui 1.0
 
 Item {
     id: root
@@ -7,8 +6,8 @@ Item {
     enum Style { Merged, Separated }
 
     property int style: LiquidGlassListGroup.Style.Merged
-    property real itemSpacing: Theme.dp(8)
-    property real cornerRadius: Theme.dp(14)
+    property real itemSpacing: GlassTheme.dp(8)
+    property real cornerRadius: GlassTheme.dp(14)
     property Item backgroundSource: null
     default property alias contentData: contentColumn.data
     implicitWidth: Math.max(280, contentColumn.implicitWidth)

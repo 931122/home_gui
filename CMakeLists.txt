@@ -47,10 +47,12 @@ if(HOME_GUI_CROSS_COMPILE)
 endif()
 
 # 纯 Qt 6 架构要求
-find_package(Qt6 6.0 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
 find_package(Qt6Svg QUIET)
 
 message(STATUS "Configured with Qt ${Qt6_VERSION}")
+
+add_subdirectory(src/liquidglass)
 
 if(ANDROID)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavformat.a")
@@ -100,7 +102,6 @@ qt_add_executable(home_gui
     src/ui/appcontroller.cpp
     src/ui/bootsplash.cpp
     src/ui/brightnesscontroller.cpp
-    src/ui/glassruntime.cpp
     src/ui/screenpowermanager.cpp
     src/ui/holidayservice.cpp
     src/ui/weatherservice.cpp
@@ -116,6 +117,9 @@ endif()
 find_package(ZLIB QUIET)
 
 target_link_libraries(home_gui PRIVATE
+    home_gui_liquidglass
+    home_gui_liquidglassplugin_init
+    home_gui_liquidglassplugin
     Qt6::Core
     Qt6::Gui
     Qt6::Qml

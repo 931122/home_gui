@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 ApplicationWindow {
     id: root
@@ -52,8 +53,14 @@ ApplicationWindow {
     }
     readonly property string emojiFontFamily: (emojiLoader.status === FontLoader.Ready && emojiLoader.name.length > 0) ? emojiLoader.name : "Symbola"
 
-    Component.onCompleted: Theme.scaleUnit = root.su
-    onSuChanged: Theme.scaleUnit = root.su
+    Component.onCompleted: {
+        Theme.scaleUnit = root.su
+        GlassTheme.scaleUnit = root.su
+    }
+    onSuChanged: {
+        Theme.scaleUnit = root.su
+        GlassTheme.scaleUnit = root.su
+    }
 
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }

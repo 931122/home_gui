@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 import "CookerRecipes.js" as RecipesData
 import "SteamerData.js" as SteamerData
 

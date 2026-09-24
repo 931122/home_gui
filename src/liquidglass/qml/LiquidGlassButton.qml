@@ -1,5 +1,4 @@
 import QtQuick
-import HomeGui 1.0
 
 Item {
     id: root
@@ -38,8 +37,8 @@ Item {
     implicitWidth: isFab ? root.dp(56) : root.dp(120)
     implicitHeight: isFab ? root.dp(56) : root.dp(52)
 
-    function dp(value) { return (typeof Theme !== "undefined" && Theme) ? Theme.dp(value) : value }
-    function fs(value) { return (typeof Theme !== "undefined" && Theme) ? Theme.fs(value) : value }
+    function dp(value) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.dp(value) : value }
+    function fs(value) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.fs(value) : value }
 
     // ============================================================
     // 物理弹性按压手感 (Spring Touch Dynamics)

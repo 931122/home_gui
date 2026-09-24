@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import HomeGui 1.0
 
 Item {
     id: root
@@ -13,8 +12,8 @@ Item {
     property Item backgroundSource: null
     property int duration: 2500
 
-    function dp(v) { return (typeof Theme !== "undefined" && Theme) ? Theme.dp(v) : v }
-    function fs(v) { return (typeof Theme !== "undefined" && Theme) ? Theme.fs(v) : v }
+    function dp(v) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.dp(v) : v }
+    function fs(v) { return (typeof GlassTheme !== "undefined" && GlassTheme) ? GlassTheme.fs(v) : v }
 
     implicitWidth: toastRow.implicitWidth + root.dp(36)
     implicitHeight: root.dp(44)

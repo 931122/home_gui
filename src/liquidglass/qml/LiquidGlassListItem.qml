@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import HomeGui 1.0
 
 Item {
     id: root
@@ -14,8 +13,8 @@ Item {
     property string trailingIcon: ""
     property Item backgroundSource: null
     property int position: LiquidGlassListItem.Position.Single
-    property real groupCornerRadius: Theme.dp(14)
-    property real innerCornerRadius: Theme.dp(4)
+    property real groupCornerRadius: GlassTheme.dp(14)
+    property real innerCornerRadius: GlassTheme.dp(4)
     property bool expanded: false
     property Component expandedContent: null
     property bool glassEnabled: true
@@ -55,17 +54,17 @@ Item {
             id: baseRow
             visible: !root.hasCustomContent
             Layout.fillWidth: true
-            implicitHeight: root.supportingText.length > 0 ? Theme.dp(68) : Theme.dp(56)
+            implicitHeight: root.supportingText.length > 0 ? GlassTheme.dp(68) : GlassTheme.dp(56)
             height: implicitHeight
-            spacing: Theme.dp(12)
+            spacing: GlassTheme.dp(12)
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.leftMargin: Theme.dp(14)
-            anchors.rightMargin: Theme.dp(14)
+            anchors.leftMargin: GlassTheme.dp(14)
+            anchors.rightMargin: GlassTheme.dp(14)
 
             Image {
-                Layout.preferredWidth: Theme.dp(22)
-                Layout.preferredHeight: Theme.dp(22)
+                Layout.preferredWidth: GlassTheme.dp(22)
+                Layout.preferredHeight: GlassTheme.dp(22)
                 source: root.leadingIcon
                 sourceSize: Qt.size(width, height)
                 visible: status === Image.Ready
@@ -73,13 +72,13 @@ Item {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: Theme.dp(3)
+                spacing: GlassTheme.dp(3)
 
                 Text {
                     Layout.fillWidth: true
                     text: root.headline
                     color: root._foreground
-                    font.pixelSize: Theme.fs(14)
+                    font.pixelSize: GlassTheme.fs(14)
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -87,7 +86,7 @@ Item {
                     Layout.fillWidth: true
                     text: root.supportingText
                     color: root._secondaryForeground
-                    font.pixelSize: Theme.fs(11)
+                    font.pixelSize: GlassTheme.fs(11)
                     elide: Text.ElideRight
                     visible: text.length > 0
                 }
@@ -96,13 +95,13 @@ Item {
             Text {
                 text: root.trailingText
                 color: root._secondaryForeground
-                font.pixelSize: Theme.fs(12)
+                font.pixelSize: GlassTheme.fs(12)
                 visible: text.length > 0
             }
 
             Image {
-                Layout.preferredWidth: Theme.dp(18)
-                Layout.preferredHeight: Theme.dp(18)
+                Layout.preferredWidth: GlassTheme.dp(18)
+                Layout.preferredHeight: GlassTheme.dp(18)
                 source: root.trailingIcon
                 sourceSize: Qt.size(width, height)
                 visible: status === Image.Ready

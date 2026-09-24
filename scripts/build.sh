@@ -96,10 +96,11 @@ ensure_qsb_shaders() {
         qsb_bin="$(command -v qsb || true)"
     fi
 
-    local shader_dir="${ROOT_DIR}/src/ui/shaders"
+    local shader_dir="${ROOT_DIR}/src/liquidglass/shaders"
+    local legacy_shader_dir="${ROOT_DIR}/src/ui/shaders"
     if [[ -n "${qsb_bin}" && -x "${qsb_bin}" && -d "${shader_dir}" ]]; then
         echo "Compiling Qt 6 QSB shaders..."
-        "${qsb_bin}" --qt6 -b -o "${shader_dir}/default.vert.qsb" "${shader_dir}/default.vert"
+        "${qsb_bin}" --qt6 -b -o "${legacy_shader_dir}/default.vert.qsb" "${legacy_shader_dir}/default.vert"
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_slider.frag.qsb" "${shader_dir}/liquid_glass_slider.frag"
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/liquid_glass_surface.frag.qsb" "${shader_dir}/liquid_glass_surface.frag"
         "${qsb_bin}" --qt6 -b -o "${shader_dir}/frosted_glass.frag.qsb" "${shader_dir}/frosted_glass.frag"

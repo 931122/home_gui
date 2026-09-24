@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import HomeGui 1.0
 
 Dialog {
     id: root
@@ -16,7 +15,7 @@ Dialog {
     modal: true
     focus: true
     padding: 0
-    width: Math.min(parent ? parent.width * 0.92 : Theme.dp(360), Theme.dp(440))
+    width: Math.min(parent ? parent.width * 0.92 : GlassTheme.dp(360), GlassTheme.dp(440))
     x: parent ? (parent.width - width) / 2 : 0
 
     Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, root.dimBehind ? 0.38 : 0.0) }
@@ -30,12 +29,12 @@ Dialog {
     }
 
     background: Item {
-        implicitHeight: contentColumn.implicitHeight + Theme.dp(32)
+        implicitHeight: contentColumn.implicitHeight + GlassTheme.dp(32)
         clip: true
         LiquidGlassSurface {
             anchors.fill: parent
             backgroundSource: root.backgroundSource
-            cornerRadius: Theme.dp(18)
+            cornerRadius: GlassTheme.dp(18)
             baseOpacity: 0.72
             tintColor: Qt.rgba(0.12, 0.20, 0.30, 0.62)
             tintStrength: 0.28
@@ -43,7 +42,7 @@ Dialog {
         }
         Rectangle {
             anchors.fill: parent
-            radius: Theme.dp(18)
+            radius: GlassTheme.dp(18)
             color: "transparent"
             border.color: Qt.rgba(1, 1, 1, 0.22)
             border.width: 1
@@ -53,14 +52,14 @@ Dialog {
     contentItem: ColumnLayout {
         id: contentColumn
         anchors.fill: parent
-        spacing: Theme.dp(12)
-        anchors.margins: Theme.dp(20)
+        spacing: GlassTheme.dp(12)
+        anchors.margins: GlassTheme.dp(20)
 
         Label {
             Layout.fillWidth: true
             text: root.titleText || root.title
             color: typeof glassRuntime !== "undefined" && glassRuntime.backdropLuminance > 0.55 ? root.overLightTextColor : root.overDarkTextColor
-            font.pixelSize: Theme.fs(18)
+            font.pixelSize: GlassTheme.fs(18)
             font.bold: true
             visible: text.length > 0
         }

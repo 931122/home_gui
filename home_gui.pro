@@ -44,7 +44,7 @@ SOURCES += \
     src/ui/appcontroller.cpp \
     src/ui/bootsplash.cpp \
     src/ui/brightnesscontroller.cpp \
-    src/ui/glassruntime.cpp \
+    src/liquidglass/glassruntime.cpp \
     src/ui/screenpowermanager.cpp \
     src/ui/holidayservice.cpp \
     src/ui/weatherservice.cpp \
@@ -72,14 +72,15 @@ HEADERS += \
     src/ui/appcontroller.h \
     src/ui/bootsplash.h \
     src/ui/brightnesscontroller.h \
-    src/ui/glassruntime.h \
+    src/liquidglass/glassruntime.h \
     src/ui/screenpowermanager.h \
     src/ui/holidayservice.h \
     src/ui/weatherservice.h \
     src/ui/videoitem.h
 
 RESOURCES += \
-    resources/qml.qrc
+    resources/qml.qrc \
+    resources/liquidglass.qrc
 
 TRANSLATIONS += \
     i18n/home_gui_zh_CN.ts
@@ -95,9 +96,21 @@ DISTFILES += \
     src/ui/qml/RoomSensorsPanel.qml \
     src/ui/qml/VideoBottomDockCard.qml \
     src/ui/qml/VideoBottomStatusCard.qml \
-    src/ui/qml/LiquidGlassSurface.qml \
-    src/ui/qml/LiquidGlassButton.qml \
-    src/ui/qml/LiquidGlassSlider.qml \
+    src/liquidglass/qml/LiquidGlassSurface.qml \
+    src/liquidglass/qml/LiquidGlassButton.qml \
+    src/liquidglass/qml/LiquidGlassSlider.qml \
+    src/liquidglass/qml/GlassTheme.qml \
+    src/liquidglass/qml/FrostedGlassOverlay.qml \
+    src/liquidglass/qml/LiquidGlassTabBar.qml \
+    src/liquidglass/qml/LiquidGlassChip.qml \
+    src/liquidglass/qml/ScrollEdgeBlurView.qml \
+    src/liquidglass/qml/LiquidGlassToast.qml \
+    src/liquidglass/qml/LiquidGlassFab.qml \
+    src/liquidglass/qml/LiquidGlassTabLayout.qml \
+    src/liquidglass/qml/LiquidGlassChipGroup.qml \
+    src/liquidglass/qml/LiquidGlassListItem.qml \
+    src/liquidglass/qml/LiquidGlassListGroup.qml \
+    src/liquidglass/qml/LiquidGlassDialog.qml \
     src/ui/qml/VideoPanel.qml \
     src/ui/qml/VideoSurface.qml \
     src/ui/qml/WeatherPopup.qml \

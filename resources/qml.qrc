@@ -1,10 +1,8 @@
 <RCC>
     <qresource prefix="/">
         <file alias="qml/Main.qml">../src/ui/qml/Main.qml</file>
-        <file alias="qml/AppTheme.qml">../src/ui/qml/AppTheme.qml</file>
         <file alias="qml/GlassPopup.qml">../src/ui/qml/GlassPopup.qml</file>
         <file alias="qml/BootSplashView.qml">../src/ui/qml/BootSplashView.qml</file>
-        <file alias="qml/FrostedGlassOverlay.qml">../src/ui/qml/FrostedGlassOverlay.qml</file>
         <file alias="qml/CameraPopup.qml">../src/ui/qml/CameraPopup.qml</file>
         <file alias="qml/CalendarPopup.qml">../src/ui/qml/CalendarPopup.qml</file>
         <file alias="qml/HaSidebar.qml">../src/ui/qml/HaSidebar.qml</file>
@@ -104,26 +102,8 @@
         <file alias="icons/dock-movie.svg">icons/dock-movie.svg</file>
         <file alias="icons/dock-plug.svg">icons/dock-plug.svg</file>
         <file alias="qml/VideoBottomStatusCard.qml">../src/ui/qml/VideoBottomStatusCard.qml</file>
-        <file alias="qml/LiquidGlassSurface.qml">../src/ui/qml/LiquidGlassSurface.qml</file>
-        <file alias="qml/LiquidGlassButton.qml">../src/ui/qml/LiquidGlassButton.qml</file>
-        <file alias="qml/LiquidGlassSlider.qml">../src/ui/qml/LiquidGlassSlider.qml</file>
-        <file alias="qml/LiquidGlassTabBar.qml">../src/ui/qml/LiquidGlassTabBar.qml</file>
-        <file alias="qml/LiquidGlassChip.qml">../src/ui/qml/LiquidGlassChip.qml</file>
-        <file alias="qml/ScrollEdgeBlurView.qml">../src/ui/qml/ScrollEdgeBlurView.qml</file>
-        <file alias="qml/LiquidGlassToast.qml">../src/ui/qml/LiquidGlassToast.qml</file>
-        <file alias="qml/LiquidGlassFab.qml">../src/ui/qml/LiquidGlassFab.qml</file>
-        <file alias="qml/LiquidGlassTabLayout.qml">../src/ui/qml/LiquidGlassTabLayout.qml</file>
-        <file alias="qml/LiquidGlassChipGroup.qml">../src/ui/qml/LiquidGlassChipGroup.qml</file>
-        <file alias="qml/LiquidGlassListItem.qml">../src/ui/qml/LiquidGlassListItem.qml</file>
-        <file alias="qml/LiquidGlassListGroup.qml">../src/ui/qml/LiquidGlassListGroup.qml</file>
-        <file alias="qml/LiquidGlassDialog.qml">../src/ui/qml/LiquidGlassDialog.qml</file>
         <file alias="icons/heater.svg">icons/heater.svg</file>
         <file alias="icons/purifier.svg">icons/purifier.svg</file>
         <file alias="shaders/default.vert.qsb">../src/ui/shaders/default.vert.qsb</file>
-        <file alias="shaders/liquid_glass_surface.vert.qsb">../src/ui/shaders/liquid_glass_surface.vert.qsb</file>
-        <file alias="shaders/frosted_glass.vert.qsb">../src/ui/shaders/frosted_glass.vert.qsb</file>
-        <file alias="shaders/liquid_glass_slider.frag.qsb">../src/ui/shaders/liquid_glass_slider.frag.qsb</file>
-        <file alias="shaders/liquid_glass_surface.frag.qsb">../src/ui/shaders/liquid_glass_surface.frag.qsb</file>
-        <file alias="shaders/frosted_glass.frag.qsb">../src/ui/shaders/frosted_glass.frag.qsb</file>
     </qresource>
 </RCC>

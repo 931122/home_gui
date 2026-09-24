@@ -61,8 +61,8 @@ Item {
         property real blurStrength: root.blurFactor
         property real _pad: 0.0
 
-        vertexShader: "qrc:/shaders/frosted_glass.vert.qsb"
-        fragmentShader: "qrc:/shaders/frosted_glass.frag.qsb"
+        vertexShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/frosted_glass.vert.qsb"
+        fragmentShader: "qrc:/qt/qml/HomeGui/LiquidGlass/shaders/frosted_glass.frag.qsb"
     }
 
     // ============================================================
