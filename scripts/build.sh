@@ -343,10 +343,66 @@ run_android_build() {
     local build_jobs
     build_jobs="$(detect_build_jobs)"
 
-    local qt_android_dir="${QT_ANDROID_DIR:-${HOME}/Android/Qt/6.6.3/android_arm64_v8a}"
-    local android_sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-${HOME}/Android/Sdk}}"
-    local android_ndk_root="${ANDROID_NDK_ROOT:-${HOME}/Android/ndk/android-ndk-r25c}"
-    local java_home="${JAVA_HOME:-/usr/lib/jvm/java-11-openjdk-amd64}"
+    local qt_android_dir="${QT_ANDROID_DIR:-}"
+    if [[ -z "${qt_android_dir}" ]]; then
+        local cand
+        for cand in \
+            "${HOME}/Qt/6.10.1/android_arm64_v8a" \
+            $(find "${HOME}/Qt" -maxdepth 3 -type d -name "android_arm64_v8a" 2>/dev/null | sort -V | tail -n 1) \
+            $(find "${HOME}/Android/Qt" -maxdepth 3 -type d -name "android_arm64_v8a" 2>/dev/null | sort -V | tail -n 1) \
+            "${HOME}/Android/Qt/6.6.3/android_arm64_v8a"; do
+            if [[ -d "${cand}" && -f "${cand}/lib/cmake/Qt6/Qt6Config.cmake" ]]; then
+                qt_android_dir="${cand}"
+                break
+            fi
+        done
+    fi
+    qt_android_dir="${qt_android_dir:-${HOME}/Android/Qt/6.6.3/android_arm64_v8a}"
+
+    local android_sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+    if [[ -z "${android_sdk_root}" || ! -d "${android_sdk_root}" ]]; then
+        if [[ -d "${HOME}/Library/Android/sdk" ]]; then
+            android_sdk_root="${HOME}/Library/Android/sdk"
+        elif [[ -d "${HOME}/Android/Sdk" ]]; then
+            android_sdk_root="${HOME}/Android/Sdk"
+        fi
+    fi
+    android_sdk_root="${android_sdk_root:-${HOME}/Android/Sdk}"
+
+    local android_ndk_root="${ANDROID_NDK_ROOT:-}"
+    if [[ -z "${android_ndk_root}" || ! -d "${android_ndk_root}" ]]; then
+        if [[ -d "${android_sdk_root}/ndk" ]]; then
+            android_ndk_root="$(find "${android_sdk_root}/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V | tail -n 1)"
+        elif [[ -d "${HOME}/Android/ndk" ]]; then
+            android_ndk_root="$(find "${HOME}/Android/ndk" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -V | tail -n 1)"
+        elif [[ -d "${android_sdk_root}/ndk-bundle" ]]; then
+            android_ndk_root="${android_sdk_root}/ndk-bundle"
+        fi
+    fi
+    android_ndk_root="${android_ndk_root:-${HOME}/Android/ndk/android-ndk-r25c}"
+
+    local java_home="${JAVA_HOME:-}"
+    if [[ -z "${java_home}" || ! -d "${java_home}" ]]; then
+        if [[ "$(uname -s)" == "Darwin" ]] && command -v /usr/libexec/java_home >/dev/null 2>&1; then
+            java_home="$(/usr/libexec/java_home 2>/dev/null || true)"
+        fi
+        if [[ -z "${java_home}" || ! -d "${java_home}" ]] && command -v javac >/dev/null 2>&1; then
+            java_home="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
+        fi
+        if [[ -z "${java_home}" || ! -d "${java_home}" ]] && [[ -d "/usr/lib/jvm/java-11-openjdk-amd64" ]]; then
+            java_home="/usr/lib/jvm/java-11-openjdk-amd64"
+        fi
+    fi
+
+    local ndk_host="linux-x86_64"
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if [[ -d "${android_ndk_root}/toolchains/llvm/prebuilt/darwin-x86_64" ]]; then
+            ndk_host="darwin-x86_64"
+        elif [[ -d "${android_ndk_root}/toolchains/llvm/prebuilt/darwin-arm64" ]]; then
+            ndk_host="darwin-arm64"
+        fi
+    fi
+
     local android_platform="${ANDROID_PLATFORM:-android-33}"
     local android_build_tools="${ANDROID_BUILD_TOOLS:-33.0.2}"
     local android_abi="${ANDROID_ABI:-arm64-v8a}"
@@ -357,7 +413,7 @@ run_android_build() {
 
     if [[ ! -d "${qt_android_dir}" || (! -x "${qt_android_dir}/bin/qt-cmake" && ! -x "${qt_android_dir}/../gcc_64/bin/androiddeployqt") ]]; then
         echo "Error: Qt 6 for Android not found at ${qt_android_dir}" >&2
-        echo "Please install Qt 6 for Android (e.g. Qt 6.6.3 / 6.8.x arm64-v8a) or export QT_ANDROID_DIR." >&2
+        echo "Please install Qt 6 for Android (e.g. Qt 6.6.3 / 6.8.x / 6.10.x arm64-v8a) or export QT_ANDROID_DIR." >&2
         exit 1
     fi
 
@@ -368,21 +424,9 @@ run_android_build() {
     fi
 
     if [[ ! -d "${android_ndk_root}" ]]; then
-        if [[ -d "${HOME}/Android/ndk/android-ndk-r25c" ]]; then
-            android_ndk_root="${HOME}/Android/ndk/android-ndk-r25c"
-        elif [[ -d "${android_sdk_root}/ndk-bundle" ]]; then
-            android_ndk_root="${android_sdk_root}/ndk-bundle"
-        else
-            echo "Error: Android NDK not found at ${android_ndk_root}" >&2
-            echo "Please export ANDROID_NDK_ROOT." >&2
-            exit 1
-        fi
-    fi
-
-    if [[ ! -d "${java_home}" ]]; then
-        if command -v javac >/dev/null 2>&1; then
-            java_home="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
-        fi
+        echo "Error: Android NDK not found at ${android_ndk_root}" >&2
+        echo "Please export ANDROID_NDK_ROOT." >&2
+        exit 1
     fi
 
     export ANDROID_SDK_ROOT="${android_sdk_root}"
@@ -392,7 +436,7 @@ run_android_build() {
     export QT_ANDROID_KEYSTORE_ALIAS="${android_keystore_alias}"
     export QT_ANDROID_KEYSTORE_STORE_PASS="${android_keystore_store_pass}"
     export QT_ANDROID_KEYSTORE_KEY_PASS="${android_keystore_key_pass}"
-    export ANDROID_NDK_HOST="linux-x86_64"
+    export ANDROID_NDK_HOST="${ndk_host}"
     export JAVA_HOME="${java_home}"
     export PATH="${qt_android_dir}/bin:${java_home}/bin:${PATH}"
 
@@ -581,7 +625,23 @@ EOF
         qt_cmake_bin="cmake"
     fi
 
-    local qt_host_path="${qt_android_dir}/../gcc_64"
+    local qt_host_path=""
+    if [[ -d "${qt_android_dir}/../gcc_64" ]]; then
+        qt_host_path="${qt_android_dir}/../gcc_64"
+    elif [[ -d "${qt_android_dir}/../macos" ]]; then
+        qt_host_path="${qt_android_dir}/../macos"
+    elif command -v qmake6 >/dev/null 2>&1; then
+        qt_host_path="$(dirname "$(dirname "$(command -v qmake6)")")"
+    elif [[ -d "/usr/local" && -x "/usr/local/bin/qmake" ]]; then
+        qt_host_path="/usr/local"
+    elif [[ -d "/opt/homebrew" && -x "/opt/homebrew/bin/qmake6" ]]; then
+        qt_host_path="/opt/homebrew"
+    fi
+
+    local sign_flag="OFF"
+    if [[ -f "${android_keystore_path}" ]]; then
+        sign_flag="ON"
+    fi
 
     ensure_qsb_shaders
 
@@ -595,14 +655,17 @@ EOF
         -DANDROID_SDK_ROOT="${android_sdk_root}" \
         -DANDROID_NDK_ROOT="${android_ndk_root}" \
         -DANDROID_OPENSSL_ROOT="${openssl_dir}" \
-        -DQT_ANDROID_SIGN_APK=ON \
+        -DQT_ANDROID_SIGN_APK="${sign_flag}" \
         -DCMAKE_BUILD_TYPE=Release
 
     echo "Compiling and packaging APK with Qt 6 CMake..."
     cmake --build "${build_dir}" --parallel "${build_jobs}" --target apk
 
     local apk_path
-    apk_path="$(find "${build_dir}/android-build/build/outputs/apk" -type f -name "*.apk" 2>/dev/null | head -n 1)"
+    apk_path="$(find "${build_dir}/android-build/build/outputs/apk" -type f -name "*signed*.apk" 2>/dev/null | head -n 1)"
+    if [[ -z "${apk_path}" ]]; then
+        apk_path="$(find "${build_dir}/android-build/build/outputs/apk" -type f -name "*.apk" 2>/dev/null | head -n 1)"
+    fi
     local final_apk="${build_dir}/home_gui.apk"
     if [[ -n "${apk_path}" && -f "${apk_path}" ]]; then
         cp -f "${apk_path}" "${final_apk}"

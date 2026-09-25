@@ -27,7 +27,9 @@ GlassPopup {
     FileDialog {
         id: configFileDialog
         title: qsTr("选择 HomeGui 配置文件 (YAML)")
-        nameFilters: [qsTr("YAML 配置文件 (*.yaml *.yml)"), qsTr("所有文件 (*)")]
+        nameFilters: root.isMobilePlatform
+                     ? [qsTr("所有文件 (*)")]
+                     : [qsTr("YAML 配置文件 (*.yaml *.yml)"), qsTr("所有文件 (*)")]
         onAccepted: {
             if (typeof appController !== "undefined") {
                 appController.loadConfigFile(selectedFile)

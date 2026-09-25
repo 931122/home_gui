@@ -82,6 +82,31 @@ static void setupAndroidImmersiveMode()
         decorView.callMethod<void>("setSystemUiVisibility", "(I)V", immersiveFlags);
     }
 }
+
+static void requestAndroidStoragePermissions()
+{
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) {
+        return;
+    }
+    const int sdkInt = QNativeInterface::QAndroidApplication::sdkVersion();
+    if (sdkInt >= 23) {
+        QJniEnvironment env;
+        jclass strClass = env->FindClass("java/lang/String");
+        if (strClass != nullptr) {
+            jobjectArray perms = env->NewObjectArray(2, strClass, nullptr);
+            jstring rPerm = env->NewStringUTF("android.permission.READ_EXTERNAL_STORAGE");
+            jstring wPerm = env->NewStringUTF("android.permission.WRITE_EXTERNAL_STORAGE");
+            env->SetObjectArrayElement(perms, 0, rPerm);
+            env->SetObjectArrayElement(perms, 1, wPerm);
+            activity.callMethod<void>("requestPermissions", "([Ljava/lang/String;I)V", perms, 101);
+            env->DeleteLocalRef(rPerm);
+            env->DeleteLocalRef(wPerm);
+            env->DeleteLocalRef(perms);
+            env->DeleteLocalRef(strClass);
+        }
+    }
+}
 #endif
 
 // 根据平台和用户选择确定配置文件路径
@@ -127,6 +152,18 @@ static QString resolveConfigPath(int argc, char *argv[])
     if (QFile::exists(docsConfigPath)) {
         return docsConfigPath;
     }
+
+    const QString downloadDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    const QString downloadConfigPath = downloadDir + QStringLiteral("/config.yaml");
+    if (QFile::exists(downloadConfigPath)) {
+        return downloadConfigPath;
+    }
+#if defined(Q_OS_ANDROID)
+    const QString sdcardDownloadConfig = QStringLiteral("/sdcard/Download/config.yaml");
+    if (QFile::exists(sdcardDownloadConfig)) {
+        return sdcardDownloadConfig;
+    }
+#endif
 
     // 6. 应用安装包内不再打包默认配置文件，未选择/未导入时返回空路径，等待用户在设置中选择
     return QString();
@@ -420,6 +457,7 @@ int main(int argc, char *argv[])
 #if defined(Q_OS_ANDROID)
         QNativeInterface::QAndroidApplication::hideSplashScreen(300);
         setupAndroidImmersiveMode();
+        requestAndroidStoragePermissions();
 #endif
         controller.startDeferredServices();
         moduleManager.startModules();

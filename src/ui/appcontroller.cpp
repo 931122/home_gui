@@ -1434,6 +1434,7 @@ QStringList AppController::candidateConfigFiles() const
     const QString appDir = QCoreApplication::applicationDirPath();
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString downloadDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
 
     const QStringList testPaths = {
         currentDir + QStringLiteral("/config.yaml"),
@@ -1443,6 +1444,12 @@ QStringList AppController::candidateConfigFiles() const
         appDataDir + QStringLiteral("/config.yaml"),
         docsDir + QStringLiteral("/config.yaml"),
         docsDir + QStringLiteral("/config.yaml.example"),
+        downloadDir + QStringLiteral("/config.yaml"),
+        downloadDir + QStringLiteral("/config.yaml.example"),
+        QStringLiteral("/sdcard/Download/config.yaml"),
+        QStringLiteral("/storage/emulated/0/Download/config.yaml"),
+        QStringLiteral("/sdcard/Documents/config.yaml"),
+        QStringLiteral("/storage/emulated/0/Documents/config.yaml"),
         QStringLiteral("/etc/home_gui/config.yaml")
     };
 
@@ -1469,6 +1476,35 @@ bool AppController::loadConfigFile(const QString &fileUrlOrPath)
     if (path.startsWith(QStringLiteral("file://"))) {
         path = QUrl(path).toLocalFile();
     }
+
+    // 处理 Android 系统的 content:// 协议或外部存储文件：
+    // 将其内容安全拷贝至应用的内部私有数据目录，以保证沙盒内永久读写权限与热重载可靠性。
+    if (path.startsWith(QStringLiteral("content://"))
+#if defined(Q_OS_ANDROID)
+        || (!path.startsWith(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+            && (path.startsWith(QStringLiteral("/sdcard/"))
+                || path.startsWith(QStringLiteral("/storage/"))
+                || path.contains(QStringLiteral("Download"))))
+#endif
+    ) {
+        QFile srcFile(path);
+        if (srcFile.open(QIODevice::ReadOnly)) {
+            const QByteArray content = srcFile.readAll();
+            srcFile.close();
+            if (!content.isEmpty()) {
+                const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+                QDir().mkpath(appDataDir);
+                const QString importedPath = appDataDir + QStringLiteral("/config.yaml");
+                QFile dstFile(importedPath);
+                if (dstFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                    dstFile.write(content);
+                    dstFile.close();
+                    path = importedPath;
+                }
+            }
+        }
+    }
+
     if (path.isEmpty() || !QFile::exists(path)) {
         return false;
     }
