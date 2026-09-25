@@ -11,6 +11,7 @@ Rectangle {
     property int cardRadius: dp(14)
 
     signal fullscreenRequested()
+    signal settingsRequested()
 
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }
@@ -21,9 +22,10 @@ Rectangle {
     border.width: 1
     clip: true
 
-    // 智能提取全屋所有“灯光”相关实体
-    readonly property var allHaActions: globalState.haActionStates || []
+    // 智能提取全屋所有 HA 实体
+    readonly property var allHaActions: (typeof globalState !== "undefined" && globalState.haActionStates) ? globalState.haActionStates : []
 
+    // 提取所有“灯光”相关实体
     readonly property var lightActions: {
         var res = []
         for (var i = 0; i < allHaActions.length; ++i) {
@@ -66,8 +68,7 @@ Rectangle {
         return names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : "")
     }
 
-    // 浴霸状态：优先从 HA 查找，找不到时提供本地交互模拟状态
-    property string bathHeaterMode: "standby" // "heat" (取暖), "vent" (换气), "standby" (关)
+    // 浴霸实体：仅在 HA 明确存在相应实体时启用（绝不无中生有硬编码假设备）
     readonly property var bathHeaterEntity: {
         for (var i = 0; i < allHaActions.length; ++i) {
             var it = allHaActions[i]
@@ -81,42 +82,187 @@ Rectangle {
         return null
     }
 
-    // 空气净化器状态：优先从 HA 查找，找不到时提供本地交互模拟状态
-    property string airPurifierMode: "auto" // "auto" (智能), "boost" (强劲), "off" (关)
-    property int pm25Value: 12 // 默认优级空气指标
+    // 空气净化器实体：仅在 HA 明确存在相应实体时启用（绝不无中生有硬编码假设备）
     readonly property var airPurifierEntity: {
-        for (var i = 0; i < allHaActions.length; ++i) {
-            var it = allHaActions[i]
-            if (!it) continue
-            var n = String(it.name || "")
-            var e = String(it.entityId || "")
-            if (n.indexOf("净化器") !== -1 || n.indexOf("新风") !== -1 || e.indexOf("fan.air_purifier") !== -1 || e.indexOf("purifier") !== -1) {
-                return it
+        for (var j = 0; j < allHaActions.length; ++j) {
+            var item = allHaActions[j]
+            if (!item) continue
+            var n2 = String(item.name || "")
+            var e2 = String(item.entityId || "")
+            if (n2.indexOf("净化器") !== -1 || n2.indexOf("新风") !== -1 || e2.indexOf("fan.air_purifier") !== -1 || e2.indexOf("purifier") !== -1) {
+                return item
             }
         }
         return null
     }
 
+    // 其他常用实体（非灯光、非浴霸、非空净、非总控，例如插座、厨电等）
+    readonly property var otherActions: {
+        var res = []
+        for (var k = 0; k < allHaActions.length; ++k) {
+            var dev = allHaActions[k]
+            if (!dev) continue
+            if (dev === bathHeaterEntity || dev === airPurifierEntity) continue
+            var nameStr = String(dev.name || "")
+            var eidStr = String(dev.entityId || "")
+            var domStr = String(dev.domain || "")
+            var isL = domStr === "light" || nameStr.indexOf("灯") !== -1 || nameStr.indexOf("洗漱台") !== -1 || eidStr.indexOf("light.") !== -1
+            if (!isL && nameStr !== "全屋总控") {
+                res.push(dev)
+            }
+        }
+        return res
+    }
+
+    // 开启中的其他设备数量
+    readonly property int activeOtherCount: {
+        var c = 0
+        for (var m = 0; m < otherActions.length; ++m) {
+            if (otherActions[m] && otherActions[m].active) c++
+        }
+        return c
+    }
+
+    readonly property string activeOtherNamesSummary: {
+        var names = []
+        for (var n = 0; n < otherActions.length; ++n) {
+            if (otherActions[n] && otherActions[n].active) {
+                names.push(otherActions[n].name || "")
+            }
+        }
+        if (names.length === 0) return qsTr("全屋设备待机中")
+        return names.slice(0, 3).join(" · ") + (names.length > 3 ? "..." : "")
+    }
+
+    readonly property bool hasCameras: typeof appController !== "undefined" && appController && appController.cameraPreviewModels && appController.cameraPreviewModels.length > 0
+    readonly property bool hasAnyDevices: allHaActions.length > 0 || hasCameras
+
+    // 判断各个子区域是否需要渲染（严格根据真实配置决定，无配置时不虚构）
+    readonly property bool showLights: lightActions.length > 0
+    readonly property bool showBathHeater: bathHeaterEntity !== null
+    readonly property bool showAirPurifier: airPurifierEntity !== null
+    readonly property bool showOtherDevices: (!showBathHeater || !showAirPurifier) && (otherActions.length > 0)
+    readonly property bool showCameras: (!showBathHeater && !showAirPurifier && otherActions.length === 0 && hasCameras && appController.cameraPreviewModels.length > 1)
+
+    // 计算活跃的列数（1 ~ 3）
+    readonly property int activeColumnCount: {
+        var count = 0
+        if (showLights) count++
+        if (showBathHeater) count++
+        if (showAirPurifier) count++
+        if (showOtherDevices) count++
+        if (showCameras) count++
+        return Math.max(1, count)
+    }
+
+    // 动态列宽度比例计算
+    readonly property real availableWidth: Math.max(1, cardRoot.width - cardRoot.dp(16) - Math.max(0, activeColumnCount - 1) * cardRoot.dp(8))
+
+    readonly property real lightZoneWidth: {
+        if (!showLights) return 0
+        if (activeColumnCount === 1) return availableWidth
+        if (activeColumnCount === 2) return Math.floor(availableWidth * 0.52)
+        return Math.floor(availableWidth * 0.40)
+    }
+
+    readonly property real secondColWidth: {
+        var remainingW = availableWidth - (showLights ? lightZoneWidth : 0)
+        var remainingCols = activeColumnCount - (showLights ? 1 : 0)
+        if (remainingCols <= 0) return 0
+        if (remainingCols === 1) return remainingW
+        return Math.floor(remainingW * 0.49)
+    }
+
+    readonly property real thirdColWidth: {
+        var remainingW = availableWidth - (showLights ? lightZoneWidth : 0) - secondColWidth
+        return Math.max(0, remainingW)
+    }
+
     // =========================================================================
-    // 三大核心全屋态势区（一体化微晶中控坞布局，消除粗暴的多层重叠边框）
+    // 0. 未加载配置 / 清除配置后的空状态占位提示（绝不虚构设备）
+    // =========================================================================
+    Item {
+        anchors.fill: parent
+        visible: !cardRoot.hasAnyDevices
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: cardRoot.dp(16)
+
+            Rectangle {
+                width: cardRoot.dp(38)
+                height: cardRoot.dp(38)
+                radius: cardRoot.dp(19)
+                color: Qt.rgba(0.20, 0.55, 0.95, 0.15)
+                border.color: Qt.rgba(0.40, 0.75, 1.0, 0.35)
+                border.width: 1
+
+                Image {
+                    anchors.centerIn: parent
+                    source: "qrc:/icons/settings.svg"
+                    width: cardRoot.dp(20)
+                    height: cardRoot.dp(20)
+                    sourceSize: Qt.size(width, height)
+                    smooth: true
+                }
+            }
+
+            ColumnLayout {
+                spacing: cardRoot.dp(2)
+
+                Text {
+                    text: qsTr("未加载智能家居配置")
+                    color: "#f0f6fa"
+                    font.pixelSize: cardRoot.fs(13)
+                    font.bold: true
+                }
+
+                Text {
+                    text: qsTr("当前配置文件已清除或无生效实体，可在系统设置中选择 YAML 文件")
+                    color: "#94a3b8"
+                    font.pixelSize: cardRoot.fs(10)
+                }
+            }
+
+            Item {
+                width: cardRoot.dp(6)
+                height: 1
+            }
+
+            GlassButton {
+                scaleUnit: cardRoot.scaleUnit
+                styleType: "accent"
+                implicitWidth: cardRoot.dp(88)
+                implicitHeight: cardRoot.dp(30)
+                text: qsTr("打开设置")
+                textPixelSize: cardRoot.fs(11)
+                onClicked: cardRoot.settingsRequested()
+            }
+        }
+    }
+
+    // =========================================================================
+    // 真实设备动态态势区（根据真实配置动态伸缩呈现）
     // =========================================================================
     Row {
         anchors.fill: parent
         anchors.margins: cardRoot.dp(8)
-        spacing: 0
+        spacing: cardRoot.dp(4)
+        visible: cardRoot.hasAnyDevices
 
         // =====================================================================
-        // 1. 全屋灯光态势与快捷控制区 (占 42% 宽度)
+        // 1. 全屋灯光态势与快捷控制区（真实存在灯光实体时渲染）
         // =====================================================================
         Item {
             id: lightZone
-            width: Math.floor(parent.width * 0.42)
+            visible: cardRoot.showLights
+            width: cardRoot.lightZoneWidth
             height: parent.height
 
             Column {
                 anchors.fill: parent
                 anchors.leftMargin: cardRoot.dp(4)
-                anchors.rightMargin: cardRoot.dp(10)
+                anchors.rightMargin: cardRoot.dp(6)
                 spacing: cardRoot.dp(3)
 
                 // 顶栏：圆形灯泡徽章 + 标题 + 状态小标签 + 一键全关按钮
@@ -204,7 +350,7 @@ Rectangle {
                                 if (activeLightCount > 0) {
                                     for (var i = 0; i < lightActions.length; ++i) {
                                         if (lightActions[i] && lightActions[i].active) {
-                                            appController.triggerHaAction(lightActions[i].name)
+                                            appController.callHaActionService(lightActions[i].name, "turn_off")
                                         }
                                     }
                                 } else {
@@ -228,17 +374,18 @@ Rectangle {
                     elide: Text.ElideRight
                 }
 
-                // 底部：主要灯光快捷开关胶囊（单排紧凑，不换行，绝不溢出）
+                // 底部：主要灯光快捷开关胶囊
                 Row {
                     width: parent.width
                     spacing: cardRoot.dp(5)
 
                     Repeater {
-                        model: lightActions.slice(0, 5)
+                        model: lightActions.slice(0, cardRoot.activeColumnCount === 1 ? 8 : 5)
 
                         Rectangle {
+                            readonly property int totalChips: Math.min(lightActions.length, cardRoot.activeColumnCount === 1 ? 8 : 5)
                             height: cardRoot.dp(22)
-                            width: Math.min((parent.width - (Math.min(lightActions.length, 5) - 1) * cardRoot.dp(5)) / Math.max(1, Math.min(lightActions.length, 5)), chipText.implicitWidth + cardRoot.dp(16))
+                            width: Math.min((parent.width - (totalChips - 1) * cardRoot.dp(5)) / Math.max(1, totalChips), chipText.implicitWidth + cardRoot.dp(16))
                             radius: cardRoot.dp(11)
                             color: modelData.active ? Qt.rgba(1.0, 0.80, 0.20, 0.28) : Qt.rgba(1, 1, 1, 0.07)
                             border.color: modelData.active ? Qt.rgba(1.0, 0.85, 0.35, 0.60) : Qt.rgba(1, 1, 1, 0.08)
@@ -251,39 +398,26 @@ Rectangle {
                                     width: cardRoot.dp(5)
                                     height: cardRoot.dp(5)
                                     radius: cardRoot.dp(2.5)
+                                    color: modelData.active ? "#ffcf33" : "#526573"
                                     anchors.verticalCenter: parent.verticalCenter
-                                    color: modelData.active ? "#ffe14d" : "#55697d"
                                 }
 
                                 Text {
                                     id: chipText
-                                    text: modelData.name || ""
+                                    text: modelData.name || modelData.entityId || ""
+                                    color: modelData.active ? "#ffffff" : "#8ea3b5"
                                     font.pixelSize: cardRoot.fs(9)
                                     font.bold: modelData.active
-                                    color: modelData.active ? "#ffffff" : "#98abbd"
-                                    anchors.verticalCenter: parent.verticalCenter
                                     elide: Text.ElideRight
-                                    maximumLineCount: 1
+                                    anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
 
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: {
-                                    if (modelData.name) {
-                                        appController.triggerHaAction(modelData.name)
-                                    }
-                                }
+                                onClicked: appController.triggerHaAction(modelData.name)
                             }
                         }
-                    }
-
-                    // 没有实体时的备用占位提示
-                    Text {
-                        visible: lightActions.length === 0
-                        text: qsTr("客厅灯 · 餐厅灯 · 卧室灯")
-                        color: "#556a7d"
-                        font.pixelSize: cardRoot.fs(9)
                     }
                 }
             }
@@ -291,6 +425,7 @@ Rectangle {
 
         // 垂直微光分割线 1
         Rectangle {
+            visible: cardRoot.showLights && cardRoot.activeColumnCount > 1
             width: 1
             height: parent.height - cardRoot.dp(10)
             anchors.verticalCenter: parent.verticalCenter
@@ -302,20 +437,20 @@ Rectangle {
         }
 
         // =====================================================================
-        // 2. 智能浴霸 / 浴室温控区 (占 29% 宽度)
+        // 2. 智能浴霸 / 浴室温控区（仅在 HA 存在浴霸实体时渲染）
         // =====================================================================
         Item {
             id: bathHeaterZone
-            width: Math.floor(parent.width * 0.29)
+            visible: cardRoot.showBathHeater
+            width: cardRoot.secondColWidth
             height: parent.height
 
             Column {
                 anchors.fill: parent
-                anchors.leftMargin: cardRoot.dp(10)
-                anchors.rightMargin: cardRoot.dp(10)
+                anchors.leftMargin: cardRoot.dp(6)
+                anchors.rightMargin: cardRoot.dp(6)
                 spacing: cardRoot.dp(3)
 
-                // 顶栏：图标 + 名称 + 运行呼吸点
                 Item {
                     width: parent.width
                     height: cardRoot.dp(24)
@@ -330,9 +465,9 @@ Rectangle {
                             height: cardRoot.dp(20)
                             radius: cardRoot.dp(10)
                             anchors.verticalCenter: parent.verticalCenter
-                            color: bathHeaterMode === "heat"
+                            color: (bathHeaterEntity && bathHeaterEntity.active)
                                    ? Qt.rgba(1.0, 0.50, 0.15, 0.25)
-                                   : (bathHeaterMode === "vent" ? Qt.rgba(0.20, 0.75, 1.0, 0.25) : Qt.rgba(1, 1, 1, 0.08))
+                                   : Qt.rgba(1, 1, 1, 0.08)
 
                             Image {
                                 anchors.centerIn: parent
@@ -345,7 +480,7 @@ Rectangle {
                         }
 
                         Text {
-                            text: bathHeaterEntity ? (bathHeaterEntity.name || qsTr("智能浴霸")) : qsTr("浴室暖风")
+                            text: bathHeaterEntity ? (bathHeaterEntity.name || qsTr("智能浴霸")) : ""
                             color: "#ffffff"
                             font.pixelSize: cardRoot.fs(12)
                             font.bold: true
@@ -353,36 +488,35 @@ Rectangle {
                         }
                     }
 
-                    // 运行状态指示徽章
                     Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         height: cardRoot.dp(16)
                         width: heaterStatusBadge.implicitWidth + cardRoot.dp(8)
                         radius: cardRoot.dp(8)
-                        color: bathHeaterMode === "heat" ? Qt.rgba(1.0, 0.55, 0.20, 0.20) : (bathHeaterMode === "vent" ? Qt.rgba(0.20, 0.75, 1.0, 0.20) : Qt.rgba(1, 1, 1, 0.06))
+                        color: (bathHeaterEntity && bathHeaterEntity.active) ? Qt.rgba(1.0, 0.55, 0.20, 0.20) : Qt.rgba(1, 1, 1, 0.06)
 
                         Text {
                             id: heaterStatusBadge
                             anchors.centerIn: parent
-                            text: bathHeaterMode === "heat" ? qsTr("加热") : (bathHeaterMode === "vent" ? qsTr("换气") : qsTr("待机"))
+                            text: (bathHeaterEntity && bathHeaterEntity.active) ? qsTr("加热中") : qsTr("待机")
                             font.pixelSize: cardRoot.fs(8)
                             font.bold: true
-                            color: bathHeaterMode === "heat" ? "#ff9a44" : (bathHeaterMode === "vent" ? "#50cbff" : "#7c92a5")
+                            color: (bathHeaterEntity && bathHeaterEntity.active) ? "#ff9a44" : "#7c92a5"
                         }
                     }
                 }
 
-                // 中间：当前温控副文本
                 Text {
                     width: parent.width
-                    text: bathHeaterMode === "heat" ? qsTr("🔥 强暖速热 · 32°C") : (bathHeaterMode === "vent" ? qsTr("🌀 双向排气 · 极速") : qsTr("待机休眠 · 24°C"))
+                    text: (bathHeaterEntity && bathHeaterEntity.active)
+                          ? (bathHeaterEntity.stateText || qsTr("🔥 温暖运行中"))
+                          : qsTr("待机休眠")
                     font.pixelSize: cardRoot.fs(10)
-                    color: bathHeaterMode === "heat" ? "#ffaa5e" : (bathHeaterMode === "vent" ? "#62d6ff" : "#6c8295")
+                    color: (bathHeaterEntity && bathHeaterEntity.active) ? "#ffaa5e" : "#6c8295"
                     elide: Text.ElideRight
                 }
 
-                // 底部：现代化一体式分段控制器 [ 取暖 | 换气 | 关 ]
                 Rectangle {
                     width: parent.width
                     height: cardRoot.dp(22)
@@ -396,33 +530,35 @@ Rectangle {
 
                         Repeater {
                             model: [
-                                { mode: "heat", label: qsTr("取暖") },
-                                { mode: "vent", label: qsTr("换气") },
-                                { mode: "standby", label: qsTr("关") }
+                                { mode: "heat", label: qsTr("加热") },
+                                { mode: "standby", label: qsTr("关闭") }
                             ]
 
                             Rectangle {
-                                width: Math.floor(parent.width / 3)
+                                width: Math.floor(parent.width / 2)
                                 height: parent.height
                                 radius: cardRoot.dp(10)
-                                color: bathHeaterMode === modelData.mode
-                                       ? (modelData.mode === "heat" ? "#e05818" : (modelData.mode === "vent" ? "#0088cc" : Qt.rgba(1, 1, 1, 0.20)))
+                                readonly property bool isSelected: modelData.mode === "heat" ? (bathHeaterEntity && bathHeaterEntity.active) : (bathHeaterEntity && !bathHeaterEntity.active)
+                                color: isSelected
+                                       ? (modelData.mode === "heat" ? "#e05818" : Qt.rgba(1, 1, 1, 0.20))
                                        : "transparent"
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.label
                                     font.pixelSize: cardRoot.fs(9)
-                                    font.bold: bathHeaterMode === modelData.mode
-                                    color: bathHeaterMode === modelData.mode ? "#ffffff" : "#8ea2b4"
+                                    font.bold: parent.isSelected
+                                    color: parent.isSelected ? "#ffffff" : "#8ea2b4"
                                 }
 
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        cardRoot.bathHeaterMode = modelData.mode
-                                        if (cardRoot.bathHeaterEntity) {
-                                            appController.triggerHaAction(cardRoot.bathHeaterEntity.name)
+                                        if (!bathHeaterEntity) return
+                                        if (modelData.mode === "standby") {
+                                            appController.callHaActionService(bathHeaterEntity.name, "turn_off")
+                                        } else {
+                                            appController.triggerHaAction(bathHeaterEntity.name)
                                         }
                                     }
                                 }
@@ -433,33 +569,21 @@ Rectangle {
             }
         }
 
-        // 垂直微光分割线 2
-        Rectangle {
-            width: 1
-            height: parent.height - cardRoot.dp(10)
-            anchors.verticalCenter: parent.verticalCenter
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.15) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
-        }
-
         // =====================================================================
-        // 3. 室内空气与新风净化区 (占 29% 宽度)
+        // 2B. 快捷生活设备区（无浴霸时呈现插座/厨电等常用设备）
         // =====================================================================
         Item {
-            id: purifierZone
-            width: parent.width - lightZone.width - bathHeaterZone.width - 2
+            id: otherDevicesZone
+            visible: cardRoot.showOtherDevices
+            width: cardRoot.secondColWidth
             height: parent.height
 
             Column {
                 anchors.fill: parent
-                anchors.leftMargin: cardRoot.dp(10)
-                anchors.rightMargin: cardRoot.dp(4)
+                anchors.leftMargin: cardRoot.dp(6)
+                anchors.rightMargin: cardRoot.dp(6)
                 spacing: cardRoot.dp(3)
 
-                // 顶栏：图标 + 名称 + PM2.5 晶莹胶囊
                 Item {
                     width: parent.width
                     height: cardRoot.dp(24)
@@ -474,7 +598,176 @@ Rectangle {
                             height: cardRoot.dp(20)
                             radius: cardRoot.dp(10)
                             anchors.verticalCenter: parent.verticalCenter
-                            color: airPurifierMode !== "off" ? Qt.rgba(0.20, 0.85, 0.45, 0.25) : Qt.rgba(1, 1, 1, 0.08)
+                            color: activeOtherCount > 0 ? Qt.rgba(0.20, 0.70, 1.0, 0.25) : Qt.rgba(1, 1, 1, 0.08)
+
+                            Image {
+                                anchors.centerIn: parent
+                                source: "qrc:/icons/switch.svg"
+                                width: cardRoot.dp(12)
+                                height: cardRoot.dp(12)
+                                sourceSize: Qt.size(width, height)
+                                smooth: true
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("生活设备")
+                            color: "#ffffff"
+                            font.pixelSize: cardRoot.fs(12)
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Rectangle {
+                            height: cardRoot.dp(16)
+                            width: otherBadgeText.implicitWidth + cardRoot.dp(8)
+                            radius: cardRoot.dp(8)
+                            color: activeOtherCount > 0 ? Qt.rgba(0.20, 0.70, 1.0, 0.20) : Qt.rgba(1, 1, 1, 0.06)
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Text {
+                                id: otherBadgeText
+                                anchors.centerIn: parent
+                                text: activeOtherCount > 0 ? qsTr("%1 运行").arg(activeOtherCount) : qsTr("待机")
+                                font.pixelSize: cardRoot.fs(8)
+                                font.bold: true
+                                color: activeOtherCount > 0 ? "#50cbff" : "#7c92a5"
+                            }
+                        }
+                    }
+
+                    // 全部关闭快捷按钮
+                    Rectangle {
+                        visible: activeOtherCount > 0
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: cardRoot.dp(18)
+                        width: otherMasterText.implicitWidth + cardRoot.dp(10)
+                        radius: cardRoot.dp(9)
+                        color: Qt.rgba(0.40, 0.15, 0.15, 0.70)
+                        border.color: Qt.rgba(1.0, 0.40, 0.40, 0.40)
+
+                        Text {
+                            id: otherMasterText
+                            anchors.centerIn: parent
+                            text: qsTr("全关")
+                            font.pixelSize: cardRoot.fs(8)
+                            font.bold: true
+                            color: "#ffa8a8"
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                for (var idx = 0; idx < otherActions.length; ++idx) {
+                                    if (otherActions[idx] && otherActions[idx].active) {
+                                        appController.callHaActionService(otherActions[idx].name, "turn_off")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: activeOtherNamesSummary
+                    font.pixelSize: cardRoot.fs(10)
+                    color: activeOtherCount > 0 ? "#62d6ff" : "#6c8295"
+                    elide: Text.ElideRight
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: cardRoot.dp(5)
+
+                    Repeater {
+                        model: otherActions.slice(0, 3)
+
+                        Rectangle {
+                            readonly property int totalChips: Math.min(otherActions.length, 3)
+                            height: cardRoot.dp(22)
+                            width: Math.min((parent.width - (totalChips - 1) * cardRoot.dp(5)) / Math.max(1, totalChips), chipTextOther.implicitWidth + cardRoot.dp(16))
+                            radius: cardRoot.dp(11)
+                            color: modelData.active ? Qt.rgba(0.20, 0.70, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.07)
+                            border.color: modelData.active ? Qt.rgba(0.40, 0.80, 1.0, 0.60) : Qt.rgba(1, 1, 1, 0.08)
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: cardRoot.dp(4)
+
+                                Rectangle {
+                                    width: cardRoot.dp(5)
+                                    height: cardRoot.dp(5)
+                                    radius: cardRoot.dp(2.5)
+                                    color: modelData.active ? "#38bdf8" : "#526573"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Text {
+                                    id: chipTextOther
+                                    text: modelData.name || modelData.entityId || ""
+                                    color: modelData.active ? "#ffffff" : "#8ea3b5"
+                                    font.pixelSize: cardRoot.fs(9)
+                                    font.bold: modelData.active
+                                    elide: Text.ElideRight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: appController.triggerHaAction(modelData.name)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 垂直微光分割线 2
+        Rectangle {
+            visible: (cardRoot.showBathHeater || cardRoot.showOtherDevices) && (cardRoot.showAirPurifier || cardRoot.showCameras)
+            width: 1
+            height: parent.height - cardRoot.dp(10)
+            anchors.verticalCenter: parent.verticalCenter
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.15) }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+        }
+
+        // =====================================================================
+        // 3. 室内空气与新风净化区（仅在 HA 存在空净实体时渲染）
+        // =====================================================================
+        Item {
+            id: purifierZone
+            visible: cardRoot.showAirPurifier
+            width: cardRoot.thirdColWidth
+            height: parent.height
+
+            Column {
+                anchors.fill: parent
+                anchors.leftMargin: cardRoot.dp(6)
+                anchors.rightMargin: cardRoot.dp(4)
+                spacing: cardRoot.dp(3)
+
+                Item {
+                    width: parent.width
+                    height: cardRoot.dp(24)
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: cardRoot.dp(5)
+
+                        Rectangle {
+                            width: cardRoot.dp(20)
+                            height: cardRoot.dp(20)
+                            radius: cardRoot.dp(10)
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: (airPurifierEntity && airPurifierEntity.active) ? Qt.rgba(0.20, 0.85, 0.45, 0.25) : Qt.rgba(1, 1, 1, 0.08)
 
                             Image {
                                 anchors.centerIn: parent
@@ -487,7 +780,7 @@ Rectangle {
                         }
 
                         Text {
-                            text: airPurifierEntity ? (airPurifierEntity.name || qsTr("空气净化器")) : qsTr("空气净化")
+                            text: airPurifierEntity ? (airPurifierEntity.name || qsTr("空气净化器")) : ""
                             color: "#ffffff"
                             font.pixelSize: cardRoot.fs(12)
                             font.bold: true
@@ -495,39 +788,35 @@ Rectangle {
                         }
                     }
 
-                    // PM2.5 晶莹胶囊
                     Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        height: cardRoot.dp(17)
-                        width: pm25Text.implicitWidth + cardRoot.dp(10)
+                        height: cardRoot.dp(16)
+                        width: purifierStatusBadge.implicitWidth + cardRoot.dp(8)
                         radius: cardRoot.dp(8)
-                        color: Qt.rgba(0.20, 0.85, 0.45, 0.22)
-                        border.color: Qt.rgba(0.35, 0.95, 0.55, 0.50)
+                        color: (airPurifierEntity && airPurifierEntity.active) ? Qt.rgba(0.20, 0.85, 0.45, 0.20) : Qt.rgba(1, 1, 1, 0.06)
 
                         Text {
-                            id: pm25Text
+                            id: purifierStatusBadge
                             anchors.centerIn: parent
-                            text: qsTr("PM2.5 %1 优").arg(cardRoot.pm25Value)
+                            text: (airPurifierEntity && airPurifierEntity.active) ? qsTr("运行中") : qsTr("待机")
                             font.pixelSize: cardRoot.fs(8)
                             font.bold: true
-                            color: "#46ff94"
+                            color: (airPurifierEntity && airPurifierEntity.active) ? "#4ade80" : "#7c92a5"
                         }
                     }
                 }
 
-                // 中间：运行状态副文本
                 Text {
                     width: parent.width
-                    text: airPurifierMode === "auto"
-                          ? qsTr("🍃 智能净味 · 运行中")
-                          : (airPurifierMode === "boost" ? qsTr("💨 极速净化 · 强劲") : qsTr("待机休眠 · 滤网良好"))
+                    text: (airPurifierEntity && airPurifierEntity.active)
+                          ? (airPurifierEntity.stateText || qsTr("🍃 智能净味中"))
+                          : qsTr("待机休眠")
                     font.pixelSize: cardRoot.fs(10)
-                    color: airPurifierMode !== "off" ? "#54f29e" : "#6c8295"
+                    color: (airPurifierEntity && airPurifierEntity.active) ? "#54f29e" : "#6c8295"
                     elide: Text.ElideRight
                 }
 
-                // 底部：一体式分段控制器 [ 智能 | 强劲 | 关 ]
                 Rectangle {
                     width: parent.width
                     height: cardRoot.dp(22)
@@ -541,36 +830,132 @@ Rectangle {
 
                         Repeater {
                             model: [
-                                { mode: "auto", label: qsTr("智能") },
-                                { mode: "boost", label: qsTr("强劲") },
-                                { mode: "off", label: qsTr("关") }
+                                { mode: "on", label: qsTr("开启") },
+                                { mode: "off", label: qsTr("关闭") }
                             ]
 
                             Rectangle {
-                                width: Math.floor(parent.width / 3)
+                                width: Math.floor(parent.width / 2)
                                 height: parent.height
                                 radius: cardRoot.dp(10)
-                                color: airPurifierMode === modelData.mode
-                                       ? (modelData.mode !== "off" ? "#1ca756" : Qt.rgba(1, 1, 1, 0.20))
+                                readonly property bool isSelected: modelData.mode === "on" ? (airPurifierEntity && airPurifierEntity.active) : (airPurifierEntity && !airPurifierEntity.active)
+                                color: isSelected
+                                       ? (modelData.mode === "on" ? "#1ca756" : Qt.rgba(1, 1, 1, 0.20))
                                        : "transparent"
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData.label
                                     font.pixelSize: cardRoot.fs(9)
-                                    font.bold: airPurifierMode === modelData.mode
-                                    color: airPurifierMode === modelData.mode ? "#ffffff" : "#8ea2b4"
+                                    font.bold: parent.isSelected
+                                    color: parent.isSelected ? "#ffffff" : "#8ea2b4"
                                 }
 
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        cardRoot.airPurifierMode = modelData.mode
-                                        if (cardRoot.airPurifierEntity) {
-                                            appController.triggerHaAction(cardRoot.airPurifierEntity.name)
+                                        if (!airPurifierEntity) return
+                                        if (modelData.mode === "off") {
+                                            appController.callHaActionService(airPurifierEntity.name, "turn_off")
+                                        } else {
+                                            appController.triggerHaAction(airPurifierEntity.name)
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // 3B. 监控通道快捷切换（空出列且存在多摄像头时渲染）
+        // =====================================================================
+        Item {
+            id: cameraZone
+            visible: cardRoot.showCameras
+            width: cardRoot.thirdColWidth
+            height: parent.height
+
+            Column {
+                anchors.fill: parent
+                anchors.leftMargin: cardRoot.dp(6)
+                anchors.rightMargin: cardRoot.dp(4)
+                spacing: cardRoot.dp(3)
+
+                Item {
+                    width: parent.width
+                    height: cardRoot.dp(24)
+
+                    Row {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: cardRoot.dp(5)
+
+                        Rectangle {
+                            width: cardRoot.dp(20)
+                            height: cardRoot.dp(20)
+                            radius: cardRoot.dp(10)
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Qt.rgba(0.20, 0.55, 0.95, 0.25)
+
+                            Image {
+                                anchors.centerIn: parent
+                                source: "qrc:/icons/camera.svg"
+                                width: cardRoot.dp(12)
+                                height: cardRoot.dp(12)
+                                sourceSize: Qt.size(width, height)
+                                smooth: true
+                            }
+                        }
+
+                        Text {
+                            text: qsTr("监控通道")
+                            color: "#ffffff"
+                            font.pixelSize: cardRoot.fs(12)
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: qsTr("共 %1 路监控在线").arg(appController.cameraPreviewModels.length)
+                    font.pixelSize: cardRoot.fs(10)
+                    color: "#62d6ff"
+                    elide: Text.ElideRight
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: cardRoot.dp(5)
+
+                    Repeater {
+                        model: appController.cameraPreviewModels.slice(0, 3)
+
+                        Rectangle {
+                            readonly property bool isCurrent: appController.currentCameraIndex === (modelData.index !== undefined ? modelData.index : index)
+                            height: cardRoot.dp(22)
+                            width: Math.min((parent.width - (Math.min(appController.cameraPreviewModels.length, 3) - 1) * cardRoot.dp(5)) / Math.min(appController.cameraPreviewModels.length, 3), camText.implicitWidth + cardRoot.dp(16))
+                            radius: cardRoot.dp(11)
+                            color: isCurrent ? Qt.rgba(0.20, 0.60, 1.0, 0.35) : Qt.rgba(1, 1, 1, 0.07)
+                            border.color: isCurrent ? Qt.rgba(0.40, 0.80, 1.0, 0.80) : Qt.rgba(1, 1, 1, 0.08)
+
+                            Text {
+                                id: camText
+                                anchors.centerIn: parent
+                                text: modelData.cameraName || qsTr("通道 %1").arg(index + 1)
+                                color: parent.isCurrent ? "#ffffff" : "#8ea3b5"
+                                font.pixelSize: cardRoot.fs(9)
+                                font.bold: parent.isCurrent
+                                elide: Text.ElideRight
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: appController.selectCamera(modelData.index !== undefined ? modelData.index : index)
                             }
                         }
                     }

@@ -366,6 +366,7 @@ ApplicationWindow {
                     }
                     root.videoFullscreen = true
                 }
+                onSettingsRequested: root.openSettingsPopup()
             }
 
             // 智能家居控制面板（自适应填满右侧剩余宽度，宽屏下自动启用 2 列核心卡片，无多余滚动）
