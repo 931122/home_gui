@@ -13,8 +13,9 @@ void PlatformHelper::applyEnvironment(const PlatformConfig &config, int argc, ch
     const bool hasPredefinedPlatform = !qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM");
     // 即使平台由脚本指定，也统一使用轻量 Basic Controls，减少嵌入式首屏加载成本。
     qputenv("QT_QUICK_CONTROLS_STYLE", QByteArrayLiteral("Basic"));
+    const bool softwareRendering = config.renderMode.compare(QStringLiteral("linuxfb"), Qt::CaseInsensitive) == 0;
     if (hasExplicitPlatformArgument || hasPredefinedPlatform) {
-        if (config.reducedEffects || config.chip.compare(QStringLiteral("RK3506"), Qt::CaseInsensitive) == 0) {
+        if (config.reducedEffects || softwareRendering) {
             qputenv("HOME_GUI_REDUCED_EFFECTS", QByteArrayLiteral("1"));
         } else {
             qunsetenv("HOME_GUI_REDUCED_EFFECTS");
@@ -50,8 +51,8 @@ void PlatformHelper::applyEnvironment(const PlatformConfig &config, int argc, ch
 
     // 统一在启动时固定 UI 风格，避免不同平台样式差异过大。
     qputenv("QT_QPA_PLATFORM", qpaPlatform);
-    // 低性能平台可以通过这个环境变量让界面主动减特效。
-    if (config.reducedEffects || config.chip.compare(QStringLiteral("RK3506"), Qt::CaseInsensitive) == 0) {
+    // 低性能或纯软件光栅化平台可以通过这个环境变量让界面主动减特效。
+    if (config.reducedEffects || softwareRendering) {
         qputenv("HOME_GUI_REDUCED_EFFECTS", QByteArrayLiteral("1"));
     } else {
         qunsetenv("HOME_GUI_REDUCED_EFFECTS");

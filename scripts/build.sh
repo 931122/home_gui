@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-DEFAULT_RK3506_OUTPUT="${BUILDROOT_OUTPUT:-${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox}"
+DEFAULT_BUILDROOT_OUTPUT="${BUILDROOT_OUTPUT:-${HOME}/work/rockchip/luckfox/Lyra-sdk/buildroot/output/rockchip_rk3506_luckfox}"
 PLATFORM="${1:-}"
 
 usage() {
@@ -13,27 +13,32 @@ Usage:
   ./scripts/build.sh native           # build for local host (auto-detect Linux/macOS)
   ./scripts/build.sh linux            # build for local Linux
   ./scripts/build.sh macos            # build for local macOS
-  ./scripts/build.sh rk3506           # cross-build for RK3506 Buildroot
-  ./scripts/build.sh rk3506 /path/to/buildroot/output/rockchip_rk3506_luckfox
+  ./scripts/build.sh cross [toolchain]# generic cross-build with CMake toolchain file
+  ./scripts/build.sh rk3506 [path]    # cross-build for RK3506 Buildroot
+  ./scripts/build.sh rk3568 [path]    # cross-build for RK3568 Buildroot
   ./scripts/build.sh android          # build Android APK (arm64-v8a)
   ./scripts/build.sh clean            # remove all local build directories
   ./scripts/build.sh clean native     # remove local build directory
+  ./scripts/build.sh clean cross      # remove generic cross build directory
   ./scripts/build.sh clean rk3506     # remove RK3506 build directory
+  ./scripts/build.sh clean rk3568     # remove RK3568 build directory
   ./scripts/build.sh clean android    # remove Android build directory
 
 Environment:
-  BUILDROOT_OUTPUT    Override RK3506 Buildroot output path
-  BUILD_JOBS          Override parallel build jobs
-  PKG_CONFIG_PATH     Additional pkg-config search directories
+  BUILDROOT_OUTPUT        Override Buildroot output path
+  CROSS_COMPILE_PREFIX    Target triple prefix for generic cross build (e.g. aarch64-linux-gnu-)
+  SYSROOT                 Target sysroot path for generic cross build
+  QT_TARGET_ROOT          Target Qt6 installation path for generic cross build
+  QT_HOST_PATH            Host Qt6 path (for moc, rcc, qsb)
+  BUILD_JOBS              Override parallel build jobs
+  PKG_CONFIG_PATH         Additional pkg-config search directories
 
 Examples:
   ./scripts/build.sh native
-  ./scripts/build.sh linux
-  ./scripts/build.sh macos
+  ./scripts/build.sh cross cmake/toolchains/linux-cross.cmake
   ./scripts/build.sh rk3506
-  ./scripts/build.sh clean
-  ./scripts/build.sh clean native
-  BUILDROOT_OUTPUT=/path/to/rockchip_rk3506_luckfox ./scripts/build.sh rk3506
+  ./scripts/build.sh rk3568 /path/to/rk3568_buildroot/output
+  BUILDROOT_OUTPUT=/path/to/output ./scripts/build.sh rk3506
   BUILD_JOBS=8 ./scripts/build.sh native
 EOF
 }
@@ -75,14 +80,18 @@ choose_platform() {
     host_os="$(detect_host_os)"
     echo "Select build platform:"
     echo "  1) native (${host_os} - detected host)"
-    echo "  2) rk3506 (cross-compile)"
-    echo "  3) android (cross-compile arm64-v8a)"
+    echo "  2) rk3506 (cross-compile buildroot armhf)"
+    echo "  3) rk3568 (cross-compile buildroot aarch64)"
+    echo "  4) cross (generic toolchain file)"
+    echo "  5) android (cross-compile arm64-v8a)"
     printf "> "
     read -r selection
     case "${selection}" in
         1|native|host|local|linux|macos) PLATFORM="native" ;;
         2|rk3506) PLATFORM="rk3506" ;;
-        3|android) PLATFORM="android" ;;
+        3|rk3568) PLATFORM="rk3568" ;;
+        4|cross) PLATFORM="cross" ;;
+        5|android) PLATFORM="android" ;;
         *) echo "Invalid selection: ${selection}" >&2; exit 1 ;;
     esac
 }
@@ -251,22 +260,22 @@ run_native_build() {
     echo "  binary    : ${build_dir}/home_gui"
 }
 
-run_rk3506_build() {
-    local buildroot_output="${2:-${BUILDROOT_OUTPUT:-${DEFAULT_RK3506_OUTPUT}}}"
-    local build_dir="${ROOT_DIR}/build-rk3506"
-    local toolchain_file="${ROOT_DIR}/cmake/toolchains/rk3506-buildroot.cmake"
+run_buildroot_build() {
+    local target_platform="${1:-buildroot}"
+    local buildroot_output="${2:-${BUILDROOT_OUTPUT:-${DEFAULT_BUILDROOT_OUTPUT}}}"
+    local build_dir="${ROOT_DIR}/build-${target_platform}"
+    local toolchain_file="${ROOT_DIR}/cmake/toolchains/linux-cross.cmake"
     local build_jobs
     build_jobs="$(detect_build_jobs)"
 
     if [[ ! -d "${buildroot_output}" ]]; then
-        echo "RK3506 Buildroot output not found:" >&2
+        echo "${target_platform} Buildroot output not found:" >&2
         echo "  ${buildroot_output}" >&2
         echo "Pass it as the second argument or export BUILDROOT_OUTPUT." >&2
         exit 1
     fi
 
-    # Toolchain selection is cached on first configure. Clear stale cache so a
-    # previous native configure cannot silently override the cross toolchain.
+    # 清理缓存以避免原生配置污染交叉编译
     cmake -E remove -f "${build_dir}/CMakeCache.txt"
     cmake -E remove_directory "${build_dir}/CMakeFiles"
 
@@ -278,9 +287,46 @@ run_rk3506_build() {
     cmake --build "${build_dir}" --parallel "${build_jobs}"
     echo
     echo "Build finished:"
-    echo "  platform       : rk3506"
+    echo "  platform       : ${target_platform}"
     echo "  build jobs     : ${build_jobs}"
     echo "  buildroot path : ${buildroot_output}"
+    echo "  build dir      : ${build_dir}"
+}
+
+run_rk3506_build() {
+    run_buildroot_build "rk3506" "${2:-}"
+}
+
+run_rk3568_build() {
+    run_buildroot_build "rk3568" "${2:-}"
+}
+
+run_cross_build() {
+    local toolchain_file="${2:-${CMAKE_TOOLCHAIN_FILE:-${ROOT_DIR}/cmake/toolchains/linux-cross.cmake}}"
+    local build_dir="${ROOT_DIR}/build-cross"
+    local build_jobs
+    build_jobs="$(detect_build_jobs)"
+
+    if [[ ! -f "${toolchain_file}" ]]; then
+        echo "Cross toolchain file not found:" >&2
+        echo "  ${toolchain_file}" >&2
+        echo "Provide a valid toolchain file or export CMAKE_TOOLCHAIN_FILE." >&2
+        exit 1
+    fi
+
+    cmake -E remove -f "${build_dir}/CMakeCache.txt"
+    cmake -E remove_directory "${build_dir}/CMakeFiles"
+
+    cmake -S "${ROOT_DIR}" -B "${build_dir}" \
+        -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
+        -DHOME_GUI_CROSS_COMPILE=ON \
+        -DHOME_GUI_TOOLCHAIN_FILE="${toolchain_file}"
+    cmake --build "${build_dir}" --parallel "${build_jobs}"
+    echo
+    echo "Build finished:"
+    echo "  platform       : cross (generic)"
+    echo "  build jobs     : ${build_jobs}"
+    echo "  toolchain      : ${toolchain_file}"
     echo "  build dir      : ${build_dir}"
 }
 
@@ -586,14 +632,22 @@ run_clean() {
     case "${target}" in
         all)
             clean_build_dir "${ROOT_DIR}/build"
+            clean_build_dir "${ROOT_DIR}/build-cross"
             clean_build_dir "${ROOT_DIR}/build-rk3506"
+            clean_build_dir "${ROOT_DIR}/build-rk3568"
             clean_build_dir "${ROOT_DIR}/build-android"
             ;;
         native|host|local|linux|macos)
             clean_build_dir "${ROOT_DIR}/build"
             ;;
+        cross)
+            clean_build_dir "${ROOT_DIR}/build-cross"
+            ;;
         rk3506)
             clean_build_dir "${ROOT_DIR}/build-rk3506"
+            ;;
+        rk3568)
+            clean_build_dir "${ROOT_DIR}/build-rk3568"
             ;;
         android)
             clean_build_dir "${ROOT_DIR}/build-android"
@@ -633,8 +687,17 @@ case "${PLATFORM}" in
     macos)
         run_native_build "macos"
         ;;
+    cross)
+        run_cross_build "$@"
+        ;;
     rk3506)
         run_rk3506_build "$@"
+        ;;
+    rk3568)
+        run_rk3568_build "$@"
+        ;;
+    buildroot)
+        run_buildroot_build "buildroot" "${2:-}"
         ;;
     android)
         run_android_build "$@"

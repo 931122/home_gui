@@ -193,8 +193,7 @@ bool earlyFramebufferSplashEnabled(const PlatformConfig &config)
     }
 
     const QString renderMode = config.renderMode.trimmed().toLower();
-    return renderMode == QStringLiteral("linuxfb")
-            || config.chip.compare(QStringLiteral("RK3506"), Qt::CaseInsensitive) == 0;
+    return renderMode == QStringLiteral("linuxfb");
 }
 
 void writePixel(uchar *framebuffer,

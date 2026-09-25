@@ -206,8 +206,8 @@ void ModuleManager::applyPlatformState(const AppConfig &config)
             .arg(config.platform.renderMode);
 
     m_globalState->setPlatform(label);
-    m_globalState->setReducedEffects(config.platform.reducedEffects
-                                     || config.platform.chip.compare(QStringLiteral("RK3506"), Qt::CaseInsensitive) == 0);
+    const bool softwareRendering = config.platform.renderMode.compare(QStringLiteral("linuxfb"), Qt::CaseInsensitive) == 0;
+    m_globalState->setReducedEffects(config.platform.reducedEffects || softwareRendering);
 }
 
 VideoConfig ModuleManager::activeVideoConfig(const AppConfig &config) const

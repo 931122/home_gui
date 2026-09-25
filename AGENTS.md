@@ -22,11 +22,13 @@ There is currently no dedicated `tests/` directory.
 - `cmake -S . -B build && cmake --build build`: configure and build locally.
 - `bash scripts/build.sh native`: one-step local native build (auto-detects Linux/macOS).
 - `bash scripts/build.sh linux`: one-step local Linux build.
-- `bash scripts/build.sh macos`: one-step local macOS build.
-- `bash scripts/build.sh rk3506`: one-step RK3506 cross build (requires Qt 6.x in Buildroot).
+- `bash scripts/build.sh cross [toolchain]`: generic Linux cross build with CMake toolchain file.
+- `bash scripts/build.sh buildroot [output]`: Buildroot cross build (supports RK3506, RK3568, etc.).
+- `bash scripts/build.sh rk3506`: preset shortcut for RK3506 Buildroot build.
+- `bash scripts/build.sh rk3568`: preset shortcut for RK3568 Buildroot build.
 - `bash scripts/build.sh android`: one-step Android build (requires Qt 6 for Android and NDK).
 - `./build/home_gui`: run the locally built application.
-- `cmake -S . -B build-rk3506 -DHOME_GUI_CROSS_COMPILE=ON -DHOME_GUI_TOOLCHAIN_FILE=$PWD/cmake/toolchains/rk3506-buildroot.cmake`: explicit cross-build entry.
+- `cmake -S . -B build-cross -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-cross.cmake`: explicit cross-build entry.
 
 Use `home_gui.pro` when opening the project in Qt Creator.
 

@@ -105,13 +105,13 @@ xiaozhi:
 说明：
 
 - `chip`
-  主要用于平台标识和部分默认行为判断。
+  用于设备型号标识和 UI 状态展示（系统已与特定芯片名称完全解耦，不参与底层逻辑分支）。
 - `width` / `height`
   给界面布局和平台状态展示使用。
 - `renderMode`
-  使用 EGL/GPU 渲染时设为 `eglfs`（RK3568 推荐）；仅在没有可用 GPU/EGL 的设备上使用 `linuxfb`。Liquid Glass 的 ShaderEffect 需要 Qt Quick 图形渲染后端。
+  渲染后端。带有 3D GPU 加速的设备（如 RK3568、RK3588、i.MX8、树莓派）设为 `eglfs` 或 `wayland`；无 3D GPU 的低算力板卡设为 `linuxfb`（系统会自动开启 `reducedEffects` 降级特效保流畅度）。
 - `reducedEffects`
-  控制是否降低动画和视觉效果。
+  显式控制是否降低动画和视觉效果。设为 true 时强制禁用复杂实时阴影和多通道高斯模糊。
 
 示例：
 

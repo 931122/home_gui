@@ -8,6 +8,9 @@ endif()
 project(home_gui VERSION 0.1.0 LANGUAGES CXX)
 
 option(HOME_GUI_CROSS_COMPILE "Enable embedded cross-compilation settings" OFF)
+if(CMAKE_CROSSCOMPILING)
+    set(HOME_GUI_CROSS_COMPILE ON CACHE BOOL "Enable embedded cross-compilation settings" FORCE)
+endif()
 set(HOME_GUI_TARGET_QT_ROOT "" CACHE PATH "Target Qt installation prefix for cross-compilation")
 set(HOME_GUI_TARGET_SYSROOT "" CACHE PATH "Target sysroot path for cross-compilation")
 

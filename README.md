@@ -1,6 +1,6 @@
-# Project Guide - Embedded Qt Control System (RK3568/RK3506)
+# Project Guide - Embedded Qt Control System (Embedded Linux / Android / Desktop)
 
-本文件定义了针对 Rockchip 嵌入式平台开发的项目规范。在执行任务时必须严格遵守。
+本文件定义了针对通用嵌入式 Linux（如 RK3568、RK3506、全志、NXP 等）、Android 移动端及桌面开发平台的项目架构与规范。在执行任务时必须严格遵守。
 
 ## 1. 常用命令
 
@@ -13,8 +13,14 @@ bash scripts/build.sh native
 # macOS 本地构建
 bash scripts/build.sh macos
 
-# RK3506 交叉编译（需指定 BUILDROOT_OUTPUT）
-bash scripts/build.sh rk3506
+# 统一 Linux 交叉编译（使用单一通用工具链 cmake/toolchains/linux-cross.cmake）
+# 方式 A：Buildroot SDK 模式（自动识别 32/64 位架构，如 RK3506、RK3568、全志等）
+bash scripts/build.sh buildroot /path/to/buildroot/output
+bash scripts/build.sh rk3506    # RK3506 预设快捷构建
+bash scripts/build.sh rk3568    # RK3568 预设快捷构建
+
+# 方式 B：通用独立工具链 / Yocto / Linaro 模式
+CROSS_COMPILE_PREFIX=aarch64-linux-gnu- SYSROOT=/path/to/sysroot bash scripts/build.sh cross
 
 # Android APK 一键打包（默认 arm64-v8a）
 bash scripts/build.sh android
@@ -86,14 +92,15 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 
 项目必须支持在不同能力的芯片上运行，通过配置文件或宏切换渲染模式：
 
-| 平台 | 渲染后端 (QPA) | 加速技术 | 建议 UI 框架 |
+| 平台与硬件能力 | 渲染后端 (QPA) | 加速技术 | 建议 UI 框架 / 特效策略 |
 | :--- | :--- | :--- | :--- |
-| **RK3568** | `eglfs` | Mali-G52 GPU (OpenGL ES 3.2) | Qt Quick / QML |
-| **RK3506** | `linuxfb` | RGA 2D Accelerator | Qt Quick / QML |
-| **Android** | `android` (Vulkan / GLES 3.0+) | Adreno / Mali GPU (MediaCodec 硬解) | Qt Quick / QML |
+| **GPU 硬件加速平台** (如 RK3568/RK3588/全志/i.MX8/树莓派) | `eglfs` / `wayland` | GPU (OpenGL ES 3.0+ / Vulkan) | Qt Quick / QML (默认开启全功能液态玻璃光影特效) |
+| **纯软件光栅化平台** (如 RK3506 / 无 3D GPU 低算力板卡) | `linuxfb` | 2D 加速器 / CPU 纯软件光栅化 | Qt Quick / QML (自动开启 `reducedEffects` 降级特效保流畅度) |
+| **Android 移动平台** | `android` | Adreno / Mali GPU (MediaCodec 硬解) | Qt Quick / QML (支持重力陀螺仪倾斜高光联动) |
+| **桌面开发环境** (Linux / macOS / Windows) | `xcb` / `wayland` / `cocoa` / `windows` | Desktop OpenGL / Metal / DirectX | Qt Quick / QML (本地极速预览与开发调试) |
 
 ### 屏幕规范
-* **固定分辨率**: 800 x 480。(后续可能升级)
+* **基准分辨率**: 800 x 480 (横屏) / 480 x 800 (竖屏)，支持任意分辨率自适应拉伸与动态重布局。
 * **交互设计**: 点击目标尺寸必须大于 40x40 像素（适配工业触摸屏）。
 * **字体**: 统一使用开源字体（如 Source Han Sans），避免系统字体缺失导致的方框。
 
@@ -107,14 +114,14 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 * **Video (`/src/modules/video`)**:
     - 集成 RTSP/ONVIF。
     - 视频后端使用可扩展的 `VideoBackend` 抽象，当前支持 `libav` 和 `gstreamer`。
-    - `libav` 是默认后端；`gstreamer` 用于 RK 平台硬解扩展。
+    - `libav` 是默认后端；`gstreamer` 用于嵌入式 Linux 平台硬解扩展。
     - 不再通过外部 `ffmpeg` 命令拉流。
 * **IoT (`/src/modules/homeassistant`)**:
     - 使用 `qmqtt` 库与 Home Assistant 通讯。
     - 采用订阅发布模式，解耦 UI 与通信逻辑。
 * **UI (`/src/ui`)**:
     - UI 逻辑与业务逻辑通过 `Signal/Slot` 彻底分离。
-    - 针对 RK3506 运行时，自动禁用复杂的 QML 阴影和模糊特效。
+    - 针对纯软件渲染（linuxfb 模式）或低性能设备，运行时自动启用特效降级，禁用复杂的 QML 实时阴影和多通道模糊。
 
 ---
 
@@ -122,7 +129,7 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 
 * **语言**: C++17, 采用现代标准 C++。
 * **库依赖**:
-    - Qt 6.x (Buildroot uClibc 环境)。
+    - Qt 6.x (Buildroot / Yocto / Desktop / Android)。
     - **fkYAML**: 用于模块化配置文件。
     - **Qt Network/WebSockets**: 用于 HA 连接。
 * **内存管理**:
@@ -146,11 +153,11 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 ## 6. 协作指令
 
 * **新增功能前**: 先分析 `src/core` 下的基类，确保新模块继承自项目定义的接口。
-* **修改 UI 前**: 确认是否会引入 CPU 密集型的渲染操作，特别是在 RK3506 环境下。
+* **修改 UI 前**: 确认是否会引入 CPU 密集型的渲染操作，特别是在无 3D GPU 的纯软件渲染（linuxfb）环境下。
 * **提交代码前**: 确保包含了必要的 `include` 保护和 Doxygen 风格的代码注释。
 
 ## 7. Liquid Glass UI
 
 `LiquidGlassSurface.qml` provides SDF rounded geometry, broad convex-lens magnification, refraction and chromatic aberration, Regular/Clear materials, backdrop blur and saturation, edge highlights, adaptive tint, press response, metaball merging and progressive edge blur. `GlassRuntime` supplies Android gravity-sensor tilt, sampled backdrop luminance, high-contrast and reduce-motion settings, and battery-saver state. Reusable controls include `LiquidGlassButton`, `LiquidGlassFab`, `LiquidGlassTabBar`, `LiquidGlassTabLayout`, `LiquidGlassChip`, `LiquidGlassChipGroup`, `LiquidGlassListItem`, `LiquidGlassListGroup`, `LiquidGlassToast` and `LiquidGlassDialog`.
 
-These surfaces require the Qt Quick scene graph with a GPU-backed render loop. Use `eglfs` on RK3568; `linuxfb` has no Qt Quick shader backend, so select `reducedEffects: true` there. `platform.reducedEffects` remains an explicit flat/high-contrast fallback. See [Qt ShaderEffect](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html) and [Qt for Embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html).
+These surfaces require the Qt Quick scene graph with a GPU-backed render loop. Use `eglfs` / `wayland` on platforms with a 3D GPU (e.g. RK3568, i.MX8); on platforms without a GPU (e.g. RK3506 running `linuxfb`), the runtime automatically switches to `reducedEffects: true`. `platform.reducedEffects` remains an explicit flat/high-contrast fallback. See [Qt ShaderEffect](https://doc.qt.io/qt-6/qml-qtquick-shadereffect.html) and [Qt for Embedded Linux](https://doc.qt.io/qt-6/embedded-linux.html).
