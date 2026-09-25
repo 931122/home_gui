@@ -7,8 +7,10 @@ QtObject {
     // 缩放基准单元（由 Main.qml 动态同步，完美适配各种分辨率和横竖屏）
     property real scaleUnit: 1.0
 
-    // 是否为 Android 平台
+    // 是否为移动端平台 (Android / iOS)
+    readonly property bool isMobilePlatform: (typeof appController !== "undefined" && (appController.isAndroid || appController.isIos || appController.isMobile)) || Qt.platform.os === "android" || Qt.platform.os === "ios"
     readonly property bool isAndroidPlatform: (typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android"
+    readonly property bool isIosPlatform: (typeof appController !== "undefined" && appController.isIos) || Qt.platform.os === "ios"
 
     // 标准通用圆角系统
     readonly property int radiusChip: dp(10)
@@ -28,9 +30,9 @@ QtObject {
         return Math.max(1, Math.round(value * scaleUnit))
     }
 
-    // 响应式字号换算（带 Android 平台视觉补偿）
+    // 响应式字号换算（带移动端平台视觉补偿）
     function fs(value) {
-        if (isAndroidPlatform) {
+        if (isMobilePlatform) {
             return Math.max(11, Math.round(value * scaleUnit * 1.12))
         }
         return Math.max(10, Math.round(value * scaleUnit))

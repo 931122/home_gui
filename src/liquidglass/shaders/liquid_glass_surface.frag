@@ -141,7 +141,8 @@ float evalSceneSDF(vec2 p, vec2 halfSize, float rad) {
         float tr = length(tp);
         float dent = (tr - rPress) * 0.8 * max(ubuf.pressBulge, 0.5);
 
-        // 单一连续光滑 smin，纯凸集流体张力融合，无截断、无凹陷、无多余线条
+        // Keep the original meniscus response on straight edges.  The alpha
+        // guard below handles only the outside of the rounded corner arcs.
         d = smin(d0, dent, bulgeK);
     }
 
@@ -171,7 +172,18 @@ void main() {
     // 1. 真实 SDF 形状与抗锯齿覆盖度
     // ============================================================
     float d = evalSceneSDF(p, halfSize, rad);
-    float cov = clamp(0.5 - d / 1.5, 0.0, 1.0);
+
+    // The meniscus is allowed to reach the straight edges, but its radial
+    // union must not fill the square part outside a rounded corner arc.
+    float baseCov = clamp(0.5 - sdRoundedBox(p, halfSize, rad) / 1.5, 0.0, 1.0);
+    float deformedCov = clamp(0.5 - d / 1.5, 0.0, 1.0);
+    vec2 cornerOffset = abs(p) - (halfSize - vec2(rad));
+    float cornerMask = smoothstep(0.0, 2.0, cornerOffset.x)
+                     * smoothstep(0.0, 2.0, cornerOffset.y);
+    float cornerOutside = cornerMask * smoothstep(0.0, 1.5,
+                                                   sdRoundedBox(p, halfSize, rad));
+    float cornerGuardCov = min(baseCov, deformedCov);
+    float cov = mix(deformedCov, cornerGuardCov, cornerOutside);
     if (cov <= 0.003) {
         fragColor = vec4(0.0);
         return;

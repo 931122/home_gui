@@ -26,6 +26,8 @@ void PlatformHelper::applyEnvironment(const PlatformConfig &config, int argc, ch
     QByteArray qpaPlatform = config.renderMode.toUtf8();
 #if defined(Q_OS_ANDROID)
     qpaPlatform = QByteArrayLiteral("android");
+#elif defined(Q_OS_IOS)
+    qpaPlatform = QByteArrayLiteral("ios");
 #elif defined(Q_OS_MACOS)
     // macOS 不支持 eglfs/linuxfb，开发机上自动回退到 cocoa。
     if (qpaPlatform == "eglfs" || qpaPlatform == "linuxfb") {
@@ -61,7 +63,7 @@ void PlatformHelper::applyEnvironment(const PlatformConfig &config, int argc, ch
 
 bool PlatformHelper::isDesktopEnvironment()
 {
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
     return false;
 #elif defined(Q_OS_MACOS) || defined(Q_OS_WIN)
     return true;

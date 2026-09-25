@@ -195,7 +195,7 @@ android {
     }
 }
 
-unix:!android {
+unix:!android:!ios {
     GSTREAMER_PACKAGES = gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0
     gst_probe = $$system($$PKG_CONFIG_CMD --exists $$GSTREAMER_PACKAGES && echo yes)
     equals(gst_probe, yes) {
@@ -211,11 +211,19 @@ unix:!android {
     }
 }
 
+ios {
+    QMAKE_INFO_PLIST = ios/Info.plist.in
+    QMAKE_ASSET_CATALOGS += ios/Assets.xcassets
+    LIBS += -framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore -framework Network -framework Security -framework SystemConfiguration
+}
+
 equals(OUT_PWD, $$PWD) {
     contains(CONFIG, rk3506) {
         BUILD_OUTPUT_DIR = $$PWD/build-rk3506
     } else: android {
         BUILD_OUTPUT_DIR = $$PWD/build-android
+    } else: ios {
+        BUILD_OUTPUT_DIR = $$PWD/build-ios
     } else {
         BUILD_OUTPUT_DIR = $$PWD/build
     }
@@ -232,21 +240,6 @@ UI_DIR = $$BUILD_OUTPUT_DIR/.uic
 target.path = $$DESTDIR
 INSTALLS += target
 
-exists($$PWD/config.yaml) {
-    CONFIG_FILE = $$PWD/config.yaml
-} else {
-    CONFIG_FILE = $$PWD/config.yaml.example
-}
-
-config_files.path = $$DESTDIR
-config_files.files = $$CONFIG_FILE
-INSTALLS += config_files
-
-unix {
-    config_source = $$shell_path($$CONFIG_FILE)
-    config_target = $$shell_path($$DESTDIR/config.yaml)
-    QMAKE_POST_LINK += $$QMAKE_COPY $$config_source $$config_target$$escape_expand(\\n\\t)
-}
 
 defineTest(printBuildSummary) {
     message("home_gui target output: $$DESTDIR")

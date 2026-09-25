@@ -24,6 +24,10 @@ CROSS_COMPILE_PREFIX=aarch64-linux-gnu- SYSROOT=/path/to/sysroot bash scripts/bu
 
 # Android APK 一键打包（默认 arm64-v8a）
 bash scripts/build.sh android
+
+# iOS App 一键构建（Xcode / 模拟器或真机）
+bash scripts/build.sh ios simulator
+bash scripts/build.sh ios device
 ```
 
 ### Android 移动端编译说明
@@ -97,6 +101,7 @@ lupdate -no-obsolete src resources/qml.qrc -ts i18n/home_gui_zh_CN.ts
 | **GPU 硬件加速平台** (如 RK3568/RK3588/全志/i.MX8/树莓派) | `eglfs` / `wayland` | GPU (OpenGL ES 3.0+ / Vulkan) | Qt Quick / QML (默认开启全功能液态玻璃光影特效) |
 | **纯软件光栅化平台** (如 RK3506 / 无 3D GPU 低算力板卡) | `linuxfb` | 2D 加速器 / CPU 纯软件光栅化 | Qt Quick / QML (自动开启 `reducedEffects` 降级特效保流畅度) |
 | **Android 移动平台** | `android` | Adreno / Mali GPU (MediaCodec 硬解) | Qt Quick / QML (支持重力陀螺仪倾斜高光联动) |
+| **iOS 移动平台** | `ios` | Apple Silicon / Metal API | Qt Quick / QML (Retina 视网膜高清自适应、文件共享) |
 | **桌面开发环境** (Linux / macOS / Windows) | `xcb` / `wayland` / `cocoa` / `windows` | Desktop OpenGL / Metal / DirectX | Qt Quick / QML (本地极速预览与开发调试) |
 
 ### 屏幕规范

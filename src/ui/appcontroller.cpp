@@ -1179,7 +1179,7 @@ bool AppController::setFramebufferBlank(bool blanked)
         return true;
     }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
     return true;
 #endif
 
@@ -1433,6 +1433,7 @@ QStringList AppController::candidateConfigFiles() const
     const QString currentDir = QDir::currentPath();
     const QString appDir = QCoreApplication::applicationDirPath();
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
 
     const QStringList testPaths = {
         currentDir + QStringLiteral("/config.yaml"),
@@ -1440,6 +1441,8 @@ QStringList AppController::candidateConfigFiles() const
         appDir + QStringLiteral("/config.yaml"),
         appDir + QStringLiteral("/config.yaml.example"),
         appDataDir + QStringLiteral("/config.yaml"),
+        docsDir + QStringLiteral("/config.yaml"),
+        docsDir + QStringLiteral("/config.yaml.example"),
         QStringLiteral("/etc/home_gui/config.yaml")
     };
 

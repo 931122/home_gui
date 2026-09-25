@@ -73,6 +73,8 @@ class AppController : public QObject
     Q_PROPERTY(QString configStatusText READ configStatusText NOTIFY configStatusTextChanged)
     Q_PROPERTY(QStringList candidateConfigFiles READ candidateConfigFiles NOTIFY candidateConfigFilesChanged)
     Q_PROPERTY(bool isAndroid READ isAndroid CONSTANT)
+    Q_PROPERTY(bool isIos READ isIos CONSTANT)
+    Q_PROPERTY(bool isMobile READ isMobile CONSTANT)
 
 public:
     explicit AppController(ConfigManager *configManager,
@@ -132,6 +134,20 @@ public:
     Q_INVOKABLE void setVideoBottomCardMode(const QString &mode);
     bool isAndroid() const {
 #if defined(Q_OS_ANDROID)
+        return true;
+#else
+        return false;
+#endif
+    }
+    bool isIos() const {
+#if defined(Q_OS_IOS)
+        return true;
+#else
+        return false;
+#endif
+    }
+    bool isMobile() const {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
         return true;
 #else
         return false;

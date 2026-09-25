@@ -14,13 +14,15 @@ ApplicationWindow {
 
     // 自适应响应式基准系统：
     // 横屏以 800x480 为基准；竖屏以 480x800 为基准，完美适配手机、平板、RK3506 及桌面
+    readonly property bool isMobilePlatform: (typeof appController !== "undefined" && (appController.isAndroid || appController.isIos || appController.isMobile)) || Qt.platform.os === "android" || Qt.platform.os === "ios"
     readonly property bool isAndroidPlatform: (typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android"
+    readonly property bool isIosPlatform: (typeof appController !== "undefined" && appController.isIos) || Qt.platform.os === "ios"
     readonly property bool isPortrait: width < height
     readonly property real designWidth: isPortrait ? 480 : 800
     readonly property real designHeight: isPortrait ? 800 : 480
     readonly property real sx: width / designWidth
     readonly property real sy: height / designHeight
-    readonly property real su: Math.max(0.65, isAndroidPlatform ? Math.max(Math.min(sx, sy), (sx * 0.15 + sy * 0.85)) : Math.min(sx, sy))
+    readonly property real su: Math.max(0.65, isMobilePlatform ? Math.max(Math.min(sx, sy), (sx * 0.15 + sy * 0.85)) : Math.min(sx, sy))
     readonly property int chipRadius: dp(10)
     readonly property int cardRadius: dp(14)
     readonly property int panelRadius: dp(18)

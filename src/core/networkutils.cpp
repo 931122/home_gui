@@ -5,7 +5,7 @@
 
 namespace {
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 bool isIgnoredNetworkInterface(const QString &name)
 {
     static const QStringList prefixes = {
@@ -60,8 +60,8 @@ bool isRoutableAddress(const QHostAddress &address)
 
 bool detectNetworkOnline()
 {
-#if defined(Q_OS_ANDROID)
-    // 在 Android 平台上，受沙盒权限与隐私策略限制，普通应用直接枚举网卡往往无法获取完整状态，
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    // 在移动平台（Android/iOS）上，受沙盒权限与隐私策略限制，直接枚举网卡往往无法获取完整状态，
     // 默认保持在线状态，由具体网络请求及底层 TCP/SSL 自行处理连接与错误，避免全局误判为断网。
     return true;
 #else

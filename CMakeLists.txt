@@ -24,7 +24,11 @@ find_package(PkgConfig REQUIRED)
 option(HOME_GUI_ENABLE_GSTREAMER "Enable GStreamer video backend when development files are available" ON)
 option(HOME_GUI_ENABLE_XIAOZHI "Build bundled Xiaozhi Linux audio backend" ON)
 
-if(APPLE)
+if(IOS OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(IOS TRUE)
+endif()
+
+if(APPLE AND NOT IOS)
     list(PREPEND CMAKE_PREFIX_PATH
         "/opt/homebrew/opt/qt6"
         "/opt/homebrew/opt/qt"
@@ -68,6 +72,17 @@ if(ANDROID)
             "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/lib/libavutil.a"
         )
     endif()
+elseif(IOS)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavformat.a")
+        set(FFMPEG_FOUND TRUE)
+        add_compile_definitions(HOME_GUI_HAS_FFMPEG)
+        set(IOS_FFMPEG_LIBRARIES
+            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavformat.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavcodec.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libswscale.a"
+            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavutil.a"
+        )
+    endif()
 else()
     pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libswscale libavutil)
     if(FFMPEG_FOUND)
@@ -75,11 +90,15 @@ else()
     endif()
 endif()
 
-if(HOME_GUI_ENABLE_GSTREAMER AND NOT ANDROID)
+if(HOME_GUI_ENABLE_GSTREAMER AND NOT ANDROID AND NOT IOS)
     pkg_check_modules(GSTREAMER QUIET IMPORTED_TARGET gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
     if(GSTREAMER_FOUND)
         add_compile_definitions(HOME_GUI_HAS_GSTREAMER)
     endif()
+endif()
+
+if(IOS)
+    set(QT_NO_ADD_IOS_LAUNCH_SCREEN_TO_BUNDLE TRUE)
 endif()
 
 qt_add_executable(home_gui
@@ -115,6 +134,9 @@ qt_add_executable(home_gui
 target_include_directories(home_gui PRIVATE src src/3rdparty)
 if(ANDROID AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/include")
     target_include_directories(home_gui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/android/ffmpeg/include")
+endif()
+if(IOS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/include")
+    target_include_directories(home_gui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/include")
 endif()
 
 find_package(ZLIB QUIET)
@@ -163,6 +185,34 @@ if(ANDROID)
         QT_ANDROID_TARGET_SDK_VERSION "33"
         QT_ANDROID_MIN_SDK_VERSION "23"
     )
+elseif(IOS)
+    if(IOS_FFMPEG_LIBRARIES)
+        target_link_libraries(home_gui PRIVATE ${IOS_FFMPEG_LIBRARIES} z bz2 iconv)
+    endif()
+
+    set_target_properties(home_gui PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/ios/Info.plist.in"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.homegui.app"
+        MACOSX_BUNDLE_BUNDLE_NAME "HomeGui"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.homegui.app"
+        XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
+        XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "15.0"
+        XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
+    )
+
+
+    target_link_libraries(home_gui PRIVATE
+        "-framework UIKit"
+        "-framework Foundation"
+        "-framework CoreGraphics"
+        "-framework QuartzCore"
+        "-framework Network"
+        "-framework Security"
+        "-framework SystemConfiguration"
+    )
 else()
     if(FFMPEG_FOUND)
         target_link_libraries(home_gui PRIVATE PkgConfig::FFMPEG)
@@ -182,7 +232,7 @@ if(GSTREAMER_FOUND)
     target_link_libraries(home_gui PRIVATE PkgConfig::GSTREAMER)
 endif()
 
-if(HOME_GUI_ENABLE_XIAOZHI)
+if(HOME_GUI_ENABLE_XIAOZHI AND NOT ANDROID AND NOT IOS)
     pkg_check_modules(XIAOZHI_AUDIO QUIET IMPORTED_TARGET alsa opus speexdsp)
     if(XIAOZHI_AUDIO_FOUND)
         add_executable(xiaozhi_sound_app

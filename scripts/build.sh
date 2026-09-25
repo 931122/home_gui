@@ -17,18 +17,21 @@ Usage:
   ./scripts/build.sh rk3506 [path]    # cross-build for RK3506 Buildroot
   ./scripts/build.sh rk3568 [path]    # cross-build for RK3568 Buildroot
   ./scripts/build.sh android          # build Android APK (arm64-v8a)
+  ./scripts/build.sh ios [type]       # build iOS app bundle (simulator/device)
   ./scripts/build.sh clean            # remove all local build directories
   ./scripts/build.sh clean native     # remove local build directory
   ./scripts/build.sh clean cross      # remove generic cross build directory
   ./scripts/build.sh clean rk3506     # remove RK3506 build directory
   ./scripts/build.sh clean rk3568     # remove RK3568 build directory
   ./scripts/build.sh clean android    # remove Android build directory
+  ./scripts/build.sh clean ios        # remove iOS build directory
 
 Environment:
   BUILDROOT_OUTPUT        Override Buildroot output path
   CROSS_COMPILE_PREFIX    Target triple prefix for generic cross build (e.g. aarch64-linux-gnu-)
   SYSROOT                 Target sysroot path for generic cross build
   QT_TARGET_ROOT          Target Qt6 installation path for generic cross build
+  QT_IOS_ROOT             Qt6 for iOS installation path (e.g. ~/Qt/6.6.3/ios)
   QT_HOST_PATH            Host Qt6 path (for moc, rcc, qsb)
   BUILD_JOBS              Override parallel build jobs
   PKG_CONFIG_PATH         Additional pkg-config search directories
@@ -38,6 +41,9 @@ Examples:
   ./scripts/build.sh cross cmake/toolchains/linux-cross.cmake
   ./scripts/build.sh rk3506
   ./scripts/build.sh rk3568 /path/to/rk3568_buildroot/output
+  ./scripts/build.sh android
+  ./scripts/build.sh ios simulator
+  ./scripts/build.sh ios device
   BUILDROOT_OUTPUT=/path/to/output ./scripts/build.sh rk3506
   BUILD_JOBS=8 ./scripts/build.sh native
 EOF
@@ -84,6 +90,7 @@ choose_platform() {
     echo "  3) rk3568 (cross-compile buildroot aarch64)"
     echo "  4) cross (generic toolchain file)"
     echo "  5) android (cross-compile arm64-v8a)"
+    echo "  6) ios (Xcode / iOS device & simulator)"
     printf "> "
     read -r selection
     case "${selection}" in
@@ -92,6 +99,7 @@ choose_platform() {
         3|rk3568) PLATFORM="rk3568" ;;
         4|cross) PLATFORM="cross" ;;
         5|android) PLATFORM="android" ;;
+        6|ios) PLATFORM="ios" ;;
         *) echo "Invalid selection: ${selection}" >&2; exit 1 ;;
     esac
 }
@@ -617,6 +625,147 @@ EOF
     fi
 }
 
+run_ios_build() {
+    local target_type="${2:-simulator}"
+    local host_os
+    host_os="$(detect_host_os)"
+    if [[ "${host_os}" != "macos" ]]; then
+        echo "Error: iOS builds require macOS with Xcode installed." >&2
+        exit 1
+    fi
+
+    local build_jobs
+    build_jobs="$(detect_build_jobs)"
+    local build_dir="${ROOT_DIR}/build-ios"
+
+    # 1. 探测 Qt 6 for iOS
+    local qt_ios_dir="${QT_IOS_ROOT:-}"
+    if [[ -z "${qt_ios_dir}" ]]; then
+        for candidate in \
+            "${HOME}/Qt/6."*"/ios" \
+            "${HOME}/Qt/6."*"/ios_simulator" \
+            "/Applications/Qt/6."*"/ios" \
+            "/opt/homebrew/opt/qt6-ios" \
+            "/opt/homebrew/opt/qt-ios" \
+            "/usr/local/opt/qt6-ios"; do
+            if [[ -d "${candidate}" ]]; then
+                qt_ios_dir="${candidate}"
+                break
+            fi
+        done
+    fi
+
+    if [[ -z "${qt_ios_dir}" || ! -d "${qt_ios_dir}" ]]; then
+        echo "================================================================" >&2
+        echo " 错误: 未检测到 Qt 6 for iOS SDK！" >&2
+        echo "================================================================" >&2
+        echo " iOS 属于交叉编译目标，无法直接使用本机的 macOS Desktop Qt（/usr/local）。" >&2
+        echo " 需要安装专用于 iOS 的 Qt 库 (包含 static/framework 库及 qt-cmake)。" >&2
+        echo >&2
+        echo " 获取方式推荐（二选一）：" >&2
+        echo " 方式 1: 使用 aqtinstall 命令行快速下载官方预编译包（推荐）：" >&2
+        echo "   pipx run aqtinstall install-qt mac ios 6.8.2 -O ~/Qt" >&2
+        echo "   export QT_IOS_ROOT=~/Qt/6.8.2/ios" >&2
+        echo >&2
+        echo " 方式 2: 使用 Qt 官方维护工具 (MaintenanceTool / Online Installer)：" >&2
+        echo "   勾选 Qt 6.x 下的 'iOS' 架构包，默认安装至 ~/Qt/6.x.x/ios。" >&2
+        echo >&2
+        echo " 安装后若位于非默认目录，请指定 QT_IOS_ROOT 运行：" >&2
+        echo "   export QT_IOS_ROOT=/path/to/Qt/6.x/ios" >&2
+        echo "   ./scripts/build.sh ios simulator" >&2
+        echo "================================================================" >&2
+        exit 1
+    fi
+
+    local qt_cmake_bin=""
+    if [[ -n "${qt_ios_dir}" && -x "${qt_ios_dir}/bin/qt-cmake" ]]; then
+        qt_cmake_bin="${qt_ios_dir}/bin/qt-cmake"
+    fi
+
+    local host_qt_dir="/usr/local"
+    if command -v qmake >/dev/null 2>&1; then
+        host_qt_dir="$(qmake -query QT_INSTALL_PREFIX 2>/dev/null || echo '/usr/local')"
+    fi
+
+    # 2. 检查 Xcode 与 SDK
+    local sdk="iphonesimulator"
+    case "${target_type}" in
+        device|iphoneos|arm64)
+            sdk="iphoneos"
+            target_type="device"
+            ;;
+        simulator|iphonesimulator|sim)
+            sdk="iphonesimulator"
+            target_type="simulator"
+            ;;
+        *)
+            echo "Unknown iOS target type: ${target_type}. Defaulting to simulator."
+            sdk="iphonesimulator"
+            target_type="simulator"
+            ;;
+    esac
+
+    echo "=== iOS Build Configuration ==="
+    echo "  Target Type: ${target_type} (${sdk})"
+    echo "  Xcode SDK  : $(xcrun --sdk ${sdk} --show-sdk-path 2>/dev/null || echo 'default')"
+    echo "  Qt iOS Dir : ${qt_ios_dir}"
+    [[ -n "${qt_cmake_bin}" ]] && echo "  qt-cmake   : ${qt_cmake_bin}"
+    echo "  Host Qt    : ${host_qt_dir}"
+    echo "  Build Dir  : ${build_dir}"
+    echo "================================"
+
+    mkdir -p "${build_dir}"
+    cd "${build_dir}"
+
+    ensure_qsb_shaders
+
+    local cmake_args=(
+        -S "${ROOT_DIR}"
+        -B "${build_dir}"
+        -G Xcode
+        -DCMAKE_SYSTEM_NAME=iOS
+        -DCMAKE_OSX_SYSROOT="${sdk}"
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+        -DCMAKE_PREFIX_PATH="${qt_ios_dir}"
+    )
+
+    if [[ -f "${qt_ios_dir}/lib/cmake/Qt6/qt.toolchain.cmake" ]]; then
+        cmake_args+=("-DCMAKE_TOOLCHAIN_FILE=${qt_ios_dir}/lib/cmake/Qt6/qt.toolchain.cmake")
+    fi
+
+    if [[ -d "${host_qt_dir}" ]]; then
+        cmake_args+=("-DQT_HOST_PATH=${host_qt_dir}")
+    fi
+
+    cmake_args+=("-DQT_QML_NO_CACHEGEN=ON")
+
+    echo "Configuring project with CMake (Xcode generator)..."
+    if [[ -n "${qt_cmake_bin}" ]]; then
+        "${qt_cmake_bin}" "${cmake_args[@]}"
+    else
+        cmake "${cmake_args[@]}"
+    fi
+
+    echo "Building iOS target home_gui with Xcode..."
+    cmake --build "${build_dir}" --config Release --target home_gui --parallel "${build_jobs}" || {
+        echo
+        echo "提示: Xcode 工程已生成在: ${build_dir}/home_gui.xcodeproj"
+        echo "您可以使用 Xcode 打开工程进行签名与调试运行:"
+        echo "  open ${build_dir}/home_gui.xcodeproj"
+        return 0
+    }
+
+    echo
+    echo "================================================================"
+    echo " iOS build succeeded!"
+    echo "   Xcode Project : ${build_dir}/home_gui.xcodeproj"
+    echo "   Target Type   : ${target_type} (${sdk})"
+    echo
+    echo " To open and run in Xcode:"
+    echo "   open ${build_dir}/home_gui.xcodeproj"
+    echo "================================================================"
+}
+
 clean_build_dir() {
     local build_dir="$1"
     if [[ -d "${build_dir}" ]]; then
@@ -636,6 +785,7 @@ run_clean() {
             clean_build_dir "${ROOT_DIR}/build-rk3506"
             clean_build_dir "${ROOT_DIR}/build-rk3568"
             clean_build_dir "${ROOT_DIR}/build-android"
+            clean_build_dir "${ROOT_DIR}/build-ios"
             ;;
         native|host|local|linux|macos)
             clean_build_dir "${ROOT_DIR}/build"
@@ -651,6 +801,9 @@ run_clean() {
             ;;
         android)
             clean_build_dir "${ROOT_DIR}/build-android"
+            ;;
+        ios)
+            clean_build_dir "${ROOT_DIR}/build-ios"
             ;;
         deps)
             clean_build_dir "${ROOT_DIR}/.deps"
@@ -701,6 +854,9 @@ case "${PLATFORM}" in
         ;;
     android)
         run_android_build "$@"
+        ;;
+    ios)
+        run_ios_build "$@"
         ;;
     *)
         echo "Unsupported platform: ${PLATFORM}" >&2

@@ -87,11 +87,17 @@ foreach(_shader IN LISTS LIQUIDGLASS_SHADERS)
     list(APPEND LIQUIDGLASS_QSB_RESOURCES "${_out}")
 endforeach()
 
+set(LIQUIDGLASS_QML_EXTRA_OPTS "")
+if(IOS OR QT_QML_NO_CACHEGEN)
+    list(APPEND LIQUIDGLASS_QML_EXTRA_OPTS NO_CACHEGEN)
+endif()
+
 qt_add_qml_module(home_gui_liquidglass
     URI HomeGui.LiquidGlass
     VERSION 1.0
     RESOURCE_PREFIX /qt/qml
     OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/HomeGui/LiquidGlass
+    ${LIQUIDGLASS_QML_EXTRA_OPTS}
     QML_FILES
         qml/GlassTheme.qml
         qml/FrostedGlassOverlay.qml

@@ -241,8 +241,9 @@ bool ConfigManager::switchConfigFile(const QString &newPath)
     m_configPath = trimmedPath;
     const bool success = load();
     if (success) {
-        QSettings settings;
+        QSettings settings(QStringLiteral("home_gui"), QStringLiteral("home_gui"));
         settings.setValue(QStringLiteral("customConfigPath"), m_configPath);
+        settings.remove(QStringLiteral("configExplicitlyCleared"));
     }
     return success;
 }
@@ -258,8 +259,9 @@ void ConfigManager::resetConfig()
     m_config = AppConfig();
     m_isLoaded = false;
 
-    QSettings settings;
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("home_gui"));
     settings.remove(QStringLiteral("customConfigPath"));
+    settings.setValue(QStringLiteral("configExplicitlyCleared"), true);
 
     emit configReloaded(m_config);
 }

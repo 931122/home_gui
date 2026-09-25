@@ -97,27 +97,38 @@ static QString resolveConfigPath(int argc, char *argv[])
         }
     }
 
-    // 2. 读取用户在设置界面中手动选择并持久化保存的自定义配置路径
+    // 2. 检查用户设置：若用户在界面显式清除了配置，则不自动加载任何文件
     QSettings settings(QStringLiteral("home_gui"), QStringLiteral("home_gui"));
+    if (settings.value(QStringLiteral("configExplicitlyCleared"), false).toBool()) {
+        return QString();
+    }
+
+    // 3. 读取用户在设置界面中手动选择并持久化保存的自定义配置路径
     const QString savedPath = settings.value(QStringLiteral("customConfigPath")).toString().trimmed();
     if (!savedPath.isEmpty() && QFile::exists(savedPath)) {
         return QFileInfo(savedPath).absoluteFilePath();
     }
 
-    // 3. 检查当前工作目录下的 config.yaml
+    // 4. 检查当前工作目录下的 config.yaml (命令行/开发环境运行便利)
     const QString localConfig = QStringLiteral("config.yaml");
     if (QFile::exists(localConfig)) {
         return QFileInfo(localConfig).absoluteFilePath();
     }
 
-    // 4. 检查 AppData 目录下的 config.yaml
+    // 5. 检查 AppData / Documents 目录下的 config.yaml (移动端推荐，由用户通过文件共享导入)
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString writableConfigPath = appDataDir + QStringLiteral("/config.yaml");
     if (QFile::exists(writableConfigPath)) {
         return writableConfigPath;
     }
 
-    // 5. 不存在时不自动拷贝或强捆绑 example，返回空路径，等待用户在设置中选择
+    const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString docsConfigPath = docsDir + QStringLiteral("/config.yaml");
+    if (QFile::exists(docsConfigPath)) {
+        return docsConfigPath;
+    }
+
+    // 6. 应用安装包内不再打包默认配置文件，未选择/未导入时返回空路径，等待用户在设置中选择
     return QString();
 }
 
@@ -330,19 +341,19 @@ int main(int argc, char *argv[])
     const QString configPath = resolveConfigPath(argc, argv);
     const PlatformConfig bootPlatformConfig = loadBootPlatformConfig(configPath);
     PlatformHelper::applyEnvironment(bootPlatformConfig, argc, argv);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     // 先直接写 framebuffer，覆盖 Qt 平台插件初始化前的空窗期。
     drawEarlyFramebufferSplash(bootPlatformConfig);
 #endif
 
     QGuiApplication app(argc, argv);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     // linuxfb 插件接管 framebuffer 时可能清屏，初始化后马上再刷一次。
     drawEarlyFramebufferSplash(bootPlatformConfig);
 #endif
     app.setApplicationName(QStringLiteral("home_gui"));
     app.setOrganizationName(QStringLiteral("home_gui"));
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     std::unique_ptr<BootSplash> bootSplash(new BootSplash(bootPlatformConfig));
 #else
     std::unique_ptr<BootSplash> bootSplash = nullptr;
@@ -419,6 +430,8 @@ int main(int argc, char *argv[])
     if (rootWindow != nullptr) {
 #if defined(Q_OS_ANDROID)
         setupAndroidImmersiveMode();
+        rootWindow->showFullScreen();
+#elif defined(Q_OS_IOS)
         rootWindow->showFullScreen();
 #else
         if (PlatformHelper::isDesktopEnvironment()) {

@@ -27,6 +27,7 @@ There is currently no dedicated `tests/` directory.
 - `bash scripts/build.sh rk3506`: preset shortcut for RK3506 Buildroot build.
 - `bash scripts/build.sh rk3568`: preset shortcut for RK3568 Buildroot build.
 - `bash scripts/build.sh android`: one-step Android build (requires Qt 6 for Android and NDK).
+- `bash scripts/build.sh ios [simulator|device]`: one-step iOS build (requires Xcode and Qt 6 for iOS).
 - `./build/home_gui`: run the locally built application.
 - `cmake -S . -B build-cross -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-cross.cmake`: explicit cross-build entry.
 

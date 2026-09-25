@@ -3,7 +3,9 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QNetworkInterface>
+#if !defined(Q_OS_IOS)
 #include <QProcess>
+#endif
 #include <QStandardPaths>
 #include <QThread>
 
@@ -447,6 +449,9 @@ bool WifiWorker::ensureWifiControlReady()
 
 QString WifiWorker::detectWifiInterface() const
 {
+#if defined(Q_OS_IOS)
+    return QString();
+#else
     if (!m_config.interfaceName.trimmed().isEmpty()) {
         return m_config.interfaceName.trimmed();
     }
@@ -462,6 +467,7 @@ QString WifiWorker::detectWifiInterface() const
         }
     }
     return QString();
+#endif
 }
 
 QString WifiWorker::detectWifiCtrlPath() const
@@ -586,6 +592,7 @@ bool WifiWorker::removeNetwork(const QString &networkId) const
 
 void WifiWorker::requestDhcpLease()
 {
+#if !defined(Q_OS_IOS)
     if (m_wifiInterface.isEmpty() || m_isRequestingDhcp) {
         return;
     }
@@ -611,10 +618,12 @@ void WifiWorker::requestDhcpLease()
         }
         process->deleteLater();
     });
+#endif
 }
 
 bool WifiWorker::startWifiSupplicant(const QString &ctrlPath)
 {
+#if !defined(Q_OS_IOS)
     if (m_wifiInterface.isEmpty()) {
         return false;
     }
@@ -640,6 +649,10 @@ bool WifiWorker::startWifiSupplicant(const QString &ctrlPath)
     }
 
     return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+#else
+    Q_UNUSED(ctrlPath);
+    return false;
+#endif
 }
 bool WifiWorker::runWifiCommand(const QStringList &arguments, QString *stdoutText, QString *stderrText) const
 {
@@ -661,6 +674,7 @@ bool WifiWorker::runWifiCommand(const QStringList &arguments, QString *stdoutTex
 
 WifiWorker::CommandResult WifiWorker::runWifiCommandSync(const QStringList &arguments, int timeoutMs) const
 {
+#if !defined(Q_OS_IOS)
     QProcess process;
     QStringList effectiveArguments;
     if (!m_wifiCtrlPath.isEmpty()) {
@@ -686,6 +700,11 @@ WifiWorker::CommandResult WifiWorker::runWifiCommandSync(const QStringList &argu
         QString::fromLocal8Bit(process.readAllStandardOutput()).trimmed(),
         QString::fromLocal8Bit(process.readAllStandardError()).trimmed()
     };
+#else
+    Q_UNUSED(arguments);
+    Q_UNUSED(timeoutMs);
+    return { false, QString(), QStringLiteral("Wi-Fi management is not supported on iOS") };
+#endif
 }
 
 WifiModule::WifiModule(GlobalState *globalState, QObject *parent)

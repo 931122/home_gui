@@ -5,7 +5,11 @@
 #include <QFile>
 #include <QHostAddress>
 #include <QNetworkAccessManager>
+#if !defined(Q_OS_IOS)
 #include <QProcess>
+#else
+class QProcess;
+#endif
 #include <QThread>
 #include <QTimer>
 #include <QUdpSocket>

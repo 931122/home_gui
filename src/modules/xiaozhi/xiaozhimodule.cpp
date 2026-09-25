@@ -200,6 +200,7 @@ void XiaozhiWorker::closeSockets()
 
 void XiaozhiWorker::startAudioProcess()
 {
+#if !defined(Q_OS_IOS)
     if (m_audioProcess != nullptr || m_config.soundAppPath.isEmpty()) {
         return;
     }
@@ -233,10 +234,12 @@ void XiaozhiWorker::startAudioProcess()
     });
     m_audioProcess->setProcessChannelMode(QProcess::ForwardedErrorChannel);
     m_audioProcess->start(program, QStringList());
+#endif
 }
 
 void XiaozhiWorker::stopAudioProcess()
 {
+#if !defined(Q_OS_IOS)
     if (m_audioProcess == nullptr) {
         return;
     }
@@ -250,6 +253,7 @@ void XiaozhiWorker::stopAudioProcess()
     }
     disconnect(process, nullptr, this, nullptr);
     process->deleteLater();
+#endif
 }
 
 void XiaozhiWorker::ensureUuid()

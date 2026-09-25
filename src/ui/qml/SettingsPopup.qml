@@ -17,7 +17,9 @@ GlassPopup {
     property real scaleUnit: Theme.scaleUnit
     property int cardRadius: Theme.radiusCard
     property int chipRadius: Theme.radiusChip
+    readonly property bool isMobilePlatform: Theme.isMobilePlatform
     readonly property bool isAndroidPlatform: Theme.isAndroidPlatform
+    readonly property bool isIosPlatform: Theme.isIosPlatform
 
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }
@@ -353,10 +355,10 @@ GlassPopup {
                 }
             }
 
-            // Wi-Fi 设置卡片（Linux 专享底层配置，Android 由系统原生接管故隐藏）
+            // Wi-Fi 设置卡片（Linux 专享底层配置，移动端由系统原生接管故隐藏）
             Rectangle {
                 id: wifiCard
-                visible: !root.isAndroidPlatform
+                visible: !root.isMobilePlatform
                 Layout.fillWidth: true
                 radius: root.cardRadius
                 color: wifiMouseArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.10) : Qt.rgba(1.0, 1.0, 1.0, 0.05)
