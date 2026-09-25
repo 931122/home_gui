@@ -68,6 +68,10 @@ class AppController : public QObject
     Q_PROPERTY(QStringList steamerModeOptions READ steamerModeOptions NOTIFY steamerStateChanged)
     Q_PROPERTY(QVariantList steamerPresetModels READ steamerPresetModels NOTIFY steamerStateChanged)
     Q_PROPERTY(QString videoBottomCardMode READ videoBottomCardMode WRITE setVideoBottomCardMode NOTIFY videoBottomCardModeChanged)
+    Q_PROPERTY(QString configFilePath READ configFilePath NOTIFY configFilePathChanged)
+    Q_PROPERTY(bool configLoaded READ configLoaded NOTIFY configLoadedChanged)
+    Q_PROPERTY(QString configStatusText READ configStatusText NOTIFY configStatusTextChanged)
+    Q_PROPERTY(QStringList candidateConfigFiles READ candidateConfigFiles NOTIFY candidateConfigFilesChanged)
     Q_PROPERTY(bool isAndroid READ isAndroid CONSTANT)
 
 public:
@@ -184,6 +188,14 @@ public slots:
 public:
     Q_INVOKABLE QString holidayBadgeForDate(const QString &isoDate);
     Q_INVOKABLE void prepareHolidayYear(int year);
+    Q_INVOKABLE bool loadConfigFile(const QString &fileUrlOrPath);
+    Q_INVOKABLE void resetConfigFile();
+    Q_INVOKABLE void refreshCandidateConfigFiles();
+
+    QString configFilePath() const;
+    bool configLoaded() const;
+    QString configStatusText() const;
+    QStringList candidateConfigFiles() const;
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -208,6 +220,10 @@ signals:
     void steamerStateChanged();
     void steamerSocketStateChanged();
     void videoBottomCardModeChanged();
+    void configFilePathChanged();
+    void configLoadedChanged();
+    void configStatusTextChanged();
+    void candidateConfigFilesChanged();
 
 private:
     // 根据当前配置和全局状态，得到界面应该使用的“当前视频配置”。

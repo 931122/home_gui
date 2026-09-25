@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QSettings>
 #include <QTimer>
 
 #include <sstream>
@@ -179,21 +180,31 @@ ConfigManager::ConfigManager(const QString &configPath, QObject *parent)
 
 bool ConfigManager::load()
 {
+    if (m_configPath.trimmed().isEmpty()) {
+        m_config = AppConfig();
+        m_isLoaded = false;
+        emit configLoadFailed(tr("未指定配置文件"));
+        return false;
+    }
+
     // 每次加载都重新生成一个新配置，只有解析成功才整体替换旧值。
     QFile file(m_configPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        emit configLoadFailed(tr("Failed to open config file: %1").arg(m_configPath));
+        m_isLoaded = false;
+        emit configLoadFailed(tr("无法打开配置文件: %1").arg(m_configPath));
         return false;
     }
 
     AppConfig nextConfig;
     QString errorMessage;
     if (!parseConfig(file.readAll(), nextConfig, errorMessage)) {
+        m_isLoaded = false;
         emit configLoadFailed(errorMessage);
         return false;
     }
 
     m_config = nextConfig;
+    m_isLoaded = true;
     ensureWatch();
     emit configReloaded(m_config);
     return true;
@@ -202,6 +213,55 @@ bool ConfigManager::load()
 const AppConfig &ConfigManager::config() const
 {
     return m_config;
+}
+
+QString ConfigManager::configPath() const
+{
+    return m_configPath;
+}
+
+bool ConfigManager::isLoaded() const
+{
+    return m_isLoaded;
+}
+
+bool ConfigManager::switchConfigFile(const QString &newPath)
+{
+    const QString trimmedPath = newPath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        resetConfig();
+        return true;
+    }
+
+    const QFileInfo oldInfo(m_configPath);
+    if (!m_configPath.isEmpty() && m_watcher->files().contains(oldInfo.absoluteFilePath())) {
+        m_watcher->removePath(oldInfo.absoluteFilePath());
+    }
+
+    m_configPath = trimmedPath;
+    const bool success = load();
+    if (success) {
+        QSettings settings;
+        settings.setValue(QStringLiteral("customConfigPath"), m_configPath);
+    }
+    return success;
+}
+
+void ConfigManager::resetConfig()
+{
+    const QFileInfo oldInfo(m_configPath);
+    if (!m_configPath.isEmpty() && m_watcher->files().contains(oldInfo.absoluteFilePath())) {
+        m_watcher->removePath(oldInfo.absoluteFilePath());
+    }
+
+    m_configPath.clear();
+    m_config = AppConfig();
+    m_isLoaded = false;
+
+    QSettings settings;
+    settings.remove(QStringLiteral("customConfigPath"));
+
+    emit configReloaded(m_config);
 }
 
 bool ConfigManager::updateCameraOnvifProfile(int cameraIndex, const QString &profile)

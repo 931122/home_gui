@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import HomeGui 1.0
 
 GlassPopup {
@@ -20,6 +21,17 @@ GlassPopup {
 
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }
+
+    FileDialog {
+        id: configFileDialog
+        title: qsTr("选择 HomeGui 配置文件 (YAML)")
+        nameFilters: [qsTr("YAML 配置文件 (*.yaml *.yml)"), qsTr("所有文件 (*)")]
+        onAccepted: {
+            if (typeof appController !== "undefined") {
+                appController.loadConfigFile(selectedFile)
+            }
+        }
+    }
 
     // 滚动区域 (支持当内容超出弹窗高度时上下平滑滚动)
     Flickable {
@@ -52,6 +64,190 @@ GlassPopup {
             id: cardColumn
             width: scrollArea.width
             spacing: root.dp(12)
+
+            // 配置文件选择与管理卡片
+            Rectangle {
+                Layout.fillWidth: true
+                radius: root.cardRadius
+                color: Qt.rgba(1.0, 1.0, 1.0, 0.05)
+                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                border.width: 1
+                implicitHeight: configCol.implicitHeight + root.dp(28)
+                clip: true
+
+                ColumnLayout {
+                    id: configCol
+                    anchors.fill: parent
+                    anchors.margins: root.dp(14)
+                    spacing: root.dp(10)
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: root.dp(10)
+
+                        Rectangle {
+                            width: root.dp(32)
+                            height: root.dp(32)
+                            radius: root.dp(8)
+                            color: Qt.rgba(0.20, 0.60, 1.0, 0.20)
+                            border.color: Qt.rgba(0.40, 0.75, 1.0, 0.35)
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "CFG"
+                                color: "#38bdf8"
+                                font.pixelSize: root.fs(10)
+                                font.bold: true
+                            }
+                        }
+
+                        Column {
+                            Layout.fillWidth: true
+                            spacing: root.dp(2)
+
+                            Text {
+                                text: qsTr("配置文件 (YAML)")
+                                color: "#f0f6fa"
+                                font.pixelSize: root.fs(15)
+                                font.bold: true
+                            }
+
+                            Text {
+                                text: (typeof appController !== "undefined" && appController.configStatusText)
+                                      ? appController.configStatusText
+                                      : qsTr("未选择配置文件")
+                                color: (typeof appController !== "undefined" && appController.configLoaded) ? "#4ade80" : "#fbbf24"
+                                font.pixelSize: root.fs(11)
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: root.dp(6)
+
+                            GlassButton {
+                                scaleUnit: root.scaleUnit
+                                styleType: "accent"
+                                implicitWidth: root.dp(84)
+                                implicitHeight: root.dp(28)
+                                text: qsTr("选择配置...")
+                                textPixelSize: root.fs(11)
+                                onClicked: configFileDialog.open()
+                            }
+
+                            GlassButton {
+                                visible: typeof appController !== "undefined" && appController.configFilePath.length > 0
+                                scaleUnit: root.scaleUnit
+                                styleType: "neutral"
+                                implicitWidth: root.dp(56)
+                                implicitHeight: root.dp(28)
+                                text: qsTr("清除")
+                                textPixelSize: root.fs(11)
+                                onClicked: {
+                                    if (typeof appController !== "undefined") {
+                                        appController.resetConfigFile()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: root.dp(30)
+                        radius: root.dp(6)
+                        color: Qt.rgba(0.0, 0.0, 0.0, 0.25)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: root.dp(10)
+                            anchors.rightMargin: root.dp(10)
+                            spacing: root.dp(6)
+
+                            Text {
+                                text: qsTr("路径:")
+                                color: "#64748b"
+                                font.pixelSize: root.fs(11)
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: (typeof appController !== "undefined" && appController.configFilePath.length > 0)
+                                      ? appController.configFilePath
+                                      : qsTr("无 (可在下方快速选择或点击上方按钮浏览选择)")
+                                color: (typeof appController !== "undefined" && appController.configFilePath.length > 0) ? "#cbd5e1" : "#94a3b8"
+                                font.pixelSize: root.fs(11)
+                                elide: Text.ElideMiddle
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: root.dp(6)
+                        visible: typeof appController !== "undefined" && appController.candidateConfigFiles && appController.candidateConfigFiles.length > 0
+
+                        Text {
+                            text: qsTr("检测到的本地候选配置:")
+                            color: "#94a3b8"
+                            font.pixelSize: root.fs(11)
+                        }
+
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: root.dp(6)
+
+                            Repeater {
+                                model: (typeof appController !== "undefined") ? appController.candidateConfigFiles : []
+
+                                Rectangle {
+                                    id: candidateChip
+                                    implicitWidth: chipRow.implicitWidth + root.dp(16)
+                                    implicitHeight: root.dp(26)
+                                    radius: root.dp(6)
+                                    readonly property bool isCurrent: typeof appController !== "undefined" && appController.configFilePath === modelData
+                                    color: isCurrent ? Qt.rgba(0.20, 0.60, 1.0, 0.30) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
+                                    border.color: isCurrent ? Qt.rgba(0.40, 0.75, 1.0, 0.75) : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                    border.width: 1
+
+                                    RowLayout {
+                                        id: chipRow
+                                        anchors.centerIn: parent
+                                        spacing: root.dp(4)
+
+                                        Text {
+                                            text: modelData.split('/').pop()
+                                            color: candidateChip.isCurrent ? "#ffffff" : "#cbd5e1"
+                                            font.pixelSize: root.fs(11)
+                                            font.bold: candidateChip.isCurrent
+                                        }
+
+                                        Text {
+                                            visible: candidateChip.isCurrent
+                                            text: "✓"
+                                            color: "#38bdf8"
+                                            font.pixelSize: root.fs(10)
+                                            font.bold: true
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (typeof appController !== "undefined") {
+                                                appController.loadConfigFile(modelData)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // 亮度控制卡片（iOS 风格磨砂卡片 + 定制磨砂滑条）
             Rectangle {

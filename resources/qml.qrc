@@ -48,7 +48,6 @@
         <file alias="icons/weather-snow.svg">icons/weather-snow.svg</file>
         <file alias="icons/weather-fog.svg">icons/weather-fog.svg</file>
         <file alias="qml/CloseButton.qml">../src/ui/qml/CloseButton.qml</file>
-        <file alias="config.yaml">../config.yaml.example</file>
         <file alias="fonts/Symbola.ttf">fonts/Symbola.ttf</file>
         <file alias="icons/close.svg">icons/close.svg</file>
         <file alias="icons/arrow-right.svg">icons/arrow-right.svg</file>

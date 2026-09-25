@@ -18,12 +18,16 @@ public:
 
     bool load();
     const AppConfig &config() const;
+    QString configPath() const;
+    bool isLoaded() const;
+    bool switchConfigFile(const QString &newPath);
+    void resetConfig();
     bool updateCameraOnvifProfile(int cameraIndex, const QString &profile);
     bool updateScreenPowerSettings(int idleTimeoutSeconds, const QString &panelConfig);
 
     // 静态辅助方法：启动引导阶段（QApplication 创建前）快速读取平台配置
     static PlatformConfig loadBootPlatformConfig(const QString &configPath);
-    // 确保可写配置存在，并在必要时从内置资源同步私有凭据（用于 Android 等沙盒环境）
+    // 确保可写配置存在
     static void ensureConfigFile(const QString &writableConfigPath, const QString &builtinResourcePath);
 
 signals:
@@ -42,6 +46,7 @@ private:
     QString m_configPath;
     AppConfig m_config;
     QFileSystemWatcher *m_watcher;
+    bool m_isLoaded = false;
     bool m_ignoreNextFileChange = false;
 };
 

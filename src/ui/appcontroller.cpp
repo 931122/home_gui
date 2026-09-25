@@ -11,10 +11,14 @@
 #include "weatherservice.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QEvent>
 #include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QTimer>
+#include <QUrl>
 #include <QVariantMap>
 #include <QtGlobal>
 
@@ -120,6 +124,14 @@ AppController::AppController(ConfigManager *configManager,
             m_screenPowerManager->setIdleTimeoutSeconds(config.screenPower.idleTimeoutSeconds);
             m_screenPowerManager->setPanelConfig(config.screenPower.panelConfig);
         }
+        emit configFilePathChanged();
+        emit configLoadedChanged();
+        emit configStatusTextChanged();
+        refreshCandidateConfigFiles();
+    });
+    connect(m_configManager, &ConfigManager::configLoadFailed, this, [this](const QString &) {
+        emit configLoadedChanged();
+        emit configStatusTextChanged();
     });
     updateHaActionNames(m_configManager->config());
     updateTimeText();
@@ -1387,3 +1399,95 @@ QString AppController::washerEntityId(const QString &domain, const QString &prop
     }
     return QStringLiteral("%1.midea_%2_%3").arg(domain, devId, propertySuffix);
 }
+
+QString AppController::configFilePath() const
+{
+    return m_configManager ? m_configManager->configPath() : QString();
+}
+
+bool AppController::configLoaded() const
+{
+    return m_configManager ? m_configManager->isLoaded() : false;
+}
+
+QString AppController::configStatusText() const
+{
+    if (!m_configManager) {
+        return tr("配置管理器未初始化");
+    }
+    if (!m_configManager->isLoaded()) {
+        if (m_configManager->configPath().isEmpty()) {
+            return tr("未选择配置文件 (运行默认空配置)");
+        }
+        return tr("配置文件加载失败");
+    }
+    const AppConfig &cfg = m_configManager->config();
+    return tr("已生效: %1 个摄像头, %2 个 HA 设备")
+            .arg(cfg.cameras.size())
+            .arg(cfg.homeAssistant.actions.size());
+}
+
+QStringList AppController::candidateConfigFiles() const
+{
+    QStringList candidates;
+    const QString currentDir = QDir::currentPath();
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+
+    const QStringList testPaths = {
+        currentDir + QStringLiteral("/config.yaml"),
+        currentDir + QStringLiteral("/config.yaml.example"),
+        appDir + QStringLiteral("/config.yaml"),
+        appDir + QStringLiteral("/config.yaml.example"),
+        appDataDir + QStringLiteral("/config.yaml"),
+        QStringLiteral("/etc/home_gui/config.yaml")
+    };
+
+    QSet<QString> seen;
+    for (const QString &p : testPaths) {
+        const QFileInfo fi(p);
+        if (fi.exists() && fi.isFile()) {
+            const QString abs = fi.absoluteFilePath();
+            if (!seen.contains(abs)) {
+                seen.insert(abs);
+                candidates.append(abs);
+            }
+        }
+    }
+    return candidates;
+}
+
+bool AppController::loadConfigFile(const QString &fileUrlOrPath)
+{
+    if (!m_configManager) {
+        return false;
+    }
+    QString path = fileUrlOrPath.trimmed();
+    if (path.startsWith(QStringLiteral("file://"))) {
+        path = QUrl(path).toLocalFile();
+    }
+    if (path.isEmpty() || !QFile::exists(path)) {
+        return false;
+    }
+    const bool success = m_configManager->switchConfigFile(path);
+    emit configFilePathChanged();
+    emit configLoadedChanged();
+    emit configStatusTextChanged();
+    return success;
+}
+
+void AppController::resetConfigFile()
+{
+    if (m_configManager) {
+        m_configManager->resetConfig();
+        emit configFilePathChanged();
+        emit configLoadedChanged();
+        emit configStatusTextChanged();
+    }
+}
+
+void AppController::refreshCandidateConfigFiles()
+{
+    emit candidateConfigFilesChanged();
+}
+

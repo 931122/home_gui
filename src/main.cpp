@@ -14,6 +14,7 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QScreen>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QTranslator>
@@ -83,49 +84,50 @@ static void setupAndroidImmersiveMode()
 }
 #endif
 
-// 根据平台确定配置文件路径，在 Android 等沙盒环境中自动从资源释放到可写目录
-static QString resolveConfigPath()
+// 根据平台和用户选择确定配置文件路径
+static QString resolveConfigPath(int argc, char *argv[])
 {
-#if defined(Q_OS_ANDROID)
-    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(appDataDir);
-    const QString writableConfigPath = appDataDir + QStringLiteral("/config.yaml");
+    // 1. 命令行参数优先: --config <path> 或 -c <path>
+    for (int i = 1; i < argc - 1; ++i) {
+        if (strcmp(argv[i], "--config") == 0 || strcmp(argv[i], "-c") == 0) {
+            const QString argPath = QString::fromLocal8Bit(argv[i + 1]).trimmed();
+            if (QFile::exists(argPath)) {
+                return QFileInfo(argPath).absoluteFilePath();
+            }
+        }
+    }
 
-    ConfigManager::ensureConfigFile(writableConfigPath, QStringLiteral(":/config.yaml"));
-    return writableConfigPath;
-#else
+    // 2. 读取用户在设置界面中手动选择并持久化保存的自定义配置路径
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("home_gui"));
+    const QString savedPath = settings.value(QStringLiteral("customConfigPath")).toString().trimmed();
+    if (!savedPath.isEmpty() && QFile::exists(savedPath)) {
+        return QFileInfo(savedPath).absoluteFilePath();
+    }
+
+    // 3. 检查当前工作目录下的 config.yaml
     const QString localConfig = QStringLiteral("config.yaml");
     if (QFile::exists(localConfig)) {
-        return localConfig;
+        return QFileInfo(localConfig).absoluteFilePath();
     }
+
+    // 4. 检查 AppData 目录下的 config.yaml
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString writableConfigPath = appDataDir + QStringLiteral("/config.yaml");
     if (QFile::exists(writableConfigPath)) {
         return writableConfigPath;
     }
-    const QString exampleConfig = QStringLiteral("config.yaml.example");
-    if (QFile::exists(exampleConfig)) {
-        QFile sourceFile(exampleConfig);
-        QDir().mkpath(QFileInfo(writableConfigPath).absolutePath());
-        QFile targetFile(writableConfigPath);
-        if (sourceFile.open(QIODevice::ReadOnly) && targetFile.open(QIODevice::WriteOnly)) {
-            const QByteArray content = sourceFile.readAll();
-            const bool written = targetFile.write(content) == content.size();
-            targetFile.close();
-            sourceFile.close();
-            if (written) {
-                return writableConfigPath;
-            }
-        }
-    }
-    return localConfig;
-#endif
+
+    // 5. 不存在时不自动拷贝或强捆绑 example，返回空路径，等待用户在设置中选择
+    return QString();
 }
 
 // 启动前先从配置文件里拿到平台相关参数，
 // 这样可以在 QApplication 创建前设置合适的 Qt 运行环境。
 static PlatformConfig loadBootPlatformConfig(const QString &configPath)
 {
+    if (configPath.isEmpty() || !QFile::exists(configPath)) {
+        return PlatformConfig();
+    }
     return ConfigManager::loadBootPlatformConfig(configPath);
 }
 
@@ -325,7 +327,7 @@ int main(int argc, char *argv[])
     qmlRegisterType<VideoItem>("HomeGui", 1, 0, "VideoItem");
     qmlRegisterSingletonType(QUrl(QStringLiteral("qrc:/qt/qml/HomeGui/LiquidGlass/qml/GlassTheme.qml")), "HomeGui", 1, 0, "Theme");
 
-    const QString configPath = resolveConfigPath();
+    const QString configPath = resolveConfigPath(argc, argv);
     const PlatformConfig bootPlatformConfig = loadBootPlatformConfig(configPath);
     PlatformHelper::applyEnvironment(bootPlatformConfig, argc, argv);
 #if !defined(Q_OS_ANDROID)
@@ -349,9 +351,12 @@ int main(int argc, char *argv[])
     configureApplicationFont();
 
     ConfigManager configManager(configPath);
-    if (!configManager.load()) {
-        qCritical() << "Failed to load config file:" << configPath;
-        return 1;
+    if (!configPath.isEmpty()) {
+        if (!configManager.load()) {
+            qWarning() << "Initial config load failed for:" << configPath;
+        }
+    } else {
+        qInfo() << "No config file selected at startup. Running with empty default configuration.";
     }
 
     GlobalState globalState;
