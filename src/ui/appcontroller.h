@@ -64,6 +64,9 @@ class AppController : public QObject
     Q_PROPERTY(QString steamerDishName READ steamerDishName NOTIFY steamerStateChanged)
     Q_PROPERTY(int steamerTotalMinutes READ steamerTotalMinutes NOTIFY steamerStateChanged)
     Q_PROPERTY(bool steamerSocketState READ steamerSocketState NOTIFY steamerSocketStateChanged)
+    Q_PROPERTY(QString steamerMode READ steamerMode NOTIFY steamerStateChanged)
+    Q_PROPERTY(QStringList steamerModeOptions READ steamerModeOptions NOTIFY steamerStateChanged)
+    Q_PROPERTY(QVariantList steamerPresetModels READ steamerPresetModels NOTIFY steamerStateChanged)
     Q_PROPERTY(QString videoBottomCardMode READ videoBottomCardMode WRITE setVideoBottomCardMode NOTIFY videoBottomCardModeChanged)
     Q_PROPERTY(bool isAndroid READ isAndroid CONSTANT)
 
@@ -118,6 +121,9 @@ public:
     QString steamerDishName() const { return m_steamerDishName; }
     int steamerTotalMinutes() const { return m_steamerTotalMinutes; }
     bool steamerSocketState() const { return m_steamerSocketState; }
+    QString steamerMode() const { return m_steamerMode; }
+    QStringList steamerModeOptions() const { return m_steamerModeOptions; }
+    QVariantList steamerPresetModels() const { return m_steamerPresetModels; }
     QString videoBottomCardMode() const { return m_videoBottomCardMode; }
     Q_INVOKABLE void setVideoBottomCardMode(const QString &mode);
     bool isAndroid() const {
@@ -171,6 +177,7 @@ public slots:
     void wakeXiaozhi();
     void hideXiaozhiOverlay();
     void startSteamer(int minutes, const QString &dishName = QString());
+    void setSteamerMode(const QString &mode, int minutes = 0);
     void stopSteamer();
     void toggleSteamerSocket();
 
@@ -254,6 +261,14 @@ private:
     QString m_steamerDishName;
     int m_steamerTotalMinutes = 15;
     bool m_steamerSocketState = false;
+    QString m_steamerMode = QStringLiteral("待机");
+    QStringList m_steamerModeOptions;
+    QString m_steamerSocketEntityId;
+    QString m_steamerTimerEntityId;
+    QString m_steamerModeEntityId;
+    QString m_steamerStopScript;
+    QString m_steamerStartScript;
+    QVariantList m_steamerPresetModels;
     QString m_videoBottomCardMode = QStringLiteral("camera");
 };
 

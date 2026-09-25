@@ -1,5 +1,6 @@
 #include "homeassistantmodule.h"
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -649,6 +650,9 @@ void HomeAssistantWorker::fetchNextActionState(int index, QVariantList result, i
         item.insert(QStringLiteral("slideToTurnOff"), true);
         item.insert(QStringLiteral("slideToClose"), true);
     }
+    if (action.isSteamer) {
+        item.insert(QStringLiteral("isSteamer"), true);
+    }
 
     if (action.entityId.trimmed().isEmpty()) {
         result.append(item);
@@ -885,6 +889,9 @@ QVariantList HomeAssistantWorker::buildActionStates() const
             item.insert(QStringLiteral("slideToTurnOff"), true);
             item.insert(QStringLiteral("slideToClose"), true);
         }
+        if (action.isSteamer) {
+            item.insert(QStringLiteral("isSteamer"), true);
+        }
 
         const QVariantMap entityState = m_entityStates.value(action.entityId.trimmed());
         const QString state = entityState.value(QStringLiteral("state")).toString().trimmed().toLower();
@@ -917,6 +924,15 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                            || action.entityId.contains(QStringLiteral("ya_li_guo"))
                            || action.name.contains(QStringLiteral("饭煲"))
                            || action.name.contains(QStringLiteral("压力锅"));
+        const bool isWasher = action.domain.compare(QStringLiteral("washer"), Qt::CaseInsensitive) == 0
+                           || action.domain.compare(QStringLiteral("washing_machine"), Qt::CaseInsensitive) == 0
+                           || action.entityId.contains(QStringLiteral("washer"))
+                           || action.entityId.contains(QStringLiteral("xi_yi"))
+                           || action.name.contains(QStringLiteral("洗衣机"));
+        const bool isSteamer = action.isSteamer
+                            || action.domain.compare(QStringLiteral("steamer"), Qt::CaseInsensitive) == 0
+                            || action.entityId == QStringLiteral("script.timed_cook_runner")
+                            || action.entityId.contains(QStringLiteral("steamer"));
         if (isCooker) {
             item.insert(QStringLiteral("isCooker"), true);
 
@@ -1233,14 +1249,8 @@ QVariantList HomeAssistantWorker::buildActionStates() const
             } else {
                 item.insert(QStringLiteral("cookerLeftTime"), finalLeftTime);
             }
-        } else {
-            const bool isWasher = action.domain.compare(QStringLiteral("washer"), Qt::CaseInsensitive) == 0
-                               || action.domain.compare(QStringLiteral("washing_machine"), Qt::CaseInsensitive) == 0
-                               || action.entityId.contains(QStringLiteral("washer"))
-                               || action.entityId.contains(QStringLiteral("xi_yi"))
-                               || action.name.contains(QStringLiteral("洗衣机"));
-            if (isWasher) {
-                item.insert(QStringLiteral("isWasher"), true);
+        } else if (isWasher) {
+            item.insert(QStringLiteral("isWasher"), true);
 
                 // 动态提取洗衣机设备特征 ID（如从 midea_123456789012345 提取 123456789012345，或使用 washer）
                 QString washerDeviceId;
@@ -1480,6 +1490,286 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                 }
                 item.insert(QStringLiteral("state"), isPoweredOn ? (runningStatus.isEmpty() ? QStringLiteral("standby") : runningStatus) : QStringLiteral("off"));
                 item.insert(QStringLiteral("stateText"), statusText);
+        } else if (isSteamer) {
+            item.insert(QStringLiteral("isSteamer"), true);
+
+            // 1. 动态确定关联实体 (配置优先 -> 实体自身匹配 -> HA 状态全局嗅探)
+            QString socketEid = action.socketEntity;
+            QString timerEid = action.timerEntity;
+            QString modeEid = action.modeEntity;
+            QString stopScript = action.stopService;
+            QString startScript;
+
+            if (action.domain == QStringLiteral("script")) {
+                startScript = action.entityId;
+            } else if (action.domain == QStringLiteral("switch")) {
+                if (socketEid.isEmpty()) socketEid = action.entityId;
+            } else if (action.domain == QStringLiteral("timer") || action.entityId.startsWith(QStringLiteral("timer."))) {
+                if (timerEid.isEmpty()) timerEid = action.entityId;
+            } else if (action.domain == QStringLiteral("input_select") || action.entityId.startsWith(QStringLiteral("input_select."))) {
+                if (modeEid.isEmpty()) modeEid = action.entityId;
+            }
+
+            // 若未配置插座，优先在 action 列表与全局实体中嗅探蒸煮/餐桌插座
+            if (socketEid.isEmpty()) {
+                for (const auto &act : m_config.actions) {
+                    if (act.domain == QStringLiteral("switch") &&
+                        (act.name.contains(QStringLiteral("餐桌")) || act.name.contains(QStringLiteral("蒸")) ||
+                         act.entityId.contains(QStringLiteral("dining")) || act.entityId.contains(QStringLiteral("steamer")))) {
+                        socketEid = act.entityId;
+                        break;
+                    }
+                }
+                if (socketEid.isEmpty()) {
+                    for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                        const QString &eid = it.key();
+                        if (eid.startsWith(QStringLiteral("switch.")) &&
+                            (eid.contains(QStringLiteral("steamer")) || eid.contains(QStringLiteral("zheng")) || eid.contains(QStringLiteral("dining")))) {
+                            socketEid = eid;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 若未配置计时器，在全局实体中智能嗅探 timer.*steamer* / *cook*
+            if (timerEid.isEmpty()) {
+                for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                    const QString &eid = it.key();
+                    if (eid.startsWith(QStringLiteral("timer.")) &&
+                        (eid.contains(QStringLiteral("steamer")) || eid.contains(QStringLiteral("cook")) || eid.contains(QStringLiteral("zheng")))) {
+                        timerEid = eid;
+                        break;
+                    }
+                }
+            }
+
+            // 若未配置模式选择器，在全局实体中智能嗅探 input_select.*steamer* / *cook*
+            if (modeEid.isEmpty()) {
+                for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                    const QString &eid = it.key();
+                    if (eid.startsWith(QStringLiteral("input_select.")) &&
+                        (eid.contains(QStringLiteral("steamer")) || eid.contains(QStringLiteral("cook")) || eid.contains(QStringLiteral("zheng")))) {
+                        modeEid = eid;
+                        break;
+                    }
+                }
+            }
+
+            // 若未配置停机脚本，在全局实体中寻找专用停机脚本
+            if (stopScript.isEmpty()) {
+                for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                    const QString &eid = it.key();
+                    if (eid.startsWith(QStringLiteral("script.")) &&
+                        (eid.contains(QStringLiteral("steamer_stop")) || eid.contains(QStringLiteral("stop_steamer")) ||
+                         (eid.contains(QStringLiteral("stop")) && eid.contains(QStringLiteral("steamer"))))) {
+                        stopScript = eid;
+                        break;
+                    }
+                }
+            }
+
+            // 若未确定启动脚本，在全局实体中寻找通用烹饪执行器
+            if (startScript.isEmpty()) {
+                for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                    const QString &eid = it.key();
+                    if (eid.startsWith(QStringLiteral("script.")) &&
+                        (eid.contains(QStringLiteral("timed_cook")) || eid.contains(QStringLiteral("start_steamer")))) {
+                        startScript = eid;
+                        break;
+                    }
+                }
+            }
+
+            // 2. 从 HA 获取模式选项、当前模式及菜品预设时长
+            QString currentMode = QStringLiteral("待机");
+            QStringList modeOptions;
+            QVariantMap presetTimesFromHa;
+
+            if (!modeEid.isEmpty() && m_entityStates.contains(modeEid)) {
+                const QVariantMap modeStateMap = m_entityStates.value(modeEid);
+                currentMode = modeStateMap.value(QStringLiteral("rawState"), modeStateMap.value(QStringLiteral("state"))).toString().trimmed();
+                const QVariantMap modeAttrs = modeStateMap.value(QStringLiteral("attributes")).toMap();
+                modeOptions = modeAttrs.value(QStringLiteral("options")).toStringList();
+                if (modeAttrs.contains(QStringLiteral("preset_times"))) {
+                    presetTimesFromHa = modeAttrs.value(QStringLiteral("preset_times")).toMap();
+                }
+            }
+
+            // 补充：检查是否存在蒸煮状态传感器 (如 sensor.zhi_neng_zheng_zhu_zhuang_tai 或 sensor.*steamer*)
+            for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                const QString &eid = it.key();
+                if (eid.startsWith(QStringLiteral("sensor.")) && (eid.contains(QStringLiteral("steamer")) || eid.contains(QStringLiteral("zheng_zhu")))) {
+                    const QVariantMap sAttrs = it.value().value(QStringLiteral("attributes")).toMap();
+                    if (sAttrs.contains(QStringLiteral("preset_times")) && presetTimesFromHa.isEmpty()) {
+                        presetTimesFromHa = sAttrs.value(QStringLiteral("preset_times")).toMap();
+                    }
+                    if (modeOptions.isEmpty() && sAttrs.contains(QStringLiteral("options"))) {
+                        modeOptions = sAttrs.value(QStringLiteral("options")).toStringList();
+                    }
+                    if (currentMode.isEmpty() || currentMode == QStringLiteral("待机")) {
+                        const QString sMode = sAttrs.value(QStringLiteral("mode")).toString().trimmed();
+                        if (!sMode.isEmpty()) currentMode = sMode;
+                    }
+                    break;
+                }
+            }
+
+            // 3. 构建动态菜谱模型 (完全从 HA 模式列表中动态生成，自动注入图标与默认时长)
+            QVariantList dynamicPresetModels;
+            struct KnownPreset {
+                const char *name;
+                int defaultMinutes;
+                const char *icon;
+                const char *desc;
+                const char *badge;
+                const char *color;
+            };
+            static const KnownPreset knownPresets[] = {
+                { "煮鸡蛋", 15, "qrc:/icons/egg.svg", "全熟嫩滑 · 水开10分", "营养早餐", "#fbbf24" },
+                { "蒸地瓜", 30, "qrc:/icons/sweet_potato.svg", "软糯流蜜 · 熟透无硬心", "粗粮主食", "#f97316" },
+                { "蒸红薯", 30, "qrc:/icons/sweet_potato.svg", "软糯流蜜 · 熟透无硬心", "粗粮主食", "#f97316" },
+                { "蒸芋头", 25, "qrc:/icons/taro.svg", "粉糯起沙 · 筷子一扎即透", "香浓可口", "#a855f7" },
+                { "蒸玉米", 20, "qrc:/icons/cooker.svg", "甜脆多汁 · 锁住鲜甜", "轻食粗粮", "#eab308" },
+                { "蒸包子", 12, "qrc:/icons/cooker.svg", "松软宣腾 · 馅料多汁", "面点速食", "#38bdf8" },
+                { "蒸南瓜", 18, "qrc:/icons/cooker.svg", "绵软香甜 · 入口即化", "养胃首选", "#f59e0b" },
+                { "热牛奶", 5, "qrc:/icons/cooker.svg", "温和适口 · 暖胃醒神", "快热饮品", "#ec4899" },
+                { "热饭菜", 8, "qrc:/icons/cooker.svg", "蒸汽循环 · 快速均匀回热", "一键快温", "#10b981" },
+                { "蒸鱼", 12, "qrc:/icons/cooker.svg", "鲜美爽嫩 · 保持原汁", "清蒸海鲜", "#06b6d4" },
+                { "蒸排骨", 25, "qrc:/icons/cooker.svg", "肉质酥烂 · 浓郁入味", "荤菜蒸制", "#f43f5e" },
+                { "高温消毒", 20, "qrc:/icons/cooker.svg", "高温蒸汽 · 深度抑菌", "健康消毒", "#6366f1" }
+            };
+
+            for (const QString &opt : modeOptions) {
+                const QString trimmedOpt = opt.trimmed();
+                if (trimmedOpt.isEmpty() || trimmedOpt == QStringLiteral("待机")
+                    || trimmedOpt.compare(QStringLiteral("idle"), Qt::CaseInsensitive) == 0
+                    || trimmedOpt.compare(QStringLiteral("off"), Qt::CaseInsensitive) == 0) {
+                    continue;
+                }
+                QVariantMap preset;
+                preset.insert(QStringLiteral("name"), trimmedOpt);
+
+                int minutes = 15;
+                if (presetTimesFromHa.contains(trimmedOpt)) {
+                    minutes = presetTimesFromHa.value(trimmedOpt).toInt();
+                }
+
+                QString icon = QStringLiteral("qrc:/icons/cooker.svg");
+                QString desc = tr("从 HA 获取 · 定时蒸煮");
+                QString badge = tr("HA模式");
+                QString color = QStringLiteral("#34d399");
+
+                for (const auto &kp : knownPresets) {
+                    if (trimmedOpt.contains(QString::fromUtf8(kp.name)) || QString::fromUtf8(kp.name).contains(trimmedOpt)) {
+                        if (!presetTimesFromHa.contains(trimmedOpt)) {
+                            minutes = kp.defaultMinutes;
+                        }
+                        icon = QString::fromUtf8(kp.icon);
+                        desc = QString::fromUtf8(kp.desc);
+                        badge = QString::fromUtf8(kp.badge);
+                        color = QString::fromUtf8(kp.color);
+                        break;
+                    }
+                }
+
+                preset.insert(QStringLiteral("time"), minutes);
+                preset.insert(QStringLiteral("icon"), icon);
+                preset.insert(QStringLiteral("desc"), desc);
+                preset.insert(QStringLiteral("badge"), badge);
+                preset.insert(QStringLiteral("color"), color);
+                dynamicPresetModels.append(preset);
+            }
+
+            // 4. 从 HA 嗅探菜名输入文本 (input_text)
+            QString dishName;
+            for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
+                const QString &eid = it.key();
+                if (eid.startsWith(QStringLiteral("input_text.")) && (eid.contains(QStringLiteral("steamer")) || eid.contains(QStringLiteral("dish")))) {
+                    dishName = it.value().value(QStringLiteral("rawState"), it.value().value(QStringLiteral("state"))).toString().trimmed();
+                    break;
+                }
+            }
+            if (dishName.isEmpty()) {
+                dishName = (!currentMode.isEmpty() && currentMode != QStringLiteral("待机")) ? currentMode : tr("定时蒸煮");
+            }
+
+            // 5. 读取插座/开关电源状态
+            bool socketActive = false;
+            if (!socketEid.isEmpty() && m_entityStates.contains(socketEid)) {
+                const QString socketState = m_entityStates.value(socketEid).value(QStringLiteral("state")).toString().trimmed().toLower();
+                socketActive = (socketState == QStringLiteral("on"));
+            }
+
+            // 6. 读取倒计时与运行状态
+            bool steamerRunning = false;
+            int remainSeconds = 0;
+            int totalMinutes = 20;
+
+            if (!timerEid.isEmpty() && m_entityStates.contains(timerEid)) {
+                const QVariantMap timerStateMap = m_entityStates.value(timerEid);
+                const QString timerRawState = timerStateMap.value(QStringLiteral("rawState"), timerStateMap.value(QStringLiteral("state"))).toString().trimmed().toLower();
+                const QVariantMap timerAttrs = timerStateMap.value(QStringLiteral("attributes")).toMap();
+
+                if (timerRawState == QStringLiteral("active")) {
+                    steamerRunning = true;
+                    const QString finishesAtStr = timerAttrs.value(QStringLiteral("finishes_at")).toString().trimmed();
+                    if (!finishesAtStr.isEmpty()) {
+                        const QDateTime finishesAt = QDateTime::fromString(finishesAtStr, Qt::ISODate);
+                        if (finishesAt.isValid()) {
+                            const qint64 diffSec = QDateTime::currentDateTimeUtc().secsTo(finishesAt.toUTC());
+                            remainSeconds = qMax(0, static_cast<int>(diffSec));
+                        }
+                    }
+                    const QString durationStr = timerAttrs.value(QStringLiteral("duration")).toString().trimmed();
+                    if (!durationStr.isEmpty()) {
+                        const QStringList parts = durationStr.split(QLatin1Char(':'));
+                        if (parts.size() == 3) {
+                            totalMinutes = parts.at(0).toInt() * 60 + parts.at(1).toInt();
+                        } else if (parts.size() == 2) {
+                            totalMinutes = parts.at(0).toInt();
+                        }
+                    }
+                }
+            } else if (!startScript.isEmpty() && m_entityStates.contains(startScript)) {
+                // 兼容模式：若无 timer 实体但执行脚本运行中
+                const QString scriptState = m_entityStates.value(startScript).value(QStringLiteral("state")).toString().trimmed().toLower();
+                if (scriptState == QStringLiteral("on")) {
+                    steamerRunning = true;
+                    remainSeconds = 0;
+                }
+            } else if (socketActive && currentMode != QStringLiteral("待机") && !currentMode.isEmpty()) {
+                // 若无 timer 实体但插座通电且模式处于烹饪选项
+                steamerRunning = true;
+            }
+
+            item.insert(QStringLiteral("steamerSocketEntityId"), socketEid);
+            item.insert(QStringLiteral("steamerTimerEntityId"), timerEid);
+            item.insert(QStringLiteral("steamerModeEntityId"), modeEid);
+            item.insert(QStringLiteral("steamerStopScript"), stopScript);
+            item.insert(QStringLiteral("steamerStartScript"), startScript);
+            item.insert(QStringLiteral("steamerSocketActive"), socketActive);
+            item.insert(QStringLiteral("steamerRunning"), steamerRunning);
+            item.insert(QStringLiteral("steamerRemainSeconds"), remainSeconds);
+            item.insert(QStringLiteral("steamerTotalMinutes"), totalMinutes);
+            item.insert(QStringLiteral("steamerDishName"), dishName);
+            item.insert(QStringLiteral("steamerMode"), currentMode.isEmpty() ? QStringLiteral("待机") : currentMode);
+            item.insert(QStringLiteral("steamerModeOptions"), modeOptions);
+            item.insert(QStringLiteral("steamerPresetModels"), dynamicPresetModels);
+            item.insert(QStringLiteral("active"), steamerRunning);
+            item.insert(QStringLiteral("available"), true);
+
+            if (steamerRunning) {
+                item.insert(QStringLiteral("state"), QStringLiteral("running"));
+                const int mins = remainSeconds / 60;
+                const int secs = remainSeconds % 60;
+                const QString timeFormatted = QStringLiteral("%1:%2")
+                    .arg(mins, 2, 10, QLatin1Char('0'))
+                    .arg(secs, 2, 10, QLatin1Char('0'));
+                item.insert(QStringLiteral("stateText"), QStringLiteral("%1 · 剩%2").arg(dishName, timeFormatted));
+            } else {
+                item.insert(QStringLiteral("state"), socketActive ? QStringLiteral("standby_powered") : QStringLiteral("standby"));
+                item.insert(QStringLiteral("stateText"), socketActive ? tr("待机 · 插座通电") : tr("待机"));
             }
         }
 

@@ -1,0 +1,356 @@
+# ==============================================================================
+# Home Assistant 场景包示例：智能定时蒸煮台 (Kitchen Steamer Package)
+# 使用说明：
+#   1. 将本文件复制到 Home Assistant 配置目录的 packages/ 文件夹下，例如:
+#      /config/packages/kitchen_steamer.yaml
+#   2. 确保 Home Assistant 的 configuration.yaml 中启用了 packages 功能:
+#      homeassistant:
+#        packages: !include_dir_named packages
+#   3. 根据家庭实际设备修改本文件中的实体 ID：
+#      - switch.dining_socket (修改为您实际使用的智能插座或开关实体)
+#      - media_player.dining_speaker (修改为您实际使用的智能音箱实体，可选)
+#   4. 在 home_gui 的 config.yaml 中配置对应 Action:
+#      - domain: script
+#        entityId: script.timed_cook_runner
+#        name: 智能蒸煮
+#        service: toggle
+#        isSteamer: true
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. 蒸煮模式、倒计时器与状态实体 (HA 模式与状态总线)
+# ------------------------------------------------------------------------------
+input_select:
+  steamer_mode:
+    name: 智能蒸煮模式
+    icon: mdi:pot-steam
+    options:
+      - 待机
+      - 煮鸡蛋
+      - 蒸玉米
+      - 蒸包子
+      - 蒸南瓜
+      - 蒸芋头
+      - 蒸地瓜
+      - 热饭菜
+      - 热牛奶
+      - 自定义蒸煮
+    initial: 待机
+
+input_text:
+  steamer_dish_name:
+    name: 蒸煮菜品名称
+    initial: 定时蒸煮
+    max: 50
+
+timer:
+  steamer_timer:
+    name: 智能蒸煮倒计时
+    icon: mdi:pot-steam
+    restore: true
+
+template:
+  - sensor:
+      - name: 智能蒸煮状态
+        unique_id: kitchen_steamer_status
+        icon: mdi:pot-steam
+        state: >-
+          {% if is_state("timer.steamer_timer", "active") %}
+            cooking
+          {% elif is_state("switch.dining_socket", "on") %}
+            standby_powered
+          {% else %}
+            idle
+          {% endif %}
+        attributes:
+          mode: "{{ states('input_select.steamer_mode') }}"
+          dish_name: "{{ states('input_text.steamer_dish_name') }}"
+          is_cooking: "{{ is_state('timer.steamer_timer', 'active') }}"
+          socket_active: "{{ is_state('switch.dining_socket', 'on') }}"
+          finishes_at: "{{ state_attr('timer.steamer_timer', 'finishes_at') }}"
+          duration: "{{ state_attr('timer.steamer_timer', 'duration') }}"
+          state_text: >-
+            {% if is_state("timer.steamer_timer", "active") %}
+              {{ states("input_text.steamer_dish_name") }} · 蒸煮中
+            {% elif is_state("switch.dining_socket", "on") %}
+              待机 · 插座通电
+            {% else %}
+              待机
+            {% endif %}
+
+# ------------------------------------------------------------------------------
+# 2. 蒸煮脚本组 (通用执行引擎 + 模式预设 + 统一停机)
+# ------------------------------------------------------------------------------
+script:
+  # 通用底层执行引擎 (抽象硬件实体、模式匹配、时延控制、安全断电与语音播报)
+  timed_cook_runner:
+    alias: 定时蒸煮执行引擎
+    description: 控制指定烹饪插座通电指定时长后自动安全断电并语音播报
+    mode: restart
+    fields:
+      minutes:
+        description: 通电持续时长(分钟)
+        example: 15
+        required: false
+      dish_name:
+        description: 食材或菜品名称
+        example: 煮鸡蛋
+      mode:
+        description: 模式名称
+        example: 煮鸡蛋
+      target_socket:
+        description: 目标插座实体
+        default: switch.dining_socket
+      notify_speakers:
+        description: 是否在音箱播报
+        default: true
+    sequence:
+      - variables:
+          preset_times:
+            '煮鸡蛋': 15
+            '蒸玉米': 20
+            '蒸包子': 12
+            '蒸南瓜': 18
+            '蒸芋头': 25
+            '蒸地瓜': 30
+            '热饭菜': 8
+            '热牛奶': 5
+          actual_dish: >-
+            {% if dish_name is defined and dish_name != '' %}
+              {{ dish_name }}
+            {% elif mode is defined and mode != '' %}
+              {{ mode }}
+            {% else %}
+              定时蒸煮
+            {% endif %}
+          actual_mode: >-
+            {% if mode is defined and mode != '' and mode in ['煮鸡蛋','蒸玉米','蒸包子','蒸南瓜','蒸芋头','蒸地瓜','热饭菜','热牛奶','自定义蒸煮'] %}
+              {{ mode }}
+            {% elif dish_name is defined and dish_name in ['煮鸡蛋','蒸玉米','蒸包子','蒸南瓜','蒸芋头','蒸地瓜','热饭菜','热牛奶'] %}
+              {{ dish_name }}
+            {% else %}
+              自定义蒸煮
+            {% endif %}
+          actual_minutes: >-
+            {% if minutes is defined and (minutes | int) > 0 %}
+              {{ minutes | int }}
+            {% else %}
+              {{ preset_times.get(actual_mode, 20) }}
+            {% endif %}
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.steamer_mode
+        data:
+          option: '{{ actual_mode }}'
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.steamer_dish_name
+        data:
+          value: '{{ actual_dish }}'
+      - action: timer.start
+        target:
+          entity_id: timer.steamer_timer
+        data:
+          duration: '{{ (actual_minutes | int) * 60 }}'
+      - action: switch.turn_on
+        target:
+          entity_id: '{{ target_socket | default("switch.dining_socket") }}'
+      - delay:
+          minutes: '{{ actual_minutes | int }}'
+      - action: switch.turn_off
+        target:
+          entity_id: '{{ target_socket | default("switch.dining_socket") }}'
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: '{{ notify_speakers | default(true) }}'
+            sequence:
+              # 默认使用通用的 TTS / 语音播报服务，可根据家庭实际设备替换（如 xiaomi_miot 或 tts.speak）
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ states('media_player.dining_speaker') != 'unknown' }}"
+                    sequence:
+                      - action: tts.speak
+                        target:
+                          entity_id: tts.google_en_com
+                        data:
+                          media_player_entity_id: media_player.dining_speaker
+                          message: '叮！{{ actual_dish }}已经好啦，插座已自动断电，请趁热享用！'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.steamer_mode
+        data:
+          option: 待机
+
+  # 统一停机脚本
+  steamer_stop:
+    alias: 停止蒸煮
+    description: 立即停止蒸煮、切断插座电源并恢复待机
+    mode: single
+    sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.timed_cook_runner
+      - action: timer.cancel
+        target:
+          entity_id: timer.steamer_timer
+      - action: switch.turn_off
+        target:
+          entity_id: switch.dining_socket
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.steamer_mode
+        data:
+          option: 待机
+
+  # 食材业务脚本 (快捷启动：只需传递 mode，由执行引擎从 preset_times 解析默认时长与名称)
+  boil_eggs:
+    alias: 煮鸡蛋
+    description: 15分钟定时烹饪
+    icon: mdi:egg
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 煮鸡蛋
+
+  steam_taro:
+    alias: 蒸芋头
+    description: 25分钟定时烹饪
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 蒸芋头
+
+  steam_sweet_potatoes:
+    alias: 蒸地瓜
+    description: 30分钟定时烹饪
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 蒸地瓜
+
+  steam_corn:
+    alias: 蒸玉米
+    description: 20分钟定时烹饪
+    icon: mdi:corn
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 蒸玉米
+
+  steam_buns:
+    alias: 蒸包子
+    description: 12分钟定时烹饪
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 蒸包子
+
+  steam_pumpkin:
+    alias: 蒸南瓜
+    description: 18分钟定时烹饪
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 蒸南瓜
+
+  warm_leftovers:
+    alias: 热饭菜
+    description: 8分钟定时加热
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 热饭菜
+
+  warm_milk:
+    alias: 热牛奶
+    description: 5分钟定时加热
+    icon: mdi:pot-steam
+    mode: restart
+    sequence:
+      - action: script.timed_cook_runner
+        data:
+          mode: 热牛奶
+
+# ------------------------------------------------------------------------------
+# 3. 模式联动与安全保护自动化
+# ------------------------------------------------------------------------------
+automation:
+  # 在 HA 界面手动切换模式为非待机时自动启动蒸煮
+  - id: steamer_mode_select_start
+    alias: 智能蒸煮模式变更自动启动
+    description: 当在HA控制面板手动将模式切换为烹饪选项时自动触发执行引擎
+    triggers:
+      - trigger: state
+        entity_id: input_select.steamer_mode
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.to_state.state != '待机' and trigger.from_state.state != trigger.to_state.state and not is_state('timer.steamer_timer', 'active') }}
+    actions:
+      - action: script.timed_cook_runner
+        data:
+          mode: '{{ trigger.to_state.state }}'
+    mode: single
+
+  # 在 HA 界面手动切换模式为待机时自动关停
+  - id: steamer_mode_idle_stop
+    alias: 智能蒸煮切为待机联动停机
+    triggers:
+      - trigger: state
+        entity_id: input_select.steamer_mode
+        to: '待机'
+    conditions:
+      - condition: state
+        entity_id: timer.steamer_timer
+        state: 'active'
+    actions:
+      - action: script.steamer_stop
+    mode: single
+
+  # 底层安全断电保护
+  - id: steamer_safety_off
+    alias: 定时蒸煮底层安全断电保护
+    description: 当执行引擎意外中止且仍在倒计时中，联动停止脚本切断插座电源并恢复待机
+    triggers:
+      - trigger: state
+        entity_id: script.timed_cook_runner
+        from: 'on'
+        to: 'off'
+    conditions:
+      - condition: state
+        entity_id: timer.steamer_timer
+        state: 'active'
+    actions:
+      - action: script.steamer_stop
+    mode: single
+
+  # 插座手动断电保护
+  - id: steamer_socket_off_protection
+    alias: 餐桌插座手动断电保护
+    description: 当蒸煮运行过程中插座被外部手动关闭时，联动停止脚本并恢复待机
+    triggers:
+      - trigger: state
+        entity_id: switch.dining_socket
+        from: 'on'
+        to: 'off'
+    conditions:
+      - condition: state
+        entity_id: timer.steamer_timer
+        state: 'active'
+    actions:
+      - action: script.steamer_stop
+    mode: single

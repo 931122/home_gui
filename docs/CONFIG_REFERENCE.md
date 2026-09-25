@@ -299,10 +299,33 @@ GStreamer 后端：
       "domain": "scene",
       "service": "turn_on",
       "entityId": "scene.night"
+    },
+    {
+      "name": "智能蒸煮",
+      "domain": "script",
+      "service": "toggle",
+      "entityId": "script.timed_cook_runner",
+      "isSteamer": true
     }
   ]
 }
 ```
+
+### 智能蒸煮 / 烹饪台集成 (Steamer Integration)
+
+标记为 `isSteamer: true`（或名称包含“蒸煮”、“煮蛋器”）的动作将启用专属烹饪控制台与弹窗面板。
+客户端会通过 HA 状态总线自动嗅探模式、倒计时与插座实体。
+
+配套 Home Assistant 端完整场景包见项目本地示例：
+`examples/homeassistant/packages/kitchen_steamer.yaml`
+
+可将其直接放置到 Home Assistant 的 `/config/packages/` 目录下开箱即用。
+
+高级自定义参数（可选，针对个性化命名）：
+- `socketEntity`: 指定通电插座/开关实体（如 `switch.dining_socket`）
+- `timerEntity`: 指定倒计时器实体（如 `timer.steamer_timer`）
+- `modeEntity`: 指定模式选择器实体（如 `input_select.steamer_mode`，UI 会自动同步 HA 中设定的全部烹饪选项）
+- `stopService`: 指定停机脚本服务（如 `script.steamer_stop`）
 
 ## 6. Weather
 

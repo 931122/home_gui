@@ -33,6 +33,13 @@ homeAssistant:
     name: 智能蒸煮
     service: toggle
     isSteamer: true
+    # 配套 Home Assistant 端完整配置包见: examples/homeassistant/packages/kitchen_steamer.yaml
+    # 可直接放置到 HA 的 packages/ 目录下使用，开箱即用。
+    # 可选高级定制参数（系统支持从 HA 自动智能嗅探；若其他用户的 HA 实体命名不同，亦可显式指定）：
+    # socketEntity: switch.dining_socket      # 通电控制插座/开关实体
+    # timerEntity: timer.steamer_timer        # 倒计时器实体
+    # modeEntity: input_select.steamer_mode   # 模式选择器实体（自动向 UI 同步 HA 中配置的模式列表）
+    # stopService: script.steamer_stop        # 停机脚本服务
   - domain: washer
     entityId: sensor.smart_washer_status
     name: 滚筒洗衣机

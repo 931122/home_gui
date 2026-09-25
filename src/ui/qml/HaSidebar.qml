@@ -143,9 +143,10 @@ Rectangle {
     function isCookerAction(model, name) {
         if (model) {
             if (model.isCooker === true || model.domain === "cooker" || model.domain === "chunmi_pre_cooker") return true
-            if (model.name && (model.name.indexOf("饭煲") !== -1 || model.name.indexOf("压力锅") !== -1)) return true
+            if (model.name && (model.name.indexOf("饭煲") !== -1 || model.name.indexOf("饭锅") !== -1 || model.name.indexOf("电饭") !== -1 || model.name.indexOf("压力锅") !== -1)) return true
+            if (model.entityId && (model.entityId.indexOf("cooker") !== -1 || model.entityId.indexOf("ya_li_guo") !== -1)) return true
         }
-        if (name && (name.indexOf("饭煲") !== -1 || name.indexOf("压力锅") !== -1)) return true
+        if (name && (name.indexOf("饭煲") !== -1 || name.indexOf("饭锅") !== -1 || name.indexOf("电饭") !== -1 || name.indexOf("压力锅") !== -1)) return true
         return false
     }
     function isWasherAction(model, name) {
@@ -158,13 +159,14 @@ Rectangle {
         return false
     }
     function isSteamerAction(model, name) {
+        if (isCookerAction(model, name) || isWasherAction(model, name)) return false
+        var targetName = (model && model.name) ? model.name : (name || "")
+        if (targetName.indexOf("烤箱") !== -1 || targetName.indexOf("微波") !== -1) return false
         if (model) {
             if (model.isSteamer === true || model.domain === "steamer") return true
-            if (model.name && (model.name.indexOf("蒸") !== -1 || model.name.indexOf("煮") !== -1 || model.name.indexOf("蛋") !== -1)) return true
-            if (model.entityId && (model.entityId.indexOf("timed_cook") !== -1 || model.entityId.indexOf("boil_eggs") !== -1 || model.entityId.indexOf("steam_") !== -1)) return true
+            if (model.entityId && (model.entityId === "script.timed_cook_runner" || model.entityId === "timer.steamer_timer" || model.entityId.indexOf("timed_cook") !== -1 || model.entityId.indexOf("steamer") !== -1)) return true
         }
-        if (name && (name.indexOf("蒸") !== -1 || name.indexOf("煮") !== -1 || name.indexOf("蛋") !== -1)) return true
-        return false
+        return targetName === "智能蒸煮" || targetName === "定时蒸煮" || targetName === "蒸煮" || targetName === "蒸蛋器"
     }
     function hasDetailAction(model) { return isLightAction(model) || isCoverAction(model) || isMediaPlayerAction(model) || (model && model.domain === "lock") }
 
@@ -298,7 +300,7 @@ Rectangle {
             readonly property bool isActive: {
                 if (hasLocalOverride) return localActiveOverride
                 if (typeof sidebarRoot !== "undefined" && sidebarRoot && sidebarRoot.isSteamerAction && sidebarRoot.isSteamerAction(actionModel, actionName)) {
-                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : false
+                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : (actionModel ? !!actionModel.active : false)
                 }
                 return actionModel ? !!(actionModel.active) : false
             }
@@ -710,6 +712,10 @@ Rectangle {
                                 if (typeof appController !== "undefined" && appController && appController.steamerRunning) {
                                     return qsTr("%1 · 剩%2").arg(appController.steamerDishName).arg(SteamerData.formatRemainTime(appController.steamerRemainSeconds))
                                 }
+                                var m = actionDelegate.actionModel
+                                if (m && m.stateText && m.stateText !== "" && m.stateText !== qsTr("Unknown")) {
+                                    return m.stateText
+                                }
                                 return (typeof appController !== "undefined" && appController && appController.steamerSocketState) ? qsTr("待机 · 插座通电") : qsTr("待机")
                             }
                             return actionDelegate.actionModel ? actionDelegate.actionModel.stateText : ""
@@ -849,7 +855,7 @@ Rectangle {
             readonly property string actionName: isDevice ? (actionModel ? (actionModel.name || actionModel.entityId || "") : (itemData ? ("" + itemData) : "")) : (modelData ? modelData.name : "")
             readonly property bool isActive: {
                 if (typeof sidebarRoot !== "undefined" && sidebarRoot && sidebarRoot.isSteamerAction && sidebarRoot.isSteamerAction(actionModel, actionName)) {
-                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : false
+                    return (typeof appController !== "undefined" && appController) ? appController.steamerRunning : (actionModel ? !!actionModel.active : false)
                 }
                 return isDevice ? (actionModel ? !!(actionModel.active) : false) : false
             }

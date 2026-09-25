@@ -39,6 +39,11 @@ struct HomeAssistantActionConfig
     QString entityId;
     QJsonObject data;
     bool slideToTurnOff = false;
+    bool isSteamer = false;
+    QString socketEntity;
+    QString timerEntity;
+    QString modeEntity;
+    QString stopService;
 };
 
 // Home Assistant 相关配置，使用 REST API 调用服务控制实体。

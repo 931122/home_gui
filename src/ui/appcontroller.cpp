@@ -138,53 +138,68 @@ AppController::AppController(ConfigManager *configManager,
     connect(m_globalState, &GlobalState::haActionStatesChanged, this, [this]() {
         emit haActionNamesChanged();
         const QVariantList states = m_globalState->haActionStates();
-        bool runnerActive = false;
-        bool socketActive = false;
-        QString activeEntity;
         for (const QVariant &itemVar : states) {
             const QVariantMap item = itemVar.toMap();
             const QString entityId = item.value(QStringLiteral("entityId")).toString();
-            const bool active = item.value(QStringLiteral("active")).toBool();
-            if (entityId == steamerSocketEntityId() || entityId.contains(QStringLiteral("steamer")) || entityId.contains(QStringLiteral("zncz01"))) {
-                socketActive = active;
-            }
-            if (entityId == QStringLiteral("script.timed_cook_runner")
-                || entityId == QStringLiteral("script.boil_eggs")
-                || entityId == QStringLiteral("script.steam_taro")
-                || entityId == QStringLiteral("script.steam_sweet_potatoes")) {
-                if (active) {
-                    runnerActive = true;
-                    activeEntity = entityId;
+            const bool isSteamer = item.value(QStringLiteral("isSteamer")).toBool()
+                                || entityId == QStringLiteral("script.timed_cook_runner")
+                                || entityId.contains(QStringLiteral("steamer"));
+            if (isSteamer) {
+                m_steamerSocketEntityId = item.value(QStringLiteral("steamerSocketEntityId")).toString();
+                m_steamerTimerEntityId = item.value(QStringLiteral("steamerTimerEntityId")).toString();
+                m_steamerModeEntityId = item.value(QStringLiteral("steamerModeEntityId")).toString();
+                m_steamerStopScript = item.value(QStringLiteral("steamerStopScript")).toString();
+                m_steamerStartScript = item.value(QStringLiteral("steamerStartScript")).toString();
+                const QVariantList presets = item.value(QStringLiteral("steamerPresetModels")).toList();
+                if (!presets.isEmpty() && m_steamerPresetModels != presets) {
+                    m_steamerPresetModels = presets;
                 }
+
+                const bool socketActive = item.value(QStringLiteral("steamerSocketActive")).toBool();
+                if (m_steamerSocketState != socketActive) {
+                    m_steamerSocketState = socketActive;
+                    emit steamerSocketStateChanged();
+                }
+
+                const bool running = item.value(QStringLiteral("steamerRunning")).toBool();
+                const int remain = item.value(QStringLiteral("steamerRemainSeconds")).toInt();
+                const int total = item.value(QStringLiteral("steamerTotalMinutes")).toInt();
+                const QString dish = item.value(QStringLiteral("steamerDishName")).toString();
+                const QString mode = item.value(QStringLiteral("steamerMode")).toString();
+                const QStringList options = item.value(QStringLiteral("steamerModeOptions")).toStringList();
+                if (!options.isEmpty()) {
+                    m_steamerModeOptions = options;
+                }
+                if (!mode.isEmpty()) {
+                    m_steamerMode = mode;
+                }
+
+                if (running) {
+                    m_steamerRunning = true;
+                    if (remain > 0) {
+                        m_steamerRemainSeconds = remain;
+                    }
+                    if (total > 0) {
+                        m_steamerTotalMinutes = total;
+                    }
+                    if (!dish.isEmpty()) {
+                        m_steamerDishName = dish;
+                    }
+                    if (!m_steamerTimer.isActive()) {
+                        m_steamerTimer.start(1000);
+                    }
+                    emit steamerStateChanged();
+                } else if (m_steamerRunning || (m_steamerMode != QStringLiteral("待机") && mode == QStringLiteral("待机"))) {
+                    m_steamerRunning = false;
+                    m_steamerTimer.stop();
+                    m_steamerRemainSeconds = 0;
+                    if (!mode.isEmpty()) {
+                        m_steamerMode = mode;
+                    }
+                    emit steamerStateChanged();
+                }
+                break;
             }
-        }
-        if (m_steamerSocketState != socketActive) {
-            m_steamerSocketState = socketActive;
-            emit steamerSocketStateChanged();
-        }
-        if (!runnerActive && m_steamerRunning) {
-            m_steamerRunning = false;
-            m_steamerTimer.stop();
-            m_steamerRemainSeconds = 0;
-            emit steamerStateChanged();
-        } else if (runnerActive && !m_steamerRunning) {
-            m_steamerRunning = true;
-            if (activeEntity == QStringLiteral("script.boil_eggs")) {
-                m_steamerDishName = tr("煮鸡蛋");
-                m_steamerTotalMinutes = 15;
-            } else if (activeEntity == QStringLiteral("script.steam_taro")) {
-                m_steamerDishName = tr("蒸芋头");
-                m_steamerTotalMinutes = 25;
-            } else if (activeEntity == QStringLiteral("script.steam_sweet_potatoes")) {
-                m_steamerDishName = tr("蒸地瓜");
-                m_steamerTotalMinutes = 30;
-            } else {
-                m_steamerDishName = tr("定时蒸煮");
-                m_steamerTotalMinutes = 20;
-            }
-            m_steamerRemainSeconds = m_steamerTotalMinutes * 60;
-            m_steamerTimer.start(1000);
-            emit steamerStateChanged();
         }
     });
     connect(m_globalState, &GlobalState::wifiScanningChanged,
@@ -1172,19 +1187,81 @@ bool AppController::setFramebufferBlank(bool blanked)
 
 void AppController::startSteamer(int minutes, const QString &dishName)
 {
-    if (minutes <= 0) minutes = 15;
+    const QString resolvedDish = dishName.isEmpty() ? tr("定时蒸煮") : dishName;
+    int resolvedMinutes = minutes;
+    if (resolvedMinutes <= 0) {
+        // 先在从 HA 获取的动态菜谱中寻找匹配时长
+        for (const QVariant &pv : m_steamerPresetModels) {
+            const QVariantMap pm = pv.toMap();
+            if (pm.value(QStringLiteral("name")).toString() == resolvedDish) {
+                resolvedMinutes = pm.value(QStringLiteral("time")).toInt();
+                break;
+            }
+        }
+        if (resolvedMinutes <= 0) {
+            resolvedMinutes = 15;
+        }
+    }
+
     m_steamerRunning = true;
-    m_steamerTotalMinutes = minutes;
-    m_steamerRemainSeconds = minutes * 60;
-    m_steamerDishName = dishName.isEmpty() ? tr("定时蒸煮") : dishName;
+    m_steamerTotalMinutes = resolvedMinutes;
+    m_steamerRemainSeconds = resolvedMinutes * 60;
+    m_steamerDishName = resolvedDish;
+    m_steamerMode = resolvedDish;
     m_steamerTimer.start(1000);
     emit steamerStateChanged();
 
-    // 发送给 HA 核心执行器脚本
-    QVariantMap data;
-    data.insert(QStringLiteral("minutes"), minutes);
-    data.insert(QStringLiteral("dish_name"), m_steamerDishName);
-    callHaCustomService(QStringLiteral("script"), QStringLiteral("timed_cook_runner"), data);
+    // 1. 若存在启动执行器脚本 (如 script.timed_cook_runner 或配置的自定义脚本)
+    if (!m_steamerStartScript.isEmpty()) {
+        QVariantMap data;
+        if (minutes > 0) {
+            data.insert(QStringLiteral("minutes"), minutes);
+        }
+        data.insert(QStringLiteral("dish_name"), m_steamerDishName);
+        data.insert(QStringLiteral("mode"), m_steamerDishName);
+        const QString socketId = steamerSocketEntityId();
+        if (!socketId.isEmpty()) {
+            data.insert(QStringLiteral("target_socket"), socketId);
+        }
+        const QString domain = m_steamerStartScript.contains(QLatin1Char('.')) ? m_steamerStartScript.section(QLatin1Char('.'), 0, 0) : QStringLiteral("script");
+        const QString service = m_steamerStartScript.contains(QLatin1Char('.')) ? m_steamerStartScript.section(QLatin1Char('.'), 1) : m_steamerStartScript;
+        callHaCustomService(domain, service, data);
+        return;
+    }
+
+    // 2. 若无执行器脚本，自适应驱动标准 HA 实体:
+    // a. 设定模式选择器 (input_select)
+    if (!m_steamerModeEntityId.isEmpty()) {
+        QVariantMap modeData;
+        modeData.insert(QStringLiteral("entity_id"), m_steamerModeEntityId);
+        modeData.insert(QStringLiteral("option"), m_steamerDishName);
+        callHaCustomService(QStringLiteral("input_select"), QStringLiteral("select_option"), modeData);
+    }
+
+    // b. 启动倒计时器 (timer)
+    if (!m_steamerTimerEntityId.isEmpty()) {
+        QVariantMap timerData;
+        timerData.insert(QStringLiteral("entity_id"), m_steamerTimerEntityId);
+        timerData.insert(QStringLiteral("duration"), QString::number(resolvedMinutes * 60));
+        callHaCustomService(QStringLiteral("timer"), QStringLiteral("start"), timerData);
+    }
+
+    // c. 开启电源插座/开关 (switch)
+    const QString socketId = steamerSocketEntityId();
+    if (!socketId.isEmpty()) {
+        QVariantMap socketData;
+        socketData.insert(QStringLiteral("entity_id"), socketId);
+        callHaCustomService(QStringLiteral("switch"), QStringLiteral("turn_on"), socketData);
+    }
+}
+
+void AppController::setSteamerMode(const QString &mode, int minutes)
+{
+    if (mode.isEmpty() || mode == QStringLiteral("待机")) {
+        stopSteamer();
+        return;
+    }
+    startSteamer(minutes, mode);
 }
 
 void AppController::stopSteamer()
@@ -1192,36 +1269,77 @@ void AppController::stopSteamer()
     m_steamerRunning = false;
     m_steamerTimer.stop();
     m_steamerRemainSeconds = 0;
+    m_steamerMode = QStringLiteral("待机");
     emit steamerStateChanged();
 
-    // 中断 HA 脚本并切断餐桌插座电源
-    QVariantMap scriptData;
-    scriptData.insert(QStringLiteral("entity_id"), QStringLiteral("script.timed_cook_runner"));
-    callHaCustomService(QStringLiteral("script"), QStringLiteral("turn_off"), scriptData);
+    // 1. 若存在停机脚本 (如 script.steamer_stop 或配置的停机服务)，直接调用
+    if (!m_steamerStopScript.isEmpty()) {
+        const QString domain = m_steamerStopScript.contains(QLatin1Char('.')) ? m_steamerStopScript.section(QLatin1Char('.'), 0, 0) : QStringLiteral("script");
+        const QString service = m_steamerStopScript.contains(QLatin1Char('.')) ? m_steamerStopScript.section(QLatin1Char('.'), 1) : m_steamerStopScript;
+        callHaCustomService(domain, service, QVariantMap());
+        return;
+    }
 
-    QVariantMap socketData;
-    socketData.insert(QStringLiteral("entity_id"), steamerSocketEntityId());
-    callHaCustomService(QStringLiteral("switch"), QStringLiteral("turn_off"), socketData);
+    // 2. 否则自适应停止通用 HA 组件:
+    // a. 取消倒计时器
+    if (!m_steamerTimerEntityId.isEmpty()) {
+        QVariantMap timerData;
+        timerData.insert(QStringLiteral("entity_id"), m_steamerTimerEntityId);
+        callHaCustomService(QStringLiteral("timer"), QStringLiteral("cancel"), timerData);
+    }
+
+    // b. 关断电源插座
+    const QString socketId = steamerSocketEntityId();
+    if (!socketId.isEmpty()) {
+        QVariantMap socketData;
+        socketData.insert(QStringLiteral("entity_id"), socketId);
+        callHaCustomService(QStringLiteral("switch"), QStringLiteral("turn_off"), socketData);
+    }
+
+    // c. 模式选择器复位为待机
+    if (!m_steamerModeEntityId.isEmpty()) {
+        QVariantMap modeData;
+        modeData.insert(QStringLiteral("entity_id"), m_steamerModeEntityId);
+        modeData.insert(QStringLiteral("option"), QStringLiteral("待机"));
+        callHaCustomService(QStringLiteral("input_select"), QStringLiteral("select_option"), modeData);
+    }
 }
 
 void AppController::toggleSteamerSocket()
 {
-    QVariantMap socketData;
-    socketData.insert(QStringLiteral("entity_id"), steamerSocketEntityId());
-    callHaCustomService(QStringLiteral("switch"), QStringLiteral("toggle"), socketData);
+    const QString socketId = steamerSocketEntityId();
+    if (!socketId.isEmpty()) {
+        QVariantMap socketData;
+        socketData.insert(QStringLiteral("entity_id"), socketId);
+        callHaCustomService(QStringLiteral("switch"), QStringLiteral("toggle"), socketData);
+    }
 }
 
 QString AppController::steamerSocketEntityId() const
 {
+    if (!m_steamerSocketEntityId.isEmpty()) {
+        return m_steamerSocketEntityId;
+    }
+
     if (m_configManager) {
+        // 优先精准匹配餐桌/蒸煮插座，避免误匹配主卧等其他插座
+        for (const auto &action : m_configManager->config().homeAssistant.actions) {
+            if (!action.socketEntity.isEmpty()) {
+                return action.socketEntity;
+            }
+            if (action.domain == QStringLiteral("switch") &&
+                (action.name.contains(QStringLiteral("餐桌")) || action.name.contains(QStringLiteral("蒸")) || action.entityId.contains(QStringLiteral("dining")) || action.entityId.contains(QStringLiteral("steamer")))) {
+                return action.entityId;
+            }
+        }
         for (const auto &action : m_configManager->config().homeAssistant.actions) {
             if (action.domain == QStringLiteral("switch") &&
-                (action.name.contains(QStringLiteral("插座")) || action.entityId.contains(QStringLiteral("steamer")) || action.entityId.contains(QStringLiteral("socket")))) {
+                (action.name.contains(QStringLiteral("插座")) || action.entityId.contains(QStringLiteral("socket")))) {
                 return action.entityId;
             }
         }
     }
-    return QStringLiteral("switch.dining_socket");
+    return QString();
 }
 
 QString AppController::washerEntityId(const QString &domain, const QString &propertySuffix) const

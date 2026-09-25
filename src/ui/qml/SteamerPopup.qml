@@ -21,15 +21,21 @@ Popup {
 
     function openWithAction(actionData) {
         root.actionModel = actionData
+        var presets = (typeof appController !== "undefined" && appController && appController.steamerPresetModels && appController.steamerPresetModels.length > 0)
+                      ? appController.steamerPresetModels
+                      : SteamerData.presetDishes
         if (actionData && actionData.name) {
-            for (var i = 0; i < SteamerData.presetDishes.length; ++i) {
-                var d = SteamerData.presetDishes[i]
+            for (var i = 0; i < presets.length; ++i) {
+                var d = presets[i]
                 if (actionData.name.indexOf(d.name) !== -1 || (d.name.indexOf(actionData.name) !== -1)) {
                     root.selectedMinutes = d.time
                     root.selectedDishName = d.name
                     break
                 }
             }
+        } else if (presets.length > 0 && (!root.selectedDishName || root.selectedDishName === "自定义蒸煮")) {
+            root.selectedMinutes = presets[0].time
+            root.selectedDishName = presets[0].name
         }
         root.open()
     }
@@ -179,11 +185,12 @@ Popup {
                 Item { Layout.fillWidth: true }
 
                 // 餐桌插座快速通电胶囊
-                // 餐桌插座状态药丸（苹果微光玻璃胶囊）
+                // 插座状态药丸（苹果微光玻璃胶囊）
                 Rectangle {
                     Layout.preferredHeight: root.dp(32)
                     implicitWidth: socketRow.implicitWidth + root.dp(22)
                     radius: root.dp(16)
+                    visible: (typeof appController !== "undefined" && appController && appController.steamerSocketEntityId !== "")
                     readonly property bool isOn: appController.steamerSocketState
                     gradient: Gradient {
                         GradientStop {
@@ -219,7 +226,7 @@ Popup {
                         }
 
                         Text {
-                            text: appController.steamerSocketState ? qsTr("餐桌插座: 通电中") : qsTr("餐桌插座: 已断电")
+                            text: appController.steamerSocketState ? qsTr("插座电源: 通电中") : qsTr("插座电源: 已断电")
                             color: appController.steamerSocketState ? "#ffffff" : "#94a3b8"
                             font.pixelSize: root.fs(11)
                             font.bold: true
@@ -284,7 +291,7 @@ Popup {
                                 }
                             }
                             Text {
-                                text: qsTr("正在定时烹饪中")
+                                text: appController.steamerMode && appController.steamerMode !== "待机" ? qsTr("模式: %1 (烹饪中)").arg(appController.steamerMode) : qsTr("正在定时烹饪中")
                                 color: "#86efac"
                                 font.pixelSize: root.fs(12)
                                 font.bold: true
@@ -500,7 +507,9 @@ Popup {
                 spacing: root.dp(8)
 
                 Text {
-                    text: qsTr("推荐食材快捷蒸煮 (一键设定)")
+                    text: (typeof appController !== "undefined" && appController && appController.steamerPresetModels && appController.steamerPresetModels.length > 0)
+                          ? qsTr("HA烹饪模式 (从Home Assistant同步)")
+                          : qsTr("推荐食材快捷蒸煮 (一键设定)")
                     color: "#ffffff"
                     font.pixelSize: root.fs(14)
                     font.bold: true
@@ -513,7 +522,9 @@ Popup {
                     clip: true
                     cellWidth: width / 2
                     cellHeight: root.dp(70)
-                    model: SteamerData.presetDishes
+                    model: (typeof appController !== "undefined" && appController && appController.steamerPresetModels && appController.steamerPresetModels.length > 0)
+                           ? appController.steamerPresetModels
+                           : SteamerData.presetDishes
 
                     delegate: Item {
                         width: dishesGrid.cellWidth
@@ -527,7 +538,7 @@ Popup {
                             radius: root.dp(10)
 
                             readonly property bool isCurrentSelected: root.selectedDishName === modelData.name
-                            readonly property bool isCookingThis: appController.steamerRunning && appController.steamerDishName === modelData.name
+                            readonly property bool isCookingThis: appController.steamerRunning && (appController.steamerMode === modelData.name || appController.steamerDishName === modelData.name)
 
                             color: isCookingThis ? Qt.rgba(0.18, 0.45, 0.30, 0.65)
                                                 : (isCurrentSelected ? Qt.rgba(0.20, 0.45, 0.70, 0.35) : Qt.rgba(0.12, 0.17, 0.24, 0.80))

@@ -549,6 +549,33 @@ bool ConfigManager::parseConfig(const QByteArray &payload, AppConfig &nextConfig
                     )
                 )
             );
+            actionConfig.isSteamer = getYamlBool(actionValue, "isSteamer",
+                getYamlBool(actionValue, "is_steamer", false)
+            );
+            actionConfig.socketEntity = getYamlString(actionValue, "socketEntity",
+                getYamlString(actionValue, "socket_entity")
+            ).trimmed();
+            if (actionConfig.socketEntity.isEmpty() && actionConfig.data.contains(QStringLiteral("socket_entity"))) {
+                actionConfig.socketEntity = actionConfig.data.value(QStringLiteral("socket_entity")).toString().trimmed();
+            }
+            actionConfig.timerEntity = getYamlString(actionValue, "timerEntity",
+                getYamlString(actionValue, "timer_entity")
+            ).trimmed();
+            if (actionConfig.timerEntity.isEmpty() && actionConfig.data.contains(QStringLiteral("timer_entity"))) {
+                actionConfig.timerEntity = actionConfig.data.value(QStringLiteral("timer_entity")).toString().trimmed();
+            }
+            actionConfig.modeEntity = getYamlString(actionValue, "modeEntity",
+                getYamlString(actionValue, "mode_entity")
+            ).trimmed();
+            if (actionConfig.modeEntity.isEmpty() && actionConfig.data.contains(QStringLiteral("mode_entity"))) {
+                actionConfig.modeEntity = actionConfig.data.value(QStringLiteral("mode_entity")).toString().trimmed();
+            }
+            actionConfig.stopService = getYamlString(actionValue, "stopService",
+                getYamlString(actionValue, "stop_service")
+            ).trimmed();
+            if (actionConfig.stopService.isEmpty() && actionConfig.data.contains(QStringLiteral("stop_service"))) {
+                actionConfig.stopService = actionConfig.data.value(QStringLiteral("stop_service")).toString().trimmed();
+            }
             if (!actionConfig.name.isEmpty() && !actionConfig.domain.isEmpty() && !actionConfig.service.isEmpty()) {
                 nextConfig.homeAssistant.actions.append(actionConfig);
             }
