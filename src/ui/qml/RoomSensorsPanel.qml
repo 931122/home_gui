@@ -104,6 +104,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         
                         SequentialAnimation on opacity {
+                            running: root.visible && (typeof appController === "undefined" || !appController.isScreenOff)
                             loops: Animation.Infinite
                             PropertyAnimation { to: 0.35; duration: 1100; easing.type: Easing.InOutQuad }
                             PropertyAnimation { to: 1.0; duration: 1100; easing.type: Easing.InOutQuad }

@@ -9,7 +9,7 @@ Item {
         decoder: appController.videoDecoder
         sharedFrameKey: appController.videoSource.toString()
         publishFrames: true
-        autoPlay: true
+        autoPlay: appController.videoEnabled && !appController.isScreenOff
         networkOnline: appController.networkOnline
 
         onActiveDecoderChanged: {

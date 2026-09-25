@@ -45,6 +45,9 @@ private:
     void disconnectWebSocket();
     void handleWebSocketMessage(const QString &message);
     QVariantList buildActionStates() const;
+    void scheduleActionStatesUpdate();
+    bool isEntityRelevant(const QString &entityId) const;
+    void updateRelevantEntitiesCache();
     void startFetchingActionStates();
     void fetchNextActionState(int index, QVariantList result, int generation, bool hasError = false);
     void trackReply(QNetworkReply *reply, int timeoutMs = 3000);
@@ -54,8 +57,13 @@ private:
     QNetworkAccessManager *m_networkAccessManager = nullptr;
     QWebSocket *m_webSocket = nullptr;
     QTimer *m_reconnectTimer = nullptr;
+    QTimer *m_actionStatesDebounceTimer = nullptr;
     int m_reconnectDelayMs = 5000;
     QHash<QString, QVariantMap> m_entityStates;
+    QSet<QString> m_relevantEntityIds;
+    bool m_hasCooker = false;
+    bool m_hasWasher = false;
+    bool m_hasSteamer = false;
     QSet<QNetworkReply *> m_activeReplies;
     int m_requestGeneration = 0;
     qint64 m_nextCommandId = 1;

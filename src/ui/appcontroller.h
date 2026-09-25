@@ -29,7 +29,7 @@ class AppController : public QObject
     Q_PROPERTY(QUrl videoSource READ videoSource NOTIFY videoSourceChanged)
     Q_PROPERTY(bool videoEnabled READ videoEnabled NOTIFY videoSourceChanged)
     Q_PROPERTY(QVariantList cameraPreviewModels READ cameraPreviewModels NOTIFY cameraListChanged)
-    Q_PROPERTY(QVariantList haActionModels READ haActionModels NOTIFY haActionNamesChanged)
+    Q_PROPERTY(QVariantList haActionModels READ haActionModels NOTIFY haActionModelsChanged)
     Q_PROPERTY(QStringList haActionNames READ haActionNames NOTIFY haActionNamesChanged)
     Q_PROPERTY(int currentCameraIndex READ currentCameraIndex NOTIFY currentCameraIndexChanged)
     Q_PROPERTY(QString videoBackend READ videoBackend NOTIFY videoSourceChanged)
@@ -192,6 +192,7 @@ signals:
     void videoSourceChanged();
     void cameraListChanged();
     void haActionNamesChanged();
+    void haActionModelsChanged();
     void currentCameraIndexChanged();
     void currentTimeChanged();
     void weatherSummaryChanged();

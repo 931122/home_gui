@@ -814,7 +814,7 @@ Rectangle {
 
                     SequentialAnimation on opacity {
                         loops: Animation.Infinite
-                        running: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !liquidSlideCapsule.visible && !actionDelegate.showSlideHint
+                        running: actionDelegate.isSlideToTurnOff && actionDelegate.isActive && !liquidSlideCapsule.visible && !actionDelegate.showSlideHint && sidebarRoot.visible && (typeof appController === "undefined" || !appController.isScreenOff)
                         NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutQuad }
                         NumberAnimation { to: 0.95; duration: 900; easing.type: Easing.InOutQuad }
                     }

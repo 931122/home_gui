@@ -285,6 +285,7 @@ Popup {
                                 radius: 4
                                 color: "#4ade80"
                                 SequentialAnimation on opacity {
+                                    running: root.opened && appController.steamerRunning
                                     loops: Animation.Infinite
                                     NumberAnimation { to: 0.3; duration: 600 }
                                     NumberAnimation { to: 1.0; duration: 600 }

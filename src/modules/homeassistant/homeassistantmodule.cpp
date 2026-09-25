@@ -209,6 +209,14 @@ bool HomeAssistantWorker::findAction(const QString &actionName,
 void HomeAssistantWorker::initialize(const HomeAssistantConfig &config)
 {
     m_config = config;
+    updateRelevantEntitiesCache();
+    if (m_actionStatesDebounceTimer == nullptr) {
+        m_actionStatesDebounceTimer = new QTimer(this);
+        m_actionStatesDebounceTimer->setSingleShot(true);
+        connect(m_actionStatesDebounceTimer, &QTimer::timeout, this, [this]() {
+            emit actionStatesChanged(buildActionStates());
+        });
+    }
     emit actionStatesChanged(buildActionStates());
     if (m_networkAccessManager == nullptr) {
         m_networkAccessManager = new QNetworkAccessManager(this);
@@ -222,6 +230,9 @@ void HomeAssistantWorker::initialize(const HomeAssistantConfig &config)
     }
 
     m_reconnectTimer->stop();
+    if (m_actionStatesDebounceTimer) {
+        m_actionStatesDebounceTimer->stop();
+    }
     // 每次初始化都递增 generation，使之前的异步回调失效。
     m_requestGeneration++;
     abortCurrentReply();
@@ -269,6 +280,9 @@ void HomeAssistantWorker::shutdown()
 {
     if (m_reconnectTimer) {
         m_reconnectTimer->stop();
+    }
+    if (m_actionStatesDebounceTimer) {
+        m_actionStatesDebounceTimer->stop();
     }
     m_reconnectDelayMs = 5000;
     m_requestGeneration++;
@@ -743,6 +757,9 @@ void HomeAssistantWorker::connectWebSocket()
 
 void HomeAssistantWorker::disconnectWebSocket()
 {
+    if (m_actionStatesDebounceTimer) {
+        m_actionStatesDebounceTimer->stop();
+    }
     if (m_webSocket == nullptr) {
         return;
     }
@@ -869,8 +886,94 @@ void HomeAssistantWorker::handleWebSocketMessage(const QString &message)
             item.insert(QStringLiteral("volume"), volumeLevel);
         }
         m_entityStates.insert(entityId, item);
+        if (isEntityRelevant(entityId)) {
+            scheduleActionStatesUpdate();
+        }
+    }
+}
+
+void HomeAssistantWorker::scheduleActionStatesUpdate()
+{
+    if (m_actionStatesDebounceTimer != nullptr) {
+        m_actionStatesDebounceTimer->start(60);
+    } else {
         emit actionStatesChanged(buildActionStates());
     }
+}
+
+void HomeAssistantWorker::updateRelevantEntitiesCache()
+{
+    m_relevantEntityIds.clear();
+    m_hasCooker = false;
+    m_hasWasher = false;
+    m_hasSteamer = false;
+
+    for (const HomeAssistantActionConfig &action : m_config.actions) {
+        if (!action.entityId.trimmed().isEmpty()) {
+            m_relevantEntityIds.insert(action.entityId.trimmed());
+        }
+        if (!action.socketEntity.trimmed().isEmpty()) {
+            m_relevantEntityIds.insert(action.socketEntity.trimmed());
+        }
+        if (!action.timerEntity.trimmed().isEmpty()) {
+            m_relevantEntityIds.insert(action.timerEntity.trimmed());
+        }
+        if (!action.modeEntity.trimmed().isEmpty()) {
+            m_relevantEntityIds.insert(action.modeEntity.trimmed());
+        }
+        if (!action.stopService.trimmed().isEmpty()) {
+            m_relevantEntityIds.insert(action.stopService.trimmed());
+        }
+
+        const bool isCooker = action.domain.compare(QStringLiteral("cooker"), Qt::CaseInsensitive) == 0
+                           || action.domain.compare(QStringLiteral("chunmi_pre_cooker"), Qt::CaseInsensitive) == 0
+                           || action.entityId.contains(QStringLiteral("eh1"))
+                           || action.entityId.contains(QStringLiteral("ya_li_guo"))
+                           || action.name.contains(QStringLiteral("饭煲"))
+                           || action.name.contains(QStringLiteral("压力锅"));
+        if (isCooker) m_hasCooker = true;
+
+        const bool isWasher = action.domain.compare(QStringLiteral("washer"), Qt::CaseInsensitive) == 0
+                           || action.domain.compare(QStringLiteral("washing_machine"), Qt::CaseInsensitive) == 0
+                           || action.entityId.contains(QStringLiteral("washer"))
+                           || action.entityId.contains(QStringLiteral("xi_yi"))
+                           || action.name.contains(QStringLiteral("洗衣机"));
+        if (isWasher) m_hasWasher = true;
+
+        const bool isSteamer = action.isSteamer
+                            || action.domain.compare(QStringLiteral("steamer"), Qt::CaseInsensitive) == 0
+                            || action.entityId == QStringLiteral("script.timed_cook_runner")
+                            || action.entityId.contains(QStringLiteral("steamer"));
+        if (isSteamer) m_hasSteamer = true;
+    }
+}
+
+bool HomeAssistantWorker::isEntityRelevant(const QString &entityId) const
+{
+    if (m_relevantEntityIds.contains(entityId)) {
+        return true;
+    }
+    const QString lower = entityId.toLower();
+    if (m_hasCooker && (lower.contains(QStringLiteral("cooker"))
+                     || lower.contains(QStringLiteral("chunmi"))
+                     || lower.contains(QStringLiteral("eh1"))
+                     || lower.contains(QStringLiteral("ya_li_guo"))
+                     || lower.contains(QStringLiteral("dian_fan_bao"))
+                     || lower.contains(QStringLiteral("gong_zuo_zhuang_tai"))
+                     || lower.contains(QStringLiteral("peng_ren_jie_duan"))
+                     || lower.contains(QStringLiteral("kou_gan_pian_hao"))
+                     || lower.contains(QStringLiteral("bao_ya_shi_jian")))) {
+        return true;
+    }
+    if (m_hasWasher && (lower.contains(QStringLiteral("washer"))
+                     || lower.contains(QStringLiteral("xi_yi")))) {
+        return true;
+    }
+    if (m_hasSteamer && (lower.contains(QStringLiteral("steamer"))
+                      || lower.contains(QStringLiteral("timed_cook")))) {
+        return true;
+    }
+    return false;
 }
 
 QVariantList HomeAssistantWorker::buildActionStates() const

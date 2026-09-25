@@ -1,5 +1,6 @@
 #include "glassruntime.h"
 
+#include <QGuiApplication>
 #include <QQuickItemGrabResult>
 #include <QImage>
 
@@ -40,15 +41,15 @@ qreal imageLuminance(const QImage &image)
 GlassRuntime::GlassRuntime(QObject *parent)
     : QObject(parent)
 {
-    m_backdropTimer.setInterval(700);
+    m_backdropTimer.setInterval(10000);
     connect(&m_backdropTimer, &QTimer::timeout, this, &GlassRuntime::captureBackdrop);
 
     refreshAccessibilityState();
-    m_accessibilityTimer.setInterval(1000);
+#if defined(Q_OS_ANDROID)
+    m_accessibilityTimer.setInterval(5000);
     connect(&m_accessibilityTimer, &QTimer::timeout, this, &GlassRuntime::refreshAccessibilityState);
     m_accessibilityTimer.start();
 
-#if defined(Q_OS_ANDROID)
     QJniObject activity = QNativeInterface::QAndroidApplication::context();
     if (activity.isValid()) {
         QJniObject::callStaticMethod<void>("org/qtproject/example/home_gui/AndroidGlassRuntime",
@@ -66,9 +67,10 @@ GlassRuntime::GlassRuntime(QObject *parent)
     });
     sensorTimer->start();
 #else
+    const bool isLinuxFb = QGuiApplication::platformName().compare(QStringLiteral("linuxfb"), Qt::CaseInsensitive) == 0;
     setHighContrast(environmentFlag("HOME_GUI_HIGH_CONTRAST"));
-    setReduceMotion(environmentFlag("HOME_GUI_REDUCE_MOTION"));
-    setBatterySaver(environmentFlag("HOME_GUI_BATTERY_SAVER"));
+    setReduceMotion(isLinuxFb || environmentFlag("HOME_GUI_REDUCE_MOTION"));
+    setBatterySaver(isLinuxFb || environmentFlag("HOME_GUI_BATTERY_SAVER"));
 #endif
 }
 
@@ -128,8 +130,7 @@ void GlassRuntime::setBackdropSource(QQuickItem *source)
     }
     emit backdropSourceChanged();
     if (m_backdropSource) {
-        m_backdropTimer.start();
-        captureBackdrop();
+        QTimer::singleShot(500, this, &GlassRuntime::captureBackdrop);
     } else {
         m_backdropTimer.stop();
     }

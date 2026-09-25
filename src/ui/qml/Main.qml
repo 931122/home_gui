@@ -172,6 +172,8 @@ ApplicationWindow {
         Item {
             id: ambientBackdrop
             anchors.fill: parent
+            readonly property bool enableAuroraMotion: (typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled)
+                                                    && (typeof appController === "undefined" || (!appController.isScreenOff && !appController.screenBlanked))
 
             // 1. 基底流体光幕（明澈高级的深空宝石蓝与黛青渐变：彻底消除暗沉死黑）
             Rectangle {
@@ -201,11 +203,13 @@ ApplicationWindow {
 
                 // 微流体轻柔呼吸漂移动画
                 SequentialAnimation on x {
+                    running: ambientBackdrop.enableAuroraMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: -root.dp(15); duration: 7000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -root.dp(45); duration: 7000; easing.type: Easing.InOutSine }
                 }
                 SequentialAnimation on y {
+                    running: ambientBackdrop.enableAuroraMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: -root.dp(45); duration: 8500; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -root.dp(15); duration: 8500; easing.type: Easing.InOutSine }
@@ -228,6 +232,7 @@ ApplicationWindow {
                 }
 
                 SequentialAnimation on y {
+                    running: ambientBackdrop.enableAuroraMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: -root.dp(10); duration: 9000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: -root.dp(40); duration: 9000; easing.type: Easing.InOutSine }
@@ -250,6 +255,7 @@ ApplicationWindow {
                 }
 
                 SequentialAnimation on x {
+                    running: ambientBackdrop.enableAuroraMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: root.width - width * 0.78; duration: 8000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: root.width - width * 0.92; duration: 8000; easing.type: Easing.InOutSine }
@@ -272,6 +278,7 @@ ApplicationWindow {
                 }
 
                 SequentialAnimation on y {
+                    running: ambientBackdrop.enableAuroraMotion
                     loops: Animation.Infinite
                     NumberAnimation { to: root.height - height + root.dp(30); duration: 7500; easing.type: Easing.InOutSine }
                     NumberAnimation { to: root.height - height + root.dp(60); duration: 7500; easing.type: Easing.InOutSine }

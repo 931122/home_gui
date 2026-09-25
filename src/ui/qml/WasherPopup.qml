@@ -391,7 +391,7 @@ Popup {
                                 }
 
                                 RotationAnimation on rotation {
-                                    running: root.isBusy
+                                    running: root.opened && root.isBusy
                                     loops: Animation.Infinite
                                     from: 0
                                     to: 360

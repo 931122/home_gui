@@ -98,6 +98,12 @@ AppController::AppController(ConfigManager *configManager,
     connect(m_screenPowerManager.get(), &ScreenPowerManager::screenOffChanged,
             this, [this](bool isOff) {
                 setFramebufferBlank(isOff);
+                if (isOff) {
+                    m_clockTimer.stop();
+                } else {
+                    updateTimeText();
+                    m_clockTimer.start();
+                }
                 emit screenOffChanged(isOff);
             });
     connect(m_screenPowerManager.get(), &ScreenPowerManager::panelTypeChanged,
@@ -136,7 +142,7 @@ AppController::AppController(ConfigManager *configManager,
         }
     });
     connect(m_globalState, &GlobalState::haActionStatesChanged, this, [this]() {
-        emit haActionNamesChanged();
+        emit haActionModelsChanged();
         const QVariantList states = m_globalState->haActionStates();
         for (const QVariant &itemVar : states) {
             const QVariantMap item = itemVar.toMap();
@@ -962,6 +968,7 @@ void AppController::updateHaActionNames(const AppConfig &config)
 
     m_haActionNames = nextActionNames;
     emit haActionNamesChanged();
+    emit haActionModelsChanged();
 }
 
 void AppController::resolveCameraPreviews(const AppConfig &config)
