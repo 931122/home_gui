@@ -683,17 +683,27 @@ Rectangle {
                                 return qsTr("单击开启")
                             }
                             if (sidebarRoot.isCookerAction(actionDelegate.actionModel, actionDelegate.actionName)) {
-                                var st = (actionDelegate.actionModel && actionDelegate.actionModel.stateText) ? actionDelegate.actionModel.stateText : qsTr("待机")
-                                if (actionDelegate.isActive && actionDelegate.actionModel) {
-                                    var lt = RecipesData.formatCookerTime(actionDelegate.actionModel)
-                                    if (lt !== "" && lt !== "--") {
-                                        var isKw = !!(actionDelegate.actionModel.cookerIsKeepWarm || actionDelegate.actionModel.is_keep_warm || st.indexOf("保温") !== -1)
-                                        if (isKw) {
-                                            st += " · " + lt
-                                        } else {
-                                            st += " · 剩" + lt
-                                        }
+                                var m = actionDelegate.actionModel
+                                var st = (m && m.stateText) ? m.stateText : qsTr("待机")
+                                if (actionDelegate.isActive && m) {
+                                    var mode = (m.cookerRunningMode || m.cookerCurrentMode || "").trim()
+                                    var phase = (m.cookerPhaseZh || "").trim()
+                                    var lt = RecipesData.formatCookerTime(m)
+                                    var isKw = !!(m.cookerIsKeepWarm || m.is_keep_warm || st.indexOf("保温") !== -1)
+
+                                    var parts = []
+                                    if (mode !== "") {
+                                        parts.push(mode)
+                                    } else {
+                                        parts.push(st)
                                     }
+                                    if (phase !== "" && phase !== mode && phase !== st) {
+                                        parts.push(phase)
+                                    }
+                                    if (lt !== "" && lt !== "--") {
+                                        parts.push(isKw ? lt : ("剩" + lt))
+                                    }
+                                    return parts.join(" · ")
                                 }
                                 return st
                             }

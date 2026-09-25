@@ -78,14 +78,17 @@ Popup {
         root.hasUserSelection = false
         root.customPressureTime = -1
         root.updateHaRecipeCache()
-        if (liveModel && liveModel.cookerCurrentMode && String(liveModel.cookerCurrentMode).trim() !== "") {
-            root.selectedMode = String(liveModel.cookerCurrentMode).trim()
-        } else {
-            root.selectedMode = "大米饭"
-        }
+        var effectiveMode = (liveModel && liveModel.cookerRunningMode && String(liveModel.cookerRunningMode).trim() !== "")
+                            ? String(liveModel.cookerRunningMode).trim()
+                            : ((liveModel && liveModel.cookerCurrentMode && String(liveModel.cookerCurrentMode).trim() !== "")
+                               ? String(liveModel.cookerCurrentMode).trim()
+                               : "大米饭")
+        root.selectedMode = effectiveMode
         var initRec = RecipesData.getRecipe(root.selectedMode)
         if (initRec) {
             root.activeRecipe = initRec
+        } else {
+            root.activeRecipe = { mode: root.selectedMode, name: root.selectedMode, desc: "自定义烹饪模式" }
         }
         root.open()
     }
@@ -238,10 +241,29 @@ Popup {
 
     onLiveModelChanged: {
         root.updateHaRecipeCache()
-        // 关键防护：只要用户在当前弹窗中点击过菜谱，绝不允许后台轮询冲刷覆盖用户的选择！
-        if (!root.hasUserSelection && !root.isStrictCooking) {
+        if (root.isStrictCooking) {
+            var runMode = root.runningModeText || (liveModel && liveModel.cookerCurrentMode ? String(liveModel.cookerCurrentMode).trim() : "")
+            if (runMode !== "" && root.selectedMode !== runMode) {
+                root.selectedMode = runMode
+                var rec = RecipesData.getRecipe(runMode)
+                if (rec) {
+                    root.activeRecipe = rec
+                } else {
+                    root.activeRecipe = { mode: runMode, name: runMode, desc: "自定义烹饪模式" }
+                }
+            }
+        } else if (!root.hasUserSelection) {
             if (liveModel && liveModel.cookerCurrentMode && String(liveModel.cookerCurrentMode).trim() !== "") {
-                root.selectedMode = String(liveModel.cookerCurrentMode).trim()
+                var curMode = String(liveModel.cookerCurrentMode).trim()
+                if (root.selectedMode !== curMode) {
+                    root.selectedMode = curMode
+                    var curRec = RecipesData.getRecipe(curMode)
+                    if (curRec) {
+                        root.activeRecipe = curRec
+                    } else {
+                        root.activeRecipe = { mode: curMode, name: curMode, desc: "自定义烹饪模式" }
+                    }
+                }
             }
         }
     }
@@ -613,8 +635,15 @@ Popup {
                     Text {
                         text: {
                             if (root.currentView === "more") return qsTr("分类点选 · 详尽做法")
-                            if (root.isCooking) return qsTr("正在烹饪: %1").arg(root.runningModeText)
-                            if (root.isKeepWarm) return qsTr("保温中: %1").arg(root.runningModeText)
+                            var modeName = root.runningModeText !== "" ? root.runningModeText : root.selectedMode
+                            var phaseZh = (liveModel && liveModel.cookerPhaseZh) ? String(liveModel.cookerPhaseZh).trim() : ""
+                            if (root.isCooking) {
+                                if (phaseZh !== "" && phaseZh !== modeName) {
+                                    return qsTr("正在烹饪: %1 · %2").arg(modeName).arg(phaseZh)
+                                }
+                                return qsTr("正在烹饪: %1").arg(modeName)
+                            }
+                            if (root.isKeepWarm) return qsTr("保温中: %1").arg(modeName)
                             return qsTr("当前模式: %1").arg(root.selectedMode)
                         }
                         color: root.isKeepWarm ? "#ffd28a" : (root.isCooking ? "#96f0b4" : "#8aa2b5")
@@ -648,7 +677,13 @@ Popup {
                         }
 
                         Text {
-                            text: root.statusText
+                            text: {
+                                var phaseZh = (liveModel && liveModel.cookerPhaseZh) ? String(liveModel.cookerPhaseZh).trim() : ""
+                                if (root.isCooking && phaseZh !== "" && phaseZh !== root.statusText) {
+                                    return phaseZh
+                                }
+                                return root.statusText
+                            }
                             color: root.isKeepWarm ? "#ffc266" : (root.isCooking ? "#52e379" : "#ffffff")
                             font.pixelSize: root.fs(11)
                             font.bold: true

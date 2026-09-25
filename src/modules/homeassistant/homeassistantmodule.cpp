@@ -929,6 +929,8 @@ void HomeAssistantWorker::updateRelevantEntitiesCache()
                            || action.domain.compare(QStringLiteral("chunmi_pre_cooker"), Qt::CaseInsensitive) == 0
                            || action.entityId.contains(QStringLiteral("eh1"))
                            || action.entityId.contains(QStringLiteral("ya_li_guo"))
+                           || action.entityId.contains(QStringLiteral("chunmi"))
+                           || action.entityId.contains(QStringLiteral("chun_mi"))
                            || action.name.contains(QStringLiteral("饭煲"))
                            || action.name.contains(QStringLiteral("压力锅"));
         if (isCooker) m_hasCooker = true;
@@ -956,13 +958,20 @@ bool HomeAssistantWorker::isEntityRelevant(const QString &entityId) const
     const QString lower = entityId.toLower();
     if (m_hasCooker && (lower.contains(QStringLiteral("cooker"))
                      || lower.contains(QStringLiteral("chunmi"))
+                     || lower.contains(QStringLiteral("chun_mi"))
                      || lower.contains(QStringLiteral("eh1"))
                      || lower.contains(QStringLiteral("ya_li_guo"))
                      || lower.contains(QStringLiteral("dian_fan_bao"))
                      || lower.contains(QStringLiteral("gong_zuo_zhuang_tai"))
                      || lower.contains(QStringLiteral("peng_ren_jie_duan"))
                      || lower.contains(QStringLiteral("kou_gan_pian_hao"))
-                     || lower.contains(QStringLiteral("bao_ya_shi_jian")))) {
+                     || lower.contains(QStringLiteral("bao_ya_shi_jian"))
+                     || lower.contains(QStringLiteral("peng_ren_mo_shi"))
+                     || lower.contains(QStringLiteral("sheng_yu_shi_jian"))
+                     || lower.contains(QStringLiteral("guo_nei_wen_du"))
+                     || lower.contains(QStringLiteral("dang_qian_ya_li"))
+                     || lower.contains(QStringLiteral("guo_gai_he_gai"))
+                     || lower.contains(QStringLiteral("shou_bing_suo_zhi")))) {
         return true;
     }
     if (m_hasWasher && (lower.contains(QStringLiteral("washer"))
@@ -1048,6 +1057,16 @@ QVariantList HomeAssistantWorker::buildActionStates() const
             QString tempExact;
             QString tempFallback;
 
+            auto isRelatedToCooker = [](const QString &e) {
+                const QString lower = e.toLower();
+                return lower.contains(QStringLiteral("cooker"))
+                    || lower.contains(QStringLiteral("ya_li_guo"))
+                    || lower.contains(QStringLiteral("chun_mi"))
+                    || lower.contains(QStringLiteral("chunmi"))
+                    || lower.contains(QStringLiteral("eh1"))
+                    || lower.contains(QStringLiteral("dian_fan_bao"));
+            };
+
             for (auto it = m_entityStates.constBegin(); it != m_entityStates.constEnd(); ++it) {
                 const QString &eid = it.key();
                 const QVariantMap &stateMap = it.value();
@@ -1055,7 +1074,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                 const QVariantMap attrs = stateMap.value(QStringLiteral("attributes")).toMap();
 
                 // 1. 工作状态实体 (优先专用中文实体 gong_zuo_zhuang_tai，其次回退至通用 status 实体)
-                if (eid.contains(QStringLiteral("gong_zuo_zhuang_tai"))) {
+                if (eid.contains(QStringLiteral("gong_zuo_zhuang_tai")) && (isRelatedToCooker(eid) || eid == action.entityId)) {
                     if (attrs.contains(QStringLiteral("status_zh"))) {
                         statusExact = attrs.value(QStringLiteral("status_zh")).toString().trimmed();
                     } else if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable")) {
@@ -1082,7 +1101,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     if (attrs.contains(QStringLiteral("phase_code"))) {
                         item.insert(QStringLiteral("cookerPhaseCode"), attrs.value(QStringLiteral("phase_code")));
                     }
-                } else if (eid.contains(QStringLiteral("peng_ren_jie_duan"))) {
+                } else if (eid.contains(QStringLiteral("peng_ren_jie_duan")) && (isRelatedToCooker(eid) || eid == action.entityId)) {
                     QString phaseText = attrs.contains(QStringLiteral("phase_zh"))
                                       ? attrs.value(QStringLiteral("phase_zh")).toString().trimmed()
                                       : QString();
@@ -1093,7 +1112,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                         item.insert(QStringLiteral("cookerPhaseZh"), phaseText);
                     }
                     item.insert(QStringLiteral("cookerPhaseSlug"), stateVal);
-                } else if ((eid.contains(QStringLiteral("ya_li_guo")) || eid.contains(QStringLiteral("cooker")) || eid.contains(QStringLiteral("chun_mi")) || eid.contains(QStringLiteral("eh1")))
+                } else if (isRelatedToCooker(eid)
                            && (eid.contains(QStringLiteral("status")) || eid.contains(QStringLiteral("work_state")) || eid.endsWith(QStringLiteral("_state")))) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable")) {
                         statusFallback = stateVal;
@@ -1101,7 +1120,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                 }
 
                 // 2. 口感偏好
-                if (eid.contains(QStringLiteral("kou_gan_pian_hao")) || eid.contains(QStringLiteral("taste"))) {
+                if (eid.contains(QStringLiteral("kou_gan_pian_hao")) || (isRelatedToCooker(eid) && eid.contains(QStringLiteral("taste")))) {
                     QString tasteVal = attrs.contains(QStringLiteral("taste_name"))
                                        ? attrs.value(QStringLiteral("taste_name")).toString().trimmed()
                                        : QString();
@@ -1118,7 +1137,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     item.insert(QStringLiteral("cookerTasteOptions"), zhTasteOptions);
                 }
                 // 3. 保压时间
-                else if (eid.contains(QStringLiteral("bao_ya_shi_jian")) || eid.contains(QStringLiteral("pressure_time"))) {
+                else if (eid.contains(QStringLiteral("bao_ya_shi_jian")) || (isRelatedToCooker(eid) && eid.contains(QStringLiteral("pressure_time")))) {
                     bool ok = false;
                     const double pt = stateVal.toDouble(&ok);
                     if (ok) {
@@ -1148,15 +1167,14 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     }
                 }
                 // 4. 当前压力 (kPa)
-                else if (eid.contains(QStringLiteral("dang_qian_ya_li")) || eid.contains(QStringLiteral("current_pressure"))) {
+                else if (eid.contains(QStringLiteral("dang_qian_ya_li")) || (isRelatedToCooker(eid) && (eid.contains(QStringLiteral("pressure")) || eid.contains(QStringLiteral("current_pressure"))))) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown")) {
                         item.insert(QStringLiteral("cookerPressure"), stateVal);
                     }
                 }
                 // 5. 烹饪模式（同时兼容模式选择 select 实体和运行模式 sensor 实体）
                 else if (eid.contains(QStringLiteral("peng_ren_mo_shi")) || eid.contains(QStringLiteral("gong_zuo_mo_shi"))
-                         || ((eid.contains(QStringLiteral("ya_li_guo")) || eid.contains(QStringLiteral("cooker")))
-                             && (eid.contains(QStringLiteral("mode")) || eid.contains(QStringLiteral("mo_shi"))))) {
+                         || (isRelatedToCooker(eid) && (eid.contains(QStringLiteral("mode")) || eid.contains(QStringLiteral("mo_shi"))))) {
                     if (eid.startsWith(QStringLiteral("select."))) {
                         QString modeName = attrs.value(QStringLiteral("mode_name")).toString().trimmed();
                         if (modeName.isEmpty() && !stateVal.isEmpty() && stateVal != QStringLiteral("unknown")) {
@@ -1174,12 +1192,19 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                             item.insert(QStringLiteral("cookerAllModesEstimatedTime"), attrs.value(QStringLiteral("all_modes_estimated_time")));
                         }
                     } else if (eid.startsWith(QStringLiteral("sensor."))) {
-                        QString sensorMode = attrs.value(QStringLiteral("selected_preset_mode")).toString().trimmed();
-                        if (sensorMode.isEmpty()) {
-                            sensorMode = stateVal;
+                        // 优先使用 sensor 的真实运行状态 stateVal（如 "杂粮饭"），属性中的 selected_preset_mode 仅作预设兜底
+                        QString sensorMode = stateVal;
+                        if (sensorMode.isEmpty() || sensorMode == QStringLiteral("unknown") || sensorMode == QStringLiteral("unavailable")) {
+                            sensorMode = attrs.value(QStringLiteral("mode_name")).toString().trimmed();
                         }
-                        if (!sensorMode.isEmpty() && sensorMode != QStringLiteral("unknown")) {
-                            runningModeVal = sensorMode;
+                        if (sensorMode.isEmpty() || sensorMode == QStringLiteral("unknown") || sensorMode == QStringLiteral("unavailable")) {
+                            sensorMode = attrs.value(QStringLiteral("recipe_name")).toString().trimmed();
+                        }
+                        if (sensorMode.isEmpty() || sensorMode == QStringLiteral("unknown") || sensorMode == QStringLiteral("unavailable")) {
+                            sensorMode = attrs.value(QStringLiteral("selected_preset_mode")).toString().trimmed();
+                        }
+                        if (!sensorMode.isEmpty() && sensorMode != QStringLiteral("unknown") && sensorMode != QStringLiteral("unavailable")) {
+                            runningModeVal = PlatformHelper::cookerSlugToMode(sensorMode);
                         }
                     }
                     if (attrs.contains(QStringLiteral("estimated_cooking_time"))) {
@@ -1214,7 +1239,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     }
                 }
                 // 6. 剩余时间采集 (第一优先级：专用中文实体 sheng_yu_shi_jian；第二优先级：备用 left_time)
-                else if (eid.contains(QStringLiteral("sheng_yu_shi_jian"))) {
+                else if (eid.contains(QStringLiteral("sheng_yu_shi_jian")) && (isRelatedToCooker(eid) || eid == action.entityId)) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable") && stateVal != QStringLiteral("0") && stateVal != QStringLiteral("900")) {
                         leftTimeExact = stateVal;
                     }
@@ -1257,7 +1282,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     if (attrs.contains(QStringLiteral("phase"))) {
                         item.insert(QStringLiteral("cookerPhase"), attrs.value(QStringLiteral("phase")));
                     }
-                } else if (eid.contains(QStringLiteral("left_time")) || eid.contains(QStringLiteral("remaining_time"))) {
+                } else if (isRelatedToCooker(eid) && (eid.contains(QStringLiteral("left_time")) || eid.contains(QStringLiteral("remaining_time")))) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable") && stateVal != QStringLiteral("0") && stateVal != QStringLiteral("900")) {
                         leftTimeFallback = stateVal;
                     }
@@ -1266,17 +1291,17 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     }
                 }
                 // 7. 锅内温度采集 (优先专用中文实体 guo_nei_wen_du，其次回退至 temperature 实体)
-                else if (eid.contains(QStringLiteral("guo_nei_wen_du"))) {
+                else if (eid.contains(QStringLiteral("guo_nei_wen_du")) && (isRelatedToCooker(eid) || eid == action.entityId)) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable")) {
                         tempExact = stateVal;
                     }
-                } else if (eid.contains(QStringLiteral("temperature")) || eid.contains(QStringLiteral("temp"))) {
+                } else if (isRelatedToCooker(eid) && (eid.contains(QStringLiteral("temperature")) || eid.contains(QStringLiteral("temp")))) {
                     if (!stateVal.isEmpty() && stateVal != QStringLiteral("unknown") && stateVal != QStringLiteral("unavailable")) {
                         tempFallback = stateVal;
                     }
                 }
                 // 8. 锅盖合盖状态
-                else if (eid.contains(QStringLiteral("guo_gai_he_gai")) || eid.contains(QStringLiteral("lid"))) {
+                else if (eid.contains(QStringLiteral("guo_gai_he_gai")) || (isRelatedToCooker(eid) && eid.contains(QStringLiteral("lid")))) {
                     QString lidText = attrs.value(QStringLiteral("status_zh")).toString().trimmed();
                     if (lidText.isEmpty()) {
                         if (stateVal == QStringLiteral("opened") || stateVal == QStringLiteral("open")) {
@@ -1289,8 +1314,8 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     }
                     item.insert(QStringLiteral("cookerLidStatus"), lidText);
                 }
-                // 9. 手柄锁止状态
-                else if (eid.contains(QStringLiteral("shou_bing_suo_zhi")) || eid.contains(QStringLiteral("lock"))) {
+                // 9. 手柄锁止状态 (严格限定为电饭煲/压力锅手柄锁，避免与洗衣机、门锁等泛 lock 实体混淆)
+                else if (eid.contains(QStringLiteral("shou_bing_suo_zhi")) || (isRelatedToCooker(eid) && (eid.contains(QStringLiteral("handle_lock")) || eid.contains(QStringLiteral("lock"))))) {
                     QString lockText = attrs.value(QStringLiteral("status_zh")).toString().trimmed();
                     if (lockText.isEmpty()) {
                         if (stateVal == QStringLiteral("unlocked") || stateVal == QStringLiteral("unlock")) {
@@ -1324,16 +1349,20 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                 cookerStatusText = selfEntityState.value(QStringLiteral("rawState"), selfEntityState.value(QStringLiteral("state"))).toString().trimmed();
             }
 
+            const bool isCooking = item.value(QStringLiteral("cookerIsCooking")).toBool();
+            const bool isKeepWarm = item.value(QStringLiteral("cookerIsKeepWarm")).toBool()
+                                 || cookerStatusText.contains(QStringLiteral("保温"));
+            const bool active = isCooking || isKeepWarm || entityStateIsActive(cookerStatusText);
+
             if (!cookerStatusText.isEmpty()) {
                 item.insert(QStringLiteral("state"), cookerStatusText);
                 item.insert(QStringLiteral("stateText"), normalizedEntityStateText(cookerStatusText));
-                item.insert(QStringLiteral("active"), entityStateIsActive(cookerStatusText));
+                item.insert(QStringLiteral("active"), active);
                 item.insert(QStringLiteral("available"), cookerStatusText != QStringLiteral("unavailable"));
+            } else {
+                item.insert(QStringLiteral("active"), active);
             }
 
-            const bool active = item.value(QStringLiteral("active")).toBool();
-            const bool isKeepWarm = item.value(QStringLiteral("cookerIsKeepWarm")).toBool()
-                                 || cookerStatusText.contains(QStringLiteral("保温"));
             if (isKeepWarm) {
                 item.insert(QStringLiteral("isKeepWarm"), true);
                 item.insert(QStringLiteral("cookerIsKeepWarm"), true);
