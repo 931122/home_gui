@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 Popup {
     id: cameraPopupRoot
@@ -176,93 +177,18 @@ Popup {
                 font.bold: true
             }
 
-            // 主码流（苹果微光玻璃胶囊）
-            Rectangle {
-                implicitWidth: cameraPopupRoot.dp(70)
+            LiquidGlassTabBar {
+                implicitWidth: cameraPopupRoot.dp(140)
                 implicitHeight: cameraPopupRoot.dp(28)
-                radius: cameraPopupRoot.dp(8)
-                readonly property bool isSelected: appController.onvifCurrentProfile === "main"
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0.0
-                        color: parent.isSelected
-                               ? (mainStreamArea.pressed ? Qt.rgba(0.12, 0.58, 1.0, 0.95) : Qt.rgba(0.08, 0.52, 1.0, 0.88))
-                               : (mainStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.16) : Qt.rgba(1.0, 1.0, 1.0, 0.07))
-                    }
-                    GradientStop {
-                        position: 1.0
-                        color: parent.isSelected
-                               ? (mainStreamArea.pressed ? Qt.rgba(0.02, 0.40, 0.90, 0.95) : Qt.rgba(0.0, 0.35, 0.80, 0.88))
-                               : (mainStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.08) : Qt.rgba(1.0, 1.0, 1.0, 0.03))
-                    }
-                }
-                border.color: parent.isSelected
-                              ? Qt.rgba(0.70, 0.90, 1.0, 0.85)
-                              : (mainStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.25) : Qt.rgba(1.0, 1.0, 1.0, 0.10))
-                border.width: 1
-                scale: mainStreamArea.pressed ? 0.94 : 1.0
-                clip: true
-
-                Behavior on scale { NumberAnimation { duration: 90 } }
-
-                MouseArea {
-                    id: mainStreamArea
-                    anchors.fill: parent
-                    enabled: !parent.isSelected
-                    onClicked: appController.selectOnvifProfile("main")
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: qsTr("主流")
-                    color: parent.isSelected ? "#ffffff" : "#c5d7e5"
-                    font.pixelSize: cameraPopupRoot.fs(11)
-                    font.bold: true
-                }
-            }
-
-            // 子码流（苹果微光玻璃胶囊）
-            Rectangle {
-                implicitWidth: cameraPopupRoot.dp(70)
-                implicitHeight: cameraPopupRoot.dp(28)
-                radius: cameraPopupRoot.dp(8)
-                readonly property bool isSelected: appController.onvifCurrentProfile === "minor"
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0.0
-                        color: parent.isSelected
-                               ? (minorStreamArea.pressed ? Qt.rgba(0.12, 0.58, 1.0, 0.95) : Qt.rgba(0.08, 0.52, 1.0, 0.88))
-                               : (minorStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.16) : Qt.rgba(1.0, 1.0, 1.0, 0.07))
-                    }
-                    GradientStop {
-                        position: 1.0
-                        color: parent.isSelected
-                               ? (minorStreamArea.pressed ? Qt.rgba(0.02, 0.40, 0.90, 0.95) : Qt.rgba(0.0, 0.35, 0.80, 0.88))
-                               : (minorStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.08) : Qt.rgba(1.0, 1.0, 1.0, 0.03))
-                    }
-                }
-                border.color: parent.isSelected
-                              ? Qt.rgba(0.70, 0.90, 1.0, 0.85)
-                              : (minorStreamArea.pressed ? Qt.rgba(1.0, 1.0, 1.0, 0.25) : Qt.rgba(1.0, 1.0, 1.0, 0.10))
-                border.width: 1
-                scale: minorStreamArea.pressed ? 0.94 : 1.0
-                clip: true
-
-                Behavior on scale { NumberAnimation { duration: 90 } }
-
-                MouseArea {
-                    id: minorStreamArea
-                    anchors.fill: parent
-                    enabled: !parent.isSelected
-                    onClicked: appController.selectOnvifProfile("minor")
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: qsTr("辅流")
-                    color: parent.isSelected ? "#ffffff" : "#c5d7e5"
-                    font.pixelSize: cameraPopupRoot.fs(11)
-                    font.bold: true
+                tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                model: [
+                    { label: qsTr("主流"), val: "main" },
+                    { label: qsTr("辅流"), val: "minor" }
+                ]
+                currentValue: appController.onvifCurrentProfile
+                accentColor: "#38bdf8"
+                onTabSelected: function(index, value) {
+                    appController.selectOnvifProfile(value)
                 }
             }
 

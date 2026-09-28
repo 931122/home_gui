@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 
 GlassPopup {
     id: root
@@ -481,46 +482,20 @@ GlassPopup {
                         }
 
                         // 三段式材质切换按钮组
-                        RowLayout {
+                        LiquidGlassTabBar {
                             Layout.fillWidth: true
-                            spacing: root.dp(6)
-
-                            Repeater {
-                                model: [
-                                    { label: "自动检测", val: "auto" },
-                                    { label: "OLED 模式", val: "oled" },
-                                    { label: "LCD 模式", val: "lcd" }
-                                ]
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: root.dp(28)
-                                    radius: root.dp(6)
-                                    readonly property bool isSelected: {
-                                        if (typeof appController === "undefined") return false
-                                        return appController.screenPanelConfig === modelData.val
-                                    }
-                                    color: isSelected ? Qt.rgba(0.20, 0.60, 1.0, 0.35) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
-                                    border.color: isSelected ? Qt.rgba(0.40, 0.75, 1.0, 0.75) : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                    border.width: 1
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: modelData.label
-                                        color: parent.isSelected ? "#ffffff" : "#cbd5e1"
-                                        font.pixelSize: root.fs(11)
-                                        font.bold: parent.isSelected
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (typeof appController !== "undefined") {
-                                                appController.setScreenPanelConfig(modelData.val)
-                                            }
-                                        }
-                                    }
+                            implicitHeight: root.dp(32)
+                            tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                            model: [
+                                { label: qsTr("自动检测"), val: "auto" },
+                                { label: qsTr("OLED 模式"), val: "oled" },
+                                { label: qsTr("LCD 模式"), val: "lcd" }
+                            ]
+                            currentValue: (typeof appController !== "undefined") ? appController.screenPanelConfig : "auto"
+                            accentColor: "#38bdf8"
+                            onTabSelected: function(index, value) {
+                                if (typeof appController !== "undefined") {
+                                    appController.setScreenPanelConfig(value)
                                 }
                             }
                         }
@@ -552,47 +527,21 @@ GlassPopup {
                             }
                         }
 
-                        RowLayout {
+                        LiquidGlassTabBar {
                             Layout.fillWidth: true
-                            spacing: root.dp(6)
-
-                            Repeater {
-                                model: [
-                                    { label: "1分钟", sec: 60 },
-                                    { label: "3分钟", sec: 180 },
-                                    { label: "5分钟", sec: 300 },
-                                    { label: "永不息屏", sec: 0 }
-                                ]
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: root.dp(28)
-                                    radius: root.dp(6)
-                                    readonly property bool isSelected: {
-                                        if (typeof appController === "undefined") return false
-                                        return appController.screenIdleSeconds === modelData.sec
-                                    }
-                                    color: isSelected ? Qt.rgba(0.20, 0.60, 1.0, 0.35) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
-                                    border.color: isSelected ? Qt.rgba(0.40, 0.75, 1.0, 0.75) : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                    border.width: 1
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: modelData.label
-                                        color: parent.isSelected ? "#ffffff" : "#cbd5e1"
-                                        font.pixelSize: root.fs(11)
-                                        font.bold: parent.isSelected
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (typeof appController !== "undefined") {
-                                                appController.setScreenIdleSeconds(modelData.sec)
-                                            }
-                                        }
-                                    }
+                            implicitHeight: root.dp(32)
+                            tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                            model: [
+                                { label: qsTr("1分钟"), sec: 60 },
+                                { label: qsTr("3分钟"), sec: 180 },
+                                { label: qsTr("5分钟"), sec: 300 },
+                                { label: qsTr("永不息屏"), sec: 0 }
+                            ]
+                            currentValue: (typeof appController !== "undefined") ? appController.screenIdleSeconds : 60
+                            accentColor: "#38bdf8"
+                            onTabSelected: function(index, value) {
+                                if (typeof appController !== "undefined") {
+                                    appController.setScreenIdleSeconds(value)
                                 }
                             }
                         }

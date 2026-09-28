@@ -63,6 +63,7 @@ set(LIQUIDGLASS_SHADERS
     frosted_glass.vert
     frosted_glass.frag
     liquid_glass_slider.frag
+    liquid_glass_tab_lens.frag
 )
 
 set(LIQUIDGLASS_QSB_RESOURCES "")

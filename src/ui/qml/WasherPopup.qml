@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 import "WasherData.js" as WasherData
 
 Popup {
@@ -646,47 +647,15 @@ Popup {
                             Layout.preferredWidth: root.dp(36)
                         }
 
-                        Repeater {
+                        LiquidGlassTabBar {
+                            Layout.fillWidth: true
+                            implicitHeight: root.dp(28)
+                            tabMode: LiquidGlassTabBar.TabMode.ModeFixed
                             model: WasherData.temperatures
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: root.dp(26)
-                                radius: height / 2
-                                readonly property bool isSelected: root.currentTemp === modelData.key
-                                color: isSelected ? Qt.rgba(0.15, 0.55, 0.95, 0.45) : (tempArea.pressed ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
-                                border.color: isSelected ? Qt.rgba(0.35, 0.80, 1.0, 0.85) : Qt.rgba(1, 1, 1, 0.12)
-                                border.width: 1
-                                scale: tempArea.pressed ? 0.94 : 1.0
-                                Behavior on scale { NumberAnimation { duration: 80 } }
-                                clip: true
-
-                                Rectangle {
-                                    anchors.top: parent.top
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.topMargin: 1
-                                    anchors.leftMargin: Math.round(parent.height * 0.25)
-                                    anchors.rightMargin: Math.round(parent.height * 0.25)
-                                    height: Math.round(parent.height * 0.45)
-                                    radius: height / 2
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, isSelected ? 0.45 : 0.20) }
-                                        GradientStop { position: 1.0; color: "transparent" }
-                                    }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.name
-                                    color: isSelected ? "#ffffff" : "#c8dceb"
-                                    font.pixelSize: root.fs(10)
-                                    font.bold: isSelected
-                                }
-                                MouseArea {
-                                    id: tempArea
-                                    anchors.fill: parent
-                                    onClicked: appController.setWasherTemperature(modelData.key)
-                                }
+                            currentValue: root.currentTemp
+                            accentColor: "#38bdf8"
+                            onTabSelected: function(index, value) {
+                                appController.setWasherTemperature(value)
                             }
                         }
                     }
@@ -703,47 +672,15 @@ Popup {
                             Layout.preferredWidth: root.dp(36)
                         }
 
-                        Repeater {
+                        LiquidGlassTabBar {
+                            Layout.fillWidth: true
+                            implicitHeight: root.dp(28)
+                            tabMode: LiquidGlassTabBar.TabMode.ModeFixed
                             model: WasherData.spinSpeeds
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: root.dp(26)
-                                radius: height / 2
-                                readonly property bool isSelected: root.currentSpeed === modelData.key
-                                color: isSelected ? Qt.rgba(0.65, 0.35, 0.95, 0.45) : (speedArea.pressed ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
-                                border.color: isSelected ? Qt.rgba(0.75, 0.50, 1.0, 0.85) : Qt.rgba(1, 1, 1, 0.12)
-                                border.width: 1
-                                scale: speedArea.pressed ? 0.94 : 1.0
-                                Behavior on scale { NumberAnimation { duration: 80 } }
-                                clip: true
-
-                                Rectangle {
-                                    anchors.top: parent.top
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.topMargin: 1
-                                    anchors.leftMargin: Math.round(parent.height * 0.25)
-                                    anchors.rightMargin: Math.round(parent.height * 0.25)
-                                    height: Math.round(parent.height * 0.45)
-                                    radius: height / 2
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, isSelected ? 0.45 : 0.20) }
-                                        GradientStop { position: 1.0; color: "transparent" }
-                                    }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.name
-                                    color: isSelected ? "#ffffff" : "#c8dceb"
-                                    font.pixelSize: root.fs(10)
-                                    font.bold: isSelected
-                                }
-                                MouseArea {
-                                    id: speedArea
-                                    anchors.fill: parent
-                                    onClicked: appController.setWasherSpinSpeed(modelData.key)
-                                }
+                            currentValue: root.currentSpeed
+                            accentColor: "#a855f7"
+                            onTabSelected: function(index, value) {
+                                appController.setWasherSpinSpeed(value)
                             }
                         }
                     }
@@ -761,47 +698,15 @@ Popup {
                                 color: "#9dbcd1"
                                 font.pixelSize: root.fs(10)
                             }
-                            Repeater {
+                            LiquidGlassTabBar {
+                                Layout.preferredWidth: root.dp(160)
+                                implicitHeight: root.dp(28)
+                                tabMode: LiquidGlassTabBar.TabMode.ModeFixed
                                 model: WasherData.rinseCounts
-                                Rectangle {
-                                    implicitWidth: root.dp(34)
-                                    implicitHeight: root.dp(26)
-                                    radius: height / 2
-                                    readonly property bool isSelected: root.currentRinse === modelData.key
-                                    color: isSelected ? Qt.rgba(0.20, 0.75, 0.45, 0.45) : (rinseArea.pressed ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
-                                    border.color: isSelected ? Qt.rgba(0.40, 0.95, 0.60, 0.85) : Qt.rgba(1, 1, 1, 0.12)
-                                    border.width: 1
-                                    scale: rinseArea.pressed ? 0.94 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: 80 } }
-                                    clip: true
-
-                                    Rectangle {
-                                        anchors.top: parent.top
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.topMargin: 1
-                                        anchors.leftMargin: Math.round(parent.height * 0.25)
-                                        anchors.rightMargin: Math.round(parent.height * 0.25)
-                                        height: Math.round(parent.height * 0.45)
-                                        radius: height / 2
-                                        gradient: Gradient {
-                                            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, isSelected ? 0.45 : 0.20) }
-                                            GradientStop { position: 1.0; color: "transparent" }
-                                        }
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: modelData.name
-                                        color: isSelected ? "#ffffff" : "#c8dceb"
-                                        font.pixelSize: root.fs(10)
-                                        font.bold: isSelected
-                                    }
-                                    MouseArea {
-                                        id: rinseArea
-                                        anchors.fill: parent
-                                        onClicked: appController.setWasherRinseCount(modelData.key)
-                                    }
+                                currentValue: root.currentRinse
+                                accentColor: "#22c55e"
+                                onTabSelected: function(index, value) {
+                                    appController.setWasherRinseCount(value)
                                 }
                             }
                         }

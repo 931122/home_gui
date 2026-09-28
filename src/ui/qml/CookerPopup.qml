@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import HomeGui 1.0
+import HomeGui.LiquidGlass 1.0
 import "CookerRecipes.js" as RecipesData
 
 Popup {
@@ -859,47 +860,16 @@ Popup {
                                 }
                             }
 
-                            RowLayout {
+                            LiquidGlassTabBar {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                spacing: root.dp(6)
-
-                                Repeater {
-                                    model: root.tasteOptions
-
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.fillHeight: true
-                                        radius: root.dp(6)
-                                        readonly property bool isSelected: root.currentTaste === modelData
-                                        color: isSelected
-                                               ? Qt.rgba(0.20, 0.70, 0.40, 0.40)
-                                               : (tasteArea.pressed ? Qt.rgba(0.20, 0.28, 0.38, 0.90) : Qt.rgba(0.14, 0.20, 0.28, 0.85))
-                                        border.color: isSelected
-                                                      ? Qt.rgba(0.40, 0.85, 0.55, 0.75)
-                                                      : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                        border.width: 1
-                                        scale: tasteArea.pressed ? 0.94 : 1.0
-
-                                        Behavior on scale { NumberAnimation { duration: 90 } }
-                                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: modelData
-                                            color: parent.isSelected ? "#ffffff" : "#d0e4f0"
-                                            font.pixelSize: root.fs(11)
-                                            font.bold: parent.isSelected
-                                        }
-
-                                        MouseArea {
-                                            id: tasteArea
-                                            anchors.fill: parent
-                                            onClicked: {
-                                                appController.setCookerTaste(modelData)
-                                            }
-                                        }
-                                    }
+                                tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                                model: root.tasteOptions
+                                currentValue: root.currentTaste
+                                accentColor: "#52e379"
+                                selectedTintColor: "#52e379"
+                                onTabSelected: function(index, value) {
+                                    appController.setCookerTaste(value)
                                 }
                             }
                         }

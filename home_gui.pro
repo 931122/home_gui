@@ -237,6 +237,48 @@ MOC_DIR = $$BUILD_OUTPUT_DIR/.moc
 RCC_DIR = $$BUILD_OUTPUT_DIR/.rcc
 UI_DIR = $$BUILD_OUTPUT_DIR/.uic
 
+# qmake does not have CMake's qt_add_qml_module resource pipeline. Compile
+# the LiquidGlass shaders into the build directory and add them to a generated
+# resource file so the QML qrc:/qt/qml/HomeGui/LiquidGlass paths work as well.
+LIQUIDGLASS_SHADER_SOURCES = \
+    $$PWD/src/liquidglass/shaders/liquid_glass_surface.vert \
+    $$PWD/src/liquidglass/shaders/liquid_glass_surface.frag \
+    $$PWD/src/liquidglass/shaders/frosted_glass.vert \
+    $$PWD/src/liquidglass/shaders/frosted_glass.frag \
+    $$PWD/src/liquidglass/shaders/liquid_glass_slider.frag \
+    $$PWD/src/liquidglass/shaders/liquid_glass_tab_lens.frag
+
+QSB_EXECUTABLE = $$[QT_HOST_BINS]/qsb
+isEmpty(QSB_EXECUTABLE): QSB_EXECUTABLE = qsb
+
+LIQUIDGLASS_SHADER_DIR = $$BUILD_OUTPUT_DIR/liquidglass-shaders
+LIQUIDGLASS_SHADER_OUTPUTS = \
+    $$LIQUIDGLASS_SHADER_DIR/liquid_glass_surface.vert.qsb \
+    $$LIQUIDGLASS_SHADER_DIR/liquid_glass_surface.frag.qsb \
+    $$LIQUIDGLASS_SHADER_DIR/frosted_glass.vert.qsb \
+    $$LIQUIDGLASS_SHADER_DIR/frosted_glass.frag.qsb \
+    $$LIQUIDGLASS_SHADER_DIR/liquid_glass_slider.frag.qsb \
+    $$LIQUIDGLASS_SHADER_DIR/liquid_glass_tab_lens.frag.qsb
+
+liquidglass_qsb.input = LIQUIDGLASS_SHADER_SOURCES
+liquidglass_qsb.output = $$LIQUIDGLASS_SHADER_DIR/${QMAKE_FILE_BASE}${QMAKE_FILE_EXT}.qsb
+liquidglass_qsb.commands = $$QMAKE_MKDIR $$LIQUIDGLASS_SHADER_DIR && $$QSB_EXECUTABLE --qt6 -b -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_IN}
+liquidglass_qsb.CONFIG += no_link target_predeps
+QMAKE_EXTRA_COMPILERS += liquidglass_qsb
+
+LIQUIDGLASS_SHADER_QRC = $$BUILD_OUTPUT_DIR/liquidglass-shaders.qrc
+LIQUIDGLASS_SHADER_QRC_LINES = $$quote(<RCC>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<qresource prefix=\"/qt/qml/HomeGui/LiquidGlass\">)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/liquid_glass_surface.vert.qsb\">$$LIQUIDGLASS_SHADER_DIR/liquid_glass_surface.vert.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/liquid_glass_surface.frag.qsb\">$$LIQUIDGLASS_SHADER_DIR/liquid_glass_surface.frag.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/frosted_glass.vert.qsb\">$$LIQUIDGLASS_SHADER_DIR/frosted_glass.vert.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/frosted_glass.frag.qsb\">$$LIQUIDGLASS_SHADER_DIR/frosted_glass.frag.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/liquid_glass_slider.frag.qsb\">$$LIQUIDGLASS_SHADER_DIR/liquid_glass_slider.frag.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(<file alias=\"shaders/liquid_glass_tab_lens.frag.qsb\">$$LIQUIDGLASS_SHADER_DIR/liquid_glass_tab_lens.frag.qsb</file>)
+LIQUIDGLASS_SHADER_QRC_LINES += $$quote(</qresource>) $$quote(</RCC>)
+write_file($$LIQUIDGLASS_SHADER_QRC, LIQUIDGLASS_SHADER_QRC_LINES)
+RESOURCES += $$LIQUIDGLASS_SHADER_QRC
+
 target.path = $$DESTDIR
 INSTALLS += target
 
