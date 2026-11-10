@@ -23,7 +23,7 @@ Item {
     property int textPixelSize: fs(13)
     property bool boldIcon: false
     property bool boldText: true
-    property bool fluidTouchRefraction: true
+    property bool fluidTouchRefraction: false
 
     signal clicked()
 
@@ -69,47 +69,11 @@ Item {
         distortionStrength: 0.035
         lensMagnification: 0.36
         highlightIntensity: 0.78
-        fluidTouchRefraction: root.fluidTouchRefraction
+        fluidTouchRefraction: false
         hovered: root.isHovered
         pressed: root.isPressed
         pointerPosition: Qt.point(clickArea.mouseX, clickArea.mouseY)
-
-        Row {
-            id: contentRow
-            anchors.centerIn: parent
-            spacing: root.dp(6)
-
-            Image {
-                visible: root.iconSource !== ""
-                source: root.iconSource
-                width: root.iconPixelSize
-                height: root.iconPixelSize
-                sourceSize.width: root.iconPixelSize
-                sourceSize.height: root.iconPixelSize
-                fillMode: Image.PreserveAspectFit
-                smooth: true
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                visible: root.iconSource === "" && root.iconText !== ""
-                text: root.iconText
-                color: root.isPressed ? root.pressedIconColor : root.activeIconColor
-                font.pixelSize: root.iconPixelSize
-                font.bold: root.boldIcon
-                anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                visible: root.label !== ""
-                text: root.label
-                color: root.isPressed ? root.pressedTextColor : root.activeTextColor
-                font.pixelSize: root.textPixelSize
-                font.bold: root.boldText
-                font.weight: root.boldText ? Font.DemiBold : Font.Normal
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
+        z: 1
     }
 
     Rectangle {
@@ -119,6 +83,45 @@ Item {
         border.width: 1
         border.color: root.isPressed ? root.pressedBorderColor
                                      : (root.isHovered ? Qt.rgba(1, 1, 1, 0.30) : root.activeBorderColor)
+        z: 2
+    }
+
+    Row {
+        id: contentRow
+        anchors.centerIn: parent
+        spacing: root.dp(6)
+        z: 5
+
+        Image {
+            visible: root.iconSource !== ""
+            source: root.iconSource
+            width: root.iconPixelSize
+            height: root.iconPixelSize
+            sourceSize.width: root.iconPixelSize
+            sourceSize.height: root.iconPixelSize
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+            visible: root.iconSource === "" && root.iconText !== ""
+            text: root.iconText
+            color: root.isPressed ? root.pressedIconColor : root.activeIconColor
+            font.pixelSize: root.iconPixelSize
+            font.bold: root.boldIcon
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Text {
+            visible: root.label !== ""
+            text: root.label
+            color: root.isPressed ? root.pressedTextColor : root.activeTextColor
+            font.pixelSize: root.textPixelSize
+            font.bold: root.boldText
+            font.weight: root.boldText ? Font.DemiBold : Font.Normal
+            anchors.verticalCenter: parent.verticalCenter
+        }
     }
 
     MouseArea {
@@ -127,5 +130,6 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
+        z: 10
     }
 }

@@ -1806,6 +1806,7 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                 }
 
                 preset.insert(QStringLiteral("time"), minutes);
+                preset.insert(QStringLiteral("minutes"), minutes);
                 preset.insert(QStringLiteral("icon"), icon);
                 preset.insert(QStringLiteral("desc"), desc);
                 preset.insert(QStringLiteral("badge"), badge);
@@ -1847,10 +1848,22 @@ QVariantList HomeAssistantWorker::buildActionStates() const
                     steamerRunning = true;
                     const QString finishesAtStr = timerAttrs.value(QStringLiteral("finishes_at")).toString().trimmed();
                     if (!finishesAtStr.isEmpty()) {
-                        const QDateTime finishesAt = QDateTime::fromString(finishesAtStr, Qt::ISODate);
+                        QDateTime finishesAt = QDateTime::fromString(finishesAtStr, Qt::ISODate);
+                        if (!finishesAt.isValid()) {
+                            finishesAt = QDateTime::fromString(finishesAtStr, Qt::ISODateWithMs);
+                        }
                         if (finishesAt.isValid()) {
                             const qint64 diffSec = QDateTime::currentDateTimeUtc().secsTo(finishesAt.toUTC());
                             remainSeconds = qMax(0, static_cast<int>(diffSec));
+                        }
+                    }
+                    if (remainSeconds <= 0 && timerAttrs.contains(QStringLiteral("remaining"))) {
+                        const QString remStr = timerAttrs.value(QStringLiteral("remaining")).toString().trimmed();
+                        const QStringList remParts = remStr.split(QLatin1Char(':'));
+                        if (remParts.size() == 3) {
+                            remainSeconds = remParts.at(0).toInt() * 3600 + remParts.at(1).toInt() * 60 + remParts.at(2).toInt();
+                        } else if (remParts.size() == 2) {
+                            remainSeconds = remParts.at(0).toInt() * 60 + remParts.at(1).toInt();
                         }
                     }
                     const QString durationStr = timerAttrs.value(QStringLiteral("duration")).toString().trimmed();
@@ -1873,6 +1886,23 @@ QVariantList HomeAssistantWorker::buildActionStates() const
             } else if (socketActive && currentMode != QStringLiteral("待机") && !currentMode.isEmpty()) {
                 // 若无 timer 实体但插座通电且模式处于烹饪选项
                 steamerRunning = true;
+            }
+
+            if (steamerRunning) {
+                if (totalMinutes <= 0 && remainSeconds > 0) {
+                    totalMinutes = (remainSeconds + 59) / 60;
+                }
+                if (remainSeconds <= 0) {
+                    int defaultMins = 15;
+                    for (const auto &kp : knownPresets) {
+                        if (currentMode.contains(QString::fromUtf8(kp.name)) || QString::fromUtf8(kp.name).contains(currentMode)) {
+                            defaultMins = kp.defaultMinutes;
+                            break;
+                        }
+                    }
+                    totalMinutes = defaultMins;
+                    remainSeconds = defaultMins * 60;
+                }
             }
 
             item.insert(QStringLiteral("steamerSocketEntityId"), socketEid);

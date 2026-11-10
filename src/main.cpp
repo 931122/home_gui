@@ -4,6 +4,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QDebug>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -34,53 +35,52 @@
 #include "ui/videoitem.h"
 
 #if defined(Q_OS_ANDROID)
+#include <android/log.h>
 #include <QtCore/QJniObject>
 #include <QtCore/QJniEnvironment>
 #include <QtCore/qnativeinterface.h>
 
+static void androidMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    android_LogPriority priority = ANDROID_LOG_DEBUG;
+    switch (type) {
+    case QtDebugMsg: priority = ANDROID_LOG_DEBUG; break;
+    case QtInfoMsg: priority = ANDROID_LOG_INFO; break;
+    case QtWarningMsg: priority = ANDROID_LOG_WARN; break;
+    case QtCriticalMsg: priority = ANDROID_LOG_ERROR; break;
+    case QtFatalMsg: priority = ANDROID_LOG_FATAL; break;
+    }
+    __android_log_print(priority, "home_gui", "%s (%s:%u)",
+                        msg.toUtf8().constData(),
+                        context.file ? context.file : "",
+                        context.line);
+}
+
 static void setupAndroidImmersiveMode()
 {
-    QJniObject activity = QNativeInterface::QAndroidApplication::context();
-    if (!activity.isValid()) {
-        return;
-    }
-
-    QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
-    if (!window.isValid()) {
-        return;
-    }
-
-    const int sdkInt = QNativeInterface::QAndroidApplication::sdkVersion();
-    if (sdkInt >= 28) {
-        QJniObject layoutParams = window.callObjectMethod("getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
-        if (layoutParams.isValid()) {
-            layoutParams.setField<jint>("layoutInDisplayCutoutMode", 1);
-            window.callMethod<void>("setAttributes", "(Landroid/view/WindowManager$LayoutParams;)V", layoutParams.object<jobject>());
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) {
+            return;
         }
-    }
 
-    const jint FLAG_FULLSCREEN = 1024;
-    const jint FLAG_KEEP_SCREEN_ON = 128;
-    window.callMethod<void>("addFlags", "(I)V", FLAG_FULLSCREEN | FLAG_KEEP_SCREEN_ON);
+        QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+        if (!window.isValid()) {
+            return;
+        }
 
-    QJniObject decorView = window.callObjectMethod("getDecorView", "()Landroid/view/View;");
-    if (decorView.isValid()) {
-        const jint SYSTEM_UI_FLAG_LAYOUT_STABLE = 0x00000100;
-        const jint SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION = 0x00000200;
-        const jint SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN = 0x00000400;
-        const jint SYSTEM_UI_FLAG_HIDE_NAVIGATION = 0x00000002;
-        const jint SYSTEM_UI_FLAG_FULLSCREEN = 0x00000400;
-        const jint SYSTEM_UI_FLAG_IMMERSIVE_STICKY = 0x00001000;
+        const int sdkInt = QNativeInterface::QAndroidApplication::sdkVersion();
+        if (sdkInt >= 28) {
+            QJniObject layoutParams = window.callObjectMethod("getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+            if (layoutParams.isValid()) {
+                layoutParams.setField<jint>("layoutInDisplayCutoutMode", 1);
+                window.callMethod<void>("setAttributes", "(Landroid/view/WindowManager$LayoutParams;)V", layoutParams.object<jobject>());
+            }
+        }
 
-        const jint immersiveFlags = SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                  | SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                  | SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                  | SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                  | SYSTEM_UI_FLAG_FULLSCREEN
-                                  | SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
-
-        decorView.callMethod<void>("setSystemUiVisibility", "(I)V", immersiveFlags);
-    }
+        const jint FLAG_KEEP_SCREEN_ON = 128;
+        window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+    });
 }
 
 static void requestAndroidStoragePermissions()
@@ -109,6 +109,30 @@ static void requestAndroidStoragePermissions()
 }
 #endif
 
+// 校验配置文件是否属于 home_gui 核心配置，严防由于同名造成的冲突（如 Android Download 目录下的 Clash 规则等）
+static bool isValidHomeGuiConfig(const QString &filePath)
+{
+    if (filePath.isEmpty() || !QFile::exists(filePath)) {
+        return false;
+    }
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    const QByteArray content = f.read(4096);
+    f.close();
+
+    // 严防 Clash / 代理规则类配置被误识别为本程序配置
+    if (content.contains("port: 7890") || content.contains("mode: Rule") || content.contains("external-controller:")) {
+        return false;
+    }
+
+    return content.contains("cameras:") || content.contains("cameraName:")
+        || content.contains("homeAssistant:") || content.contains("platform:")
+        || content.contains("video:") || content.contains("xiaozhi:")
+        || content.contains("screenPower:");
+}
+
 // 根据平台和用户选择确定配置文件路径
 static QString resolveConfigPath(int argc, char *argv[])
 {
@@ -116,7 +140,7 @@ static QString resolveConfigPath(int argc, char *argv[])
     for (int i = 1; i < argc - 1; ++i) {
         if (strcmp(argv[i], "--config") == 0 || strcmp(argv[i], "-c") == 0) {
             const QString argPath = QString::fromLocal8Bit(argv[i + 1]).trimmed();
-            if (QFile::exists(argPath)) {
+            if (isValidHomeGuiConfig(argPath)) {
                 return QFileInfo(argPath).absoluteFilePath();
             }
         }
@@ -130,42 +154,64 @@ static QString resolveConfigPath(int argc, char *argv[])
 
     // 3. 读取用户在设置界面中手动选择并持久化保存的自定义配置路径
     const QString savedPath = settings.value(QStringLiteral("customConfigPath")).toString().trimmed();
-    if (!savedPath.isEmpty() && QFile::exists(savedPath)) {
+    if (!savedPath.isEmpty() && isValidHomeGuiConfig(savedPath)) {
         return QFileInfo(savedPath).absoluteFilePath();
     }
 
     // 4. 检查当前工作目录下的 config.yaml (命令行/开发环境运行便利)
     const QString localConfig = QStringLiteral("config.yaml");
-    if (QFile::exists(localConfig)) {
+    if (isValidHomeGuiConfig(localConfig)) {
         return QFileInfo(localConfig).absoluteFilePath();
     }
 
-    // 5. 检查 AppData / Documents 目录下的 config.yaml (移动端推荐，由用户通过文件共享导入)
+    // 5. 检查 AppData / Documents 目录下的 config.yaml (移动端推荐)
     const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString writableConfigPath = appDataDir + QStringLiteral("/config.yaml");
-    if (QFile::exists(writableConfigPath)) {
+
+#if defined(Q_OS_ANDROID)
+    // 优先检查通过 ADB 推送到应用专属外部目录的配置文件
+    const QString androidAppExternal = QStringLiteral("/sdcard/Android/data/org.qtproject.example.home_gui/files/config.yaml");
+    if (isValidHomeGuiConfig(androidAppExternal)) {
+        return androidAppExternal;
+    }
+
+    // 若本地 AppData 尚无有效配置，优先从 APK 内置 assets 释放初始配置
+    if (!isValidHomeGuiConfig(writableConfigPath)) {
+        const QString assetConfigPath = QStringLiteral("assets:/config.yaml");
+        if (QFile::exists(assetConfigPath)) {
+            QDir().mkpath(appDataDir);
+            QFile::remove(writableConfigPath);
+            if (QFile::copy(assetConfigPath, writableConfigPath)) {
+                QFile::setPermissions(writableConfigPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+                qInfo() << "Extracted default config from assets to:" << writableConfigPath;
+            }
+        }
+    }
+#endif
+
+    if (isValidHomeGuiConfig(writableConfigPath)) {
         return writableConfigPath;
     }
 
     const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     const QString docsConfigPath = docsDir + QStringLiteral("/config.yaml");
-    if (QFile::exists(docsConfigPath)) {
+    if (isValidHomeGuiConfig(docsConfigPath)) {
         return docsConfigPath;
     }
 
     const QString downloadDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     const QString downloadConfigPath = downloadDir + QStringLiteral("/config.yaml");
-    if (QFile::exists(downloadConfigPath)) {
+    if (isValidHomeGuiConfig(downloadConfigPath)) {
         return downloadConfigPath;
     }
-#if defined(Q_OS_ANDROID)
-    const QString sdcardDownloadConfig = QStringLiteral("/sdcard/Download/config.yaml");
-    if (QFile::exists(sdcardDownloadConfig)) {
-        return sdcardDownloadConfig;
-    }
-#endif
 
-    // 6. 应用安装包内不再打包默认配置文件，未选择/未导入时返回空路径，等待用户在设置中选择
+    // 6. 检查 App Bundle / 程序同级目录内置的默认配置文件
+    const QString bundleConfig = QCoreApplication::applicationDirPath() + QStringLiteral("/config.yaml");
+    if (isValidHomeGuiConfig(bundleConfig)) {
+        return bundleConfig;
+    }
+
+    // 7. 未选择/未导入时返回空路径，等待用户在设置中选择
     return QString();
 }
 
@@ -173,7 +219,7 @@ static QString resolveConfigPath(int argc, char *argv[])
 // 这样可以在 QApplication 创建前设置合适的 Qt 运行环境。
 static PlatformConfig loadBootPlatformConfig(const QString &configPath)
 {
-    if (configPath.isEmpty() || !QFile::exists(configPath)) {
+    if (configPath.isEmpty() || !isValidHomeGuiConfig(configPath)) {
         return PlatformConfig();
     }
     return ConfigManager::loadBootPlatformConfig(configPath);
@@ -364,6 +410,14 @@ static void installChineseTranslators(QGuiApplication &app)
 
 int main(int argc, char *argv[])
 {
+#if defined(Q_OS_ANDROID)
+    qInstallMessageHandler(androidMessageOutput);
+#endif
+#if defined(Q_OS_IOS)
+    // 强制关闭 iOS 开发者模式下的 Metal 图形性能监控浮窗 (Metal Performance HUD)
+    setenv("MTL_HUD_ENABLED", "0", 1);
+#endif
+
     // 注册给 queued signal/slot 和 QML 使用的自定义类型。
     qRegisterMetaType<PlatformConfig>("PlatformConfig");
     qRegisterMetaType<VideoConfig>("VideoConfig");
@@ -390,6 +444,7 @@ int main(int argc, char *argv[])
 #endif
     app.setApplicationName(QStringLiteral("home_gui"));
     app.setOrganizationName(QStringLiteral("home_gui"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/app_icon.png")));
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     std::unique_ptr<BootSplash> bootSplash(new BootSplash(bootPlatformConfig));
 #else
@@ -402,6 +457,8 @@ int main(int argc, char *argv[])
     if (!configPath.isEmpty()) {
         if (!configManager.load()) {
             qWarning() << "Initial config load failed for:" << configPath;
+        } else {
+            qInfo() << "Successfully loaded config from:" << configPath;
         }
     } else {
         qInfo() << "No config file selected at startup. Running with empty default configuration.";
@@ -459,8 +516,10 @@ int main(int argc, char *argv[])
         setupAndroidImmersiveMode();
         requestAndroidStoragePermissions();
 #endif
+        qInfo() << "[main] startDeferredWork running, starting deferred services & modules...";
         controller.startDeferredServices();
         moduleManager.startModules();
+        qInfo() << "[main] startDeferredWork completed.";
     };
 
     // 等第一帧真正提交后再创建 worker 线程和启动网络/视频模块，避免 RK3506 启动时短暂黑屏。

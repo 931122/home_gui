@@ -2,7 +2,11 @@ import QtQuick
 import HomeGui 1.0
 
 Item {
+    id: surfaceRoot
+    property alias framePresented: videoItem.framePresented
+
     VideoItem {
+        id: videoItem
         anchors.fill: parent
         source: appController.videoSource
         backend: appController.videoBackend
@@ -16,6 +20,9 @@ Item {
             if (activeDecoder) {
                 globalState.activeVideoDecoder = activeDecoder
             }
+        }
+        Component.onCompleted: {
+            console.log("[VideoSurface] Completed! videoSource:", appController.videoSource, "videoEnabled:", appController.videoEnabled, "isScreenOff:", appController.isScreenOff)
         }
     }
 }

@@ -143,17 +143,25 @@ void VideoPlayer::play(const QSize &targetSize)
     m_targetSize = targetSize.isValid() ? targetSize : QSize(640, 360);
     m_stopRequested = false;
 
+    qInfo() << "[VideoPlayer::play] source:" << m_source.toDisplayString()
+            << "autoPlay:" << m_autoPlay
+            << "networkOnline:" << m_networkOnline
+            << "targetSize:" << m_targetSize;
+
     if (!m_networkOnline) {
+        qWarning() << "[VideoPlayer::play] Ignored because networkOffline";
         resetFrameState();
         return;
     }
     if (!m_source.isValid() || m_source.isEmpty()) {
+        qWarning() << "[VideoPlayer::play] Ignored because source is empty or invalid";
         resetFrameState();
         return;
     }
 
     ensureBackend();
     if (!m_videoBackend) {
+        qWarning() << "[VideoPlayer::play] Ignored because no videoBackend created";
         return;
     }
 
@@ -163,6 +171,7 @@ void VideoPlayer::play(const QSize &targetSize)
     VideoConfig config;
     config.backend = m_backend;
     config.decoder = m_decoder;
+    qInfo() << "[VideoPlayer::play] Calling backend->start with backend:" << m_backend << "decoder:" << m_decoder;
     m_videoBackend->start(m_source, config, m_targetSize);
 }
 

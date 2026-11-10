@@ -256,12 +256,13 @@ GlassPopup {
 
             // 亮度控制卡片（iOS 风格磨砂卡片 + 定制磨砂滑条）
             Rectangle {
+                visible: !root.isIosPlatform || (typeof appController !== "undefined" && appController.hardwareBrightnessAvailable)
                 Layout.fillWidth: true
                 radius: root.cardRadius
                 color: Qt.rgba(1.0, 1.0, 1.0, 0.05)
                 border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
                 border.width: 1
-                implicitHeight: root.dp(100)
+                implicitHeight: visible ? root.dp(100) : 0
                 clip: true
 
                 Column {
@@ -458,6 +459,7 @@ GlassPopup {
 
                     // 1. 屏幕材质模式选择行
                     ColumnLayout {
+                        visible: !root.isIosPlatform
                         Layout.fillWidth: true
                         spacing: root.dp(6)
 

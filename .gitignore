@@ -3,6 +3,9 @@ build-*/
 .deps/
 .codex
 android/ffmpeg/
+ios/ffmpeg/
+ios/icons/
+android/assets/
 scratch/
 
 

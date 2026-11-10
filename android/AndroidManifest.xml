@@ -37,7 +37,7 @@
             android:name="org.qtproject.qt.android.bindings.QtActivity"
             android:label="智能中控"
             android:theme="@style/AppTheme"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="unspecified"
             android:launchMode="singleTop"
             android:exported="true"
             android:resizeableActivity="true">

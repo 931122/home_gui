@@ -342,8 +342,10 @@ bool OnvifClient::resolveStream(const VideoConfig &config, OnvifStreamInfo &stre
 {
     const QString deviceUrl = deviceServiceUrl(config);
     if (deviceUrl.isEmpty()) {
+        qWarning() << "[OnvifClient::resolveStream] deviceServiceUrl is empty for URL:" << config.url;
         return false;
     }
+    qInfo() << "[OnvifClient::resolveStream] Querying device service at:" << deviceUrl;
 
     const QString securityHeader = buildSecurityHeader(config.username, config.password);
     QByteArray response;
@@ -354,6 +356,7 @@ bool OnvifClient::resolveStream(const VideoConfig &config, OnvifStreamInfo &stre
                          QStringLiteral("<tds:GetCapabilities><tds:Category>All</tds:Category></tds:GetCapabilities>"),
                          response,
                          errorMessage)) {
+        qWarning() << "[OnvifClient::resolveStream] GetCapabilities failed:" << errorMessage;
         return false;
     }
 
@@ -361,8 +364,10 @@ bool OnvifClient::resolveStream(const VideoConfig &config, OnvifStreamInfo &stre
     const QString mediaServiceUrl = capabilities.value(QStringLiteral("Media"), capabilities.value(QStringLiteral("Media2")));
     streamInfo.ptzServiceUrl = capabilities.value(QStringLiteral("PTZ"));
     if (mediaServiceUrl.isEmpty()) {
+        qWarning() << "[OnvifClient::resolveStream] mediaServiceUrl is empty in capabilities";
         return false;
     }
+    qInfo() << "[OnvifClient::resolveStream] mediaServiceUrl:" << mediaServiceUrl << "ptzServiceUrl:" << streamInfo.ptzServiceUrl;
 
     if (!sendSoapRequest(QUrl(mediaServiceUrl),
                          QStringLiteral("http://www.onvif.org/ver10/media/wsdl/GetProfiles"),
@@ -370,14 +375,18 @@ bool OnvifClient::resolveStream(const VideoConfig &config, OnvifStreamInfo &stre
                          QStringLiteral("<trt:GetProfiles/>"),
                          response,
                          errorMessage)) {
+        qWarning() << "[OnvifClient::resolveStream] GetProfiles failed:" << errorMessage;
         return false;
     }
 
     const QList<OnvifProfileInfo> profiles = parseProfiles(response);
+    qInfo() << "[OnvifClient::resolveStream] Found" << profiles.size() << "profiles";
     const SelectedOnvifProfile selectedProfile = selectProfileToken(profiles, config.onvifProfile);
     if (selectedProfile.token.isEmpty()) {
+        qWarning() << "[OnvifClient::resolveStream] No profile token matched preference:" << config.onvifProfile;
         return false;
     }
+    qInfo() << "[OnvifClient::resolveStream] Selected profile token:" << selectedProfile.token << "uiProfile:" << selectedProfile.uiProfile;
 
     streamInfo.profileSwitchSupported = supportsProfileSwitch(profiles);
     streamInfo.currentProfile = selectedProfile.uiProfile;
@@ -399,10 +408,12 @@ bool OnvifClient::resolveStream(const VideoConfig &config, OnvifStreamInfo &stre
                          body,
                          response,
                          errorMessage)) {
+        qWarning() << "[OnvifClient::resolveStream] GetStreamUri failed:" << errorMessage;
         return false;
     }
 
     streamInfo.streamUri = findElementText(response, QStringLiteral("Uri"));
+    qInfo() << "[OnvifClient::resolveStream] Resolved streamUri:" << streamInfo.streamUri;
     return !streamInfo.streamUri.isEmpty();
 }
 
@@ -514,11 +525,16 @@ bool OnvifClient::sendSoapRequest(const QUrl &url,
     }
     if (timedOut) {
         errorMessage = QStringLiteral("ONVIF request timeout");
+        qWarning() << "[OnvifClient::sendSoapRequest] Timeout for URL:" << url.toString() << "action:" << action;
         reply->deleteLater();
         return false;
     }
     if (reply->error() != QNetworkReply::NoError) {
         errorMessage = reply->errorString();
+        qWarning() << "[OnvifClient::sendSoapRequest] Network error:" << errorMessage
+                   << "code:" << reply->error()
+                   << "httpStatus:" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt()
+                   << "URL:" << url.toString();
         reply->deleteLater();
         return false;
     }

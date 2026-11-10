@@ -106,7 +106,11 @@ bool GlassRuntime::batterySaver() const
 
 bool GlassRuntime::accessibilityFallback() const
 {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    return m_highContrast;
+#else
     return m_highContrast || m_batterySaver;
+#endif
 }
 
 bool GlassRuntime::animationsEnabled() const

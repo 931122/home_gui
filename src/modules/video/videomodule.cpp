@@ -24,6 +24,7 @@ bool isRtspCameraUrl(const QUrl &url)
 
 void VideoWorker::initialize(const VideoConfig &config)
 {
+    qInfo() << "[VideoWorker::initialize] Starting for URL:" << config.url << "enabled:" << config.enabled;
     m_config = config;
     m_profileToken.clear();
     m_ptzServiceUrl.clear();
@@ -33,17 +34,20 @@ void VideoWorker::initialize(const VideoConfig &config)
     }
 
     if (!config.enabled) {
+        qInfo() << "[VideoWorker::initialize] Video disabled in config";
         resetUnavailable(tr("PTZ disabled"));
         return;
     }
 
     const QUrl cameraUrl = cameraUrlFromConfig(config);
     if (!cameraUrl.isValid() || cameraUrl.isEmpty()) {
+        qWarning() << "[VideoWorker::initialize] Invalid camera URL:" << config.url;
         resetUnavailable(tr("PTZ unavailable"));
         return;
     }
 
     if (isRtspCameraUrl(cameraUrl)) {
+        qInfo() << "[VideoWorker::initialize] RTSP URL detected directly:" << cameraUrl.toString();
         emit streamUriChanged(cameraUrl.toString());
         emit onvifAvailabilityChanged(false);
         emit onvifProfileSwitchSupportedChanged(false);
@@ -54,12 +58,15 @@ void VideoWorker::initialize(const VideoConfig &config)
     }
 
     if (!OnvifClient::isOnvifUrl(cameraUrl)) {
+        qWarning() << "[VideoWorker::initialize] Not an ONVIF URL:" << cameraUrl.toString();
         resetUnavailable(tr("PTZ unavailable"));
         return;
     }
 
+    qInfo() << "[VideoWorker::initialize] Resolving stream via ONVIF for:" << cameraUrl.toString();
     OnvifStreamInfo streamInfo;
     if (!m_onvifClient->resolveStream(config, streamInfo)) {
+        qWarning() << "[VideoWorker::initialize] ONVIF resolveStream failed for:" << cameraUrl.toString();
         resetUnavailable(tr("PTZ unavailable"));
         return;
     }
@@ -68,6 +75,8 @@ void VideoWorker::initialize(const VideoConfig &config)
     m_ptzServiceUrl = streamInfo.ptzServiceUrl;
     const bool ptzAvailable = !m_ptzServiceUrl.isEmpty();
 
+    qInfo() << "[VideoWorker::initialize] ONVIF stream resolved successfully:" << streamInfo.streamUri
+            << "profileToken:" << m_profileToken << "ptzAvailable:" << ptzAvailable;
     emit streamUriChanged(streamInfo.streamUri);
     emit onvifAvailabilityChanged(true);
     emit onvifProfileSwitchSupportedChanged(streamInfo.profileSwitchSupported);
@@ -181,6 +190,7 @@ void VideoModule::applyConfig(const AppConfig &config)
 
 void VideoModule::start()
 {
+    qInfo() << "[VideoModule::start] Invoking VideoWorker::initialize with url:" << m_config.url;
     QMetaObject::invokeMethod(m_worker, "initialize", Qt::QueuedConnection,
                               Q_ARG(VideoConfig, m_config));
 }

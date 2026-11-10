@@ -40,6 +40,7 @@ VideoItem::VideoItem(QQuickItem *parent)
     : QQuickItem(parent)
     , m_player(new VideoPlayer(this))
 {
+    qInfo() << "[VideoItem::VideoItem] Instance created!";
     setFlag(ItemHasContents, true);
     m_resizeRestartTimer.setSingleShot(true);
     m_resizeRestartTimer.setInterval(250);
@@ -71,6 +72,8 @@ QUrl VideoItem::source() const
 
 void VideoItem::setSource(const QUrl &source)
 {
+    qInfo() << "[VideoItem::setSource] New source:" << source.toDisplayString()
+            << "current player source:" << m_player->source().toDisplayString();
     if (m_player->source() == source) {
         return;
     }
@@ -125,6 +128,7 @@ bool VideoItem::autoPlay() const
 
 void VideoItem::setAutoPlay(bool autoPlay)
 {
+    qInfo() << "[VideoItem::setAutoPlay]" << autoPlay;
     if (m_player->autoPlay() == autoPlay) {
         return;
     }

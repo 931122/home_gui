@@ -13,6 +13,7 @@ Rectangle {
     property int panelRadius: dp(18)
     property int cardRadius: dp(14)
     property Item backgroundSource: null
+    property bool isPortrait: false
     readonly property bool moreDevicesOpened: moreDevicesPopup.opened
     readonly property bool hasActionStateData: (typeof appController !== "undefined" && appController && appController.haActionModels) ? appController.haActionModels.length > 0 : false
 
@@ -22,14 +23,14 @@ Rectangle {
         return (fullModel || []).slice(0, 4)
     }
 
-    // 小磁贴数据源（从第 5 个设备开始取，横屏下少一行双列共 2 行：3 个设备 + 1 个“更多设备”）
+    // 小磁贴数据源（从第 5 个设备开始取）
     readonly property var miniTileModel: {
         var fullModel = (typeof appController !== "undefined" && appController) ? (sidebarRoot.hasActionStateData ? appController.haActionModels : appController.haActionNames) : []
         if (!fullModel) return []
         var items = fullModel.slice(4)
         var res = []
 
-        var maxTileDevices = sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3
+        var maxTileDevices = sidebarRoot.isPortrait ? 8 : (sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3)
         for (var i = 0; i < Math.min(items.length, maxTileDevices); ++i) {
             res.push({
                 isDevice: true,
@@ -52,29 +53,38 @@ Rectangle {
     readonly property var unlistedDevices: {
         var fullModel = (typeof appController !== "undefined" && appController) ? (sidebarRoot.hasActionStateData ? appController.haActionModels : appController.haActionNames) : []
         if (!fullModel) return []
-        var maxTileDevices = sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3
+        var maxTileDevices = sidebarRoot.isPortrait ? 8 : (sidebarRoot.width > sidebarRoot.dp(320) ? 5 : 3)
         var displayedCount = 4 + Math.min(Math.max(0, fullModel.length - 4), maxTileDevices)
         return fullModel.slice(displayedCount)
     }
 
     readonly property bool isAndroidPlatform: (typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android"
 
-    // 侧边栏布局高度自适应自动计算（按屏幕可用高度动态伸展，彻底消除底部留白）
-    readonly property bool isWideLayout: sidebarRoot.width > sidebarRoot.dp(340)
+    // 侧边栏布局高度自适应自动计算（横屏窄高紧凑伸展；竖屏自然流式展示）
+    readonly property bool isWideLayout: isPortrait ? (sidebarRoot.width >= sidebarRoot.dp(520)) : (sidebarRoot.width > sidebarRoot.dp(340))
     readonly property int coreCardRows: isWideLayout ? 2 : 4
-    readonly property int titleBarHeight: sidebarRoot.dp(20)
-    readonly property int baseMainSpacing: sidebarRoot.dp(4)
-    readonly property int miniGridRowSpacing: sidebarRoot.dp(5)
-    readonly property int miniGridColSpacing: sidebarRoot.dp(6)
+    readonly property int titleBarHeight: sidebarRoot.dp(22)
+    readonly property int baseMainSpacing: sidebarRoot.dp(sidebarRoot.isPortrait ? 8 : 4)
+    readonly property int miniGridRowSpacing: sidebarRoot.dp(sidebarRoot.isPortrait ? 8 : 5)
+    readonly property int miniGridColSpacing: sidebarRoot.dp(sidebarRoot.isPortrait ? 8 : 6)
 
     readonly property int dynamicTileRows: {
         var count = miniTileModel ? miniTileModel.length : 0
-        var cols = isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(320) ? 3 : 2)
+        var cols = isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(340) ? 3 : 2)
         var rows = Math.ceil(count / cols)
-        return Math.max(1, Math.min(3, rows))
+        return Math.max(1, Math.min(sidebarRoot.isPortrait ? 8 : 3, rows))
     }
 
     readonly property var dynamicLayoutMetrics: {
+        if (sidebarRoot.isPortrait) {
+            return {
+                cardHeight: sidebarRoot.dp(68),
+                tileHeight: sidebarRoot.dp(54),
+                mainSpacing: sidebarRoot.dp(8),
+                rowSpacing: sidebarRoot.dp(8)
+            }
+        }
+
         var availH = sidebarFlickable.height
         var rows = sidebarRoot.dynamicTileRows
         var cRows = sidebarRoot.coreCardRows
@@ -349,9 +359,12 @@ Rectangle {
                 target: actionDelegate
                 property: "slideProgress"
                 to: 0.0
-                duration: 280
-                easing.type: Easing.OutBack
-                easing.overshoot: 1.15
+                duration: 220
+                easing.type: Easing.OutCubic
+                onFinished: {
+                    actionDelegate.isDraggingSlide = false
+                    actionDelegate.slideProgress = 0.0
+                }
             }
 
             function turnOffDevice() {
@@ -517,11 +530,11 @@ Rectangle {
                     // 1. 滑动关闭手势处理 (仅在开启且是 slideToTurnOff 开关时触发)
                     if (actionDelegate.isSlideToTurnOff && actionDelegate.isActive) {
                         // 如果还未开始水平拖动且垂直位移明显占优，放开给外层列表滚动
-                        if (!actionDelegate.isDraggingSlide && Math.abs(dy) > sidebarRoot.dp(12) && Math.abs(dy) > Math.abs(dx) * 1.6) {
+                        if (!actionDelegate.isDraggingSlide && Math.abs(dy) > sidebarRoot.dp(10) && Math.abs(dy) > Math.abs(dx) * 1.4) {
                             actionArea.preventStealing = false
                             return
                         }
-                        if (!dragTriggered && (dx > sidebarRoot.dp(4) || Math.abs(dx) > Math.abs(dy))) {
+                        if (!dragTriggered && dx > sidebarRoot.dp(16) && dx > Math.abs(dy) * 1.5) {
                             dragTriggered = true
                             actionDelegate.isDraggingSlide = true
                             actionArea.preventStealing = true
@@ -620,7 +633,8 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: sidebarRoot.dp(8)
                     spacing: sidebarRoot.dp(10)
-                    opacity: liquidSlideCapsule.visible ? Math.max(0.18, 1.0 - actionDelegate.slideProgress * 2.2) : 1.0
+                    opacity: liquidSlideCapsule.visible ? 0.0 : 1.0
+                    visible: opacity > 0.01
                     Behavior on opacity { NumberAnimation { duration: 120 } }
 
                 // 左侧：微晶玻璃图标底座
@@ -1058,9 +1072,9 @@ Rectangle {
         contentWidth: width
         contentHeight: sidebarCol.implicitHeight
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        boundsBehavior: sidebarRoot.isPortrait ? Flickable.DragAndOvershootBounds : Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
-        interactive: sidebarCol.implicitHeight > sidebarFlickable.height + 2
+        interactive: sidebarRoot.isPortrait || (sidebarCol.implicitHeight > sidebarFlickable.height + 2)
 
         ColumnLayout {
             id: sidebarCol
@@ -1099,7 +1113,7 @@ Rectangle {
             GridLayout {
                 id: miniTileGrid
                 Layout.fillWidth: true
-                columns: sidebarRoot.isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(320) ? 3 : 2)
+                columns: sidebarRoot.isWideLayout ? 4 : (sidebarRoot.width > sidebarRoot.dp(340) ? 3 : 2)
                 rowSpacing: sidebarRoot.calculatedRowSpacing
                 columnSpacing: sidebarRoot.miniGridColSpacing
 
@@ -1109,29 +1123,6 @@ Rectangle {
                 }
             }
         }
-    }
-
-    // 渐进模糊边缘 (ScrollEdgeBlurView - 顶部与底部边缘渐进失焦)
-    ScrollEdgeBlurView {
-        anchors.top: parent.top
-        anchors.topMargin: sidebarRoot.dp(7)
-        edge: "top"
-        blurDepth: sidebarRoot.dp(20)
-        backgroundSource: sidebarRoot.backgroundSource
-        visible: sidebarFlickable.contentY > 2
-        opacity: Math.min(1.0, sidebarFlickable.contentY / 15.0)
-        z: 30
-    }
-
-    ScrollEdgeBlurView {
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: sidebarRoot.dp(7)
-        edge: "bottom"
-        blurDepth: sidebarRoot.dp(20)
-        backgroundSource: sidebarRoot.backgroundSource
-        visible: sidebarFlickable.contentY < (sidebarCol.implicitHeight - sidebarFlickable.height - 2)
-        opacity: Math.min(1.0, Math.max(0.0, (sidebarCol.implicitHeight - sidebarFlickable.height - sidebarFlickable.contentY) / 15.0))
-        z: 30
     }
 
     // 全屏展示弹窗

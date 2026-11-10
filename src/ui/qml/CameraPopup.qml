@@ -20,7 +20,7 @@ Popup {
     modal: true
     focus: true
     width: Math.min((Overlay.overlay ? Overlay.overlay.width : 800) * 0.96, dp(isPortrait ? 460 : 640))
-    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.94, dp(isPortrait ? 560 : 380))
+    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.94, dp(isPortrait ? 680 : 380))
     anchors.centerIn: Overlay.overlay
     padding: 0
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -209,8 +209,8 @@ Popup {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            cellWidth: cameraPopupRoot.dp(196)
-            cellHeight: cameraPopupRoot.dp(130)
+            cellWidth: cameraPopupRoot.isPortrait ? width : cameraPopupRoot.dp(196)
+            cellHeight: cameraPopupRoot.isPortrait ? Math.round(width * 9 / 16 + cameraPopupRoot.dp(44)) : cameraPopupRoot.dp(130)
             model: appController.cameraPreviewModels
             clip: true
 
@@ -229,8 +229,8 @@ Popup {
                 function dp(value) { return popupRef ? popupRef.dp(value) : value }
                 function fs(value) { return popupRef ? popupRef.fs(value) : value }
 
-                width: dp(186)
-                height: dp(120)
+                width: cameraPopupRoot.isPortrait ? (previewGrid.width - cameraPopupRoot.dp(2)) : dp(186)
+                height: cameraPopupRoot.isPortrait ? Math.round(width * 9 / 16 + dp(40)) : dp(120)
 
                 onClicked: {
                     appController.selectCamera(index)
@@ -263,7 +263,7 @@ Popup {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.margins: cameraDelegate.dp(8)
-                    height: cameraDelegate.dp(76)
+                    height: cameraPopupRoot.isPortrait ? Math.round((parent.width - cameraDelegate.dp(16)) * 9 / 16) : cameraDelegate.dp(76)
                     radius: cameraDelegate.popupRef ? cameraDelegate.popupRef.chipRadius : 10
                     color: Qt.rgba(0.02, 0.05, 0.08, 0.80)
                     border.color: Qt.rgba(1.0, 1.0, 1.0, 0.06)

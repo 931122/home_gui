@@ -13,16 +13,14 @@ ApplicationWindow {
     color: "#0e1724"
 
     // 自适应响应式基准系统：
-    // 横屏以 800x480 为基准；竖屏以 480x800 为基准，完美适配手机、平板、RK3506 及桌面
     readonly property bool isMobilePlatform: (typeof appController !== "undefined" && (appController.isAndroid || appController.isIos || appController.isMobile)) || Qt.platform.os === "android" || Qt.platform.os === "ios"
     readonly property bool isAndroidPlatform: (typeof appController !== "undefined" && appController.isAndroid) || Qt.platform.os === "android"
     readonly property bool isIosPlatform: (typeof appController !== "undefined" && appController.isIos) || Qt.platform.os === "ios"
-    readonly property bool isPortrait: width < height
-    readonly property real designWidth: isPortrait ? 480 : 800
-    readonly property real designHeight: isPortrait ? 800 : 480
-    readonly property real sx: width / designWidth
-    readonly property real sy: height / designHeight
-    readonly property real su: Math.max(0.65, isMobilePlatform ? Math.max(Math.min(sx, sy), (sx * 0.15 + sy * 0.85)) : Math.min(sx, sy))
+    readonly property bool isPortrait: (width !== 800 || height !== 480) ? (width < height) : (Screen.width < Screen.height)
+
+    // 800x480 是特定嵌入式硬件屏幕（如 RK3506 / Luckfox 等）；高分屏（手机、平板、高分中控、PC）不要强行按 800x480 等比缩放！
+    // 统一保持 1.0 标准逻辑点位，通过响应式弹性排版与自然纵向滚动展示更多内容。
+    readonly property real su: 1.0
     readonly property int chipRadius: dp(10)
     readonly property int cardRadius: dp(14)
     readonly property int panelRadius: dp(18)
@@ -58,11 +56,24 @@ ApplicationWindow {
     Component.onCompleted: {
         Theme.scaleUnit = root.su
         GlassTheme.scaleUnit = root.su
+        updateStatusBar()
     }
     onSuChanged: {
         Theme.scaleUnit = root.su
         GlassTheme.scaleUnit = root.su
     }
+
+    function updateStatusBar() {
+        if (typeof appController !== "undefined" && appController && appController.setStatusBarVisible) {
+            var shouldShow = isPortrait && !videoFullscreen
+            appController.setStatusBarVisible(shouldShow)
+        }
+    }
+
+    onIsPortraitChanged: updateStatusBar()
+    onVideoFullscreenChanged: updateStatusBar()
+    onWidthChanged: updateStatusBar()
+    onHeightChanged: updateStatusBar()
 
     function dp(value) { return Theme.dp(value) }
     function fs(value) { return Theme.fs(value) }
@@ -312,7 +323,7 @@ ApplicationWindow {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 width: root.isPortrait ? parent.width : root.landscapeVisionWidth
-                height: root.isPortrait ? root.dp(52) : root.landscapeTopBarHeight
+                height: root.landscapeTopBarHeight
                 scaleUnit: root.su
                 panelRadius: root.panelRadius
                 chipRadius: root.chipRadius
@@ -322,7 +333,7 @@ ApplicationWindow {
                 onCalendarClicked: root.openCalendarPopup()
             }
 
-            // 视频监控核心卡片（大幅放大，严格 16:9 黄金比例）
+            // 视频监控核心卡片（严格 16:9 黄金比例，无畸变黑边）
             VideoPanel {
                 id: mainVideoCard
                 anchors.top: root.videoFullscreen ? parent.top : topBar.bottom
@@ -331,7 +342,7 @@ ApplicationWindow {
                 width: root.videoFullscreen ? parent.width : (root.isPortrait ? parent.width : root.landscapeVisionWidth)
                 height: {
                     if (root.videoFullscreen) return parent.height
-                    if (root.isPortrait) return Math.min(Math.round(parent.height * 0.36), Math.round(parent.width * 9 / 16 + root.dp(48)))
+                    if (root.isPortrait) return Math.round(parent.width * 9 / 16)
                     return Math.round(root.landscapeVisionWidth * 9 / 16)
                 }
                 radius: root.videoFullscreen ? 0 : root.cardRadius
@@ -340,6 +351,7 @@ ApplicationWindow {
                 panelRadius: root.panelRadius
                 cardRadius: root.cardRadius
                 fullscreen: root.videoFullscreen
+                isPortrait: root.isPortrait
                 z: root.videoFullscreen ? 1000 : 0
                 onFullscreenToggleRequested: {
                     if (cameraLoader.status === Loader.Ready && cameraLoader.item.opened) {
@@ -371,10 +383,11 @@ ApplicationWindow {
                 onSettingsRequested: root.openSettingsPopup()
             }
 
-            // 智能家居控制面板（自适应填满右侧剩余宽度，宽屏下自动启用 2 列核心卡片，无多余滚动）
+            // 智能家居控制面板（自适应填满剩余空间，竖屏自适应纵向弹性滑动流）
             HaSidebar {
                 id: haSidebar
                 visible: !root.videoFullscreen
+                isPortrait: root.isPortrait
                 anchors.top: root.isPortrait ? mainVideoCard.bottom : parent.top
                 anchors.topMargin: root.isPortrait ? root.dp(10) : 0
                 anchors.bottom: parent.bottom
@@ -411,7 +424,7 @@ ApplicationWindow {
         anchors.fill: parent
         color: "black"
         opacity: 1.0 - appController.brightness
-        visible: !appController.hardwareBrightnessAvailable && opacity > 0.01
+        visible: !root.isIosPlatform && !appController.hardwareBrightnessAvailable && opacity > 0.01
         z: 98
     }
 

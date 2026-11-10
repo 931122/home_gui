@@ -186,8 +186,17 @@ if(ANDROID)
         QT_ANDROID_MIN_SDK_VERSION "23"
     )
 elseif(IOS)
+    target_sources(home_gui PRIVATE src/core/platform_ios.mm)
     if(IOS_FFMPEG_LIBRARIES)
-        target_link_libraries(home_gui PRIVATE ${IOS_FFMPEG_LIBRARIES} z bz2 iconv)
+        target_link_libraries(home_gui PRIVATE
+            ${IOS_FFMPEG_LIBRARIES}
+            z bz2 iconv
+            "-framework VideoToolbox"
+            "-framework CoreMedia"
+            "-framework CoreVideo"
+            "-framework AudioToolbox"
+            "-framework AVFoundation"
+        )
     endif()
 
     set_target_properties(home_gui PROPERTIES

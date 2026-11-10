@@ -89,9 +89,12 @@ Item {
     }
 
     // ♿ 无障碍降级与节能模式 (Accessibility / Battery Saver Fallback)
-    // 在高对比度或极端低功耗芯片上，直接退化为原生扁平高对比度矩形，零 Shader 开销
+    // 在高对比度或极端低功耗嵌入式平台（如 Linuxfb 单色屏）上退化为原生扁平矩形；移动端（Android/iOS）拥有高性能 GPU，默认始终呈现完整液态玻璃
+    readonly property bool isMobilePlatform: Qt.platform.os === "android" || Qt.platform.os === "ios" || (typeof Theme !== "undefined" && Theme && Theme.isMobilePlatform)
+
     property bool accessibleFallback: accessibilityMode === "FORCE_OPAQUE"
                                       || (accessibilityMode === "AUTO"
+                                          && !isMobilePlatform
                                           && ((typeof glassRuntime !== "undefined" && glassRuntime.accessibilityFallback)
                                               || (typeof globalState !== "undefined" && globalState.reducedEffects)))
 
@@ -227,8 +230,8 @@ Item {
         anchors.fill: parent
         radius: root.cornerRadius
         color: root.isDarkBackground ? "#111827" : "#f3f4f6"
-        border.width: 2
-        border.color: root.isDarkBackground ? "#38bdf8" : "#0284c7"
+        border.width: 1
+        border.color: root.isDarkBackground ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.12)
         visible: root.accessibleFallback
         z: 0
     }

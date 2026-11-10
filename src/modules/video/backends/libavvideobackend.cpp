@@ -155,6 +155,7 @@ bool LibavDecodeThread::openStream(bool &retryable)
     bool openOk = false;
     bool isHardware = false;
     int hwOpaqueFrameCount = 0;
+    int hwStallPacketCount = 0;
     const AVCodec *codec = nullptr;
     QElapsedTimer frameThrottleTimer;
     qint64 lastFrameEmitMs = -1000;
@@ -169,26 +170,28 @@ bool LibavDecodeThread::openStream(bool &retryable)
 
     AVDictionary *options = nullptr;
     av_dict_set(&options, "rtsp_transport", "tcp", 0);
-    av_dict_set(&options, "stimeout", "3000000", 0);        // 3秒网络超时
-    av_dict_set(&options, "probesize", "65536", 0);         // 64KB 极速探测（原默认5MB，消除漫长黑屏）
-    av_dict_set(&options, "analyzeduration", "300000", 0);   // 0.3秒探测上限
+    av_dict_set(&options, "stimeout", "5000000", 0);        // 5秒网络超时
+    av_dict_set(&options, "probesize", "262144", 0);        // 256KB 探测（支持 2.5K/4K 高清 HEVC 关键帧）
+    av_dict_set(&options, "analyzeduration", "1500000", 0);  // 1.5秒探测上限
     av_dict_set(&options, "fflags", "nobuffer", 0);         // 禁用队列缓冲
     av_dict_set(&options, "flags", "low_delay", 0);         // 低延迟解码标志
-    av_dict_set(&options, "max_delay", "100000", 0);        // 100ms 最大延迟
-    av_dict_set(&options, "buffer_size", "262144", 0);      // 256KB 接收缓冲，杜绝积压
+    av_dict_set(&options, "max_delay", "200000", 0);        // 200ms 最大延迟
+    av_dict_set(&options, "buffer_size", "524288", 0);      // 512KB 接收缓冲，杜绝积压
     av_dict_set(&options, "reorder_queue_size", "8", 0);
 
-    formatContext->probesize = 65536;
-    formatContext->max_analyze_duration = 300000;
+    formatContext->probesize = 262144;
+    formatContext->max_analyze_duration = 1500000;
     formatContext->flags |= AVFMT_FLAG_NOBUFFER;
 
     QElapsedTimer streamConnectTimer;
     streamConnectTimer.start();
 
+    qInfo() << "[VideoDecoder] Connecting to stream:" << source.toDisplayString();
     const QByteArray sourceUtf8 = source.toString().toUtf8();
     int result = avformat_open_input(&formatContext, sourceUtf8.constData(), nullptr, &options);
     av_dict_free(&options);
     if (result < 0) {
+        qWarning() << "[VideoDecoder] Open stream failed:" << avErrorToString(result) << source.toDisplayString();
         emit errorTextChanged(tr("Open stream failed: %1").arg(avErrorToString(result)));
         retryable = true;
         goto cleanup;
@@ -196,6 +199,7 @@ bool LibavDecodeThread::openStream(bool &retryable)
 
     result = avformat_find_stream_info(formatContext, nullptr);
     if (result < 0) {
+        qWarning() << "[VideoDecoder] Read stream info failed:" << avErrorToString(result);
         emit errorTextChanged(tr("Read stream info failed: %1").arg(avErrorToString(result)));
         retryable = true;
         goto cleanup;
@@ -203,6 +207,7 @@ bool LibavDecodeThread::openStream(bool &retryable)
 
     videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (videoStreamIndex < 0) {
+        qWarning() << "[VideoDecoder] No video stream found:" << avErrorToString(videoStreamIndex);
         emit errorTextChanged(tr("No video stream found: %1").arg(avErrorToString(videoStreamIndex)));
         goto cleanup;
     }
@@ -213,9 +218,9 @@ bool LibavDecodeThread::openStream(bool &retryable)
         isHardware = false;
 
 #if defined(Q_OS_ANDROID)
-        // 在 Android 上，若未显式强制纯软解（software），优先尝试调用 MediaCodec 硬件加速
-        // 自动由 Android 底层驱动路由至高通骁龙（c2.qti.avc.decoder/OMX.qcom）或联发科天玑（c2.mtk.avc.decoder/OMX.MTK）
-        if (decoderPreference != QStringLiteral("software")) {
+        // 在 Android 上，仅在显式配置为 hardware 或 mediacodec 时才尝试 MediaCodec 硬解。
+        // "auto" 或未设置时默认使用 CPU 多线程软解（在骁龙8Gen3/天玑上仅占单核约2% CPU，无 Surface 兼容性问题与黑屏风险）。
+        if (decoderPreference == QStringLiteral("hardware") || decoderPreference == QStringLiteral("mediacodec")) {
             if (videoStream->codecpar->codec_id == AV_CODEC_ID_H264) {
                 codec = avcodec_find_decoder_by_name("h264_mediacodec");
             } else if (videoStream->codecpar->codec_id == AV_CODEC_ID_HEVC) {
@@ -326,9 +331,31 @@ bool LibavDecodeThread::openStream(bool &retryable)
         result = avcodec_send_packet(codecContext, packet);
         av_packet_unref(packet);
         if (result < 0) {
+            qWarning() << "[VideoDecoder] Send packet failed:" << avErrorToString(result);
             emit errorTextChanged(tr("Send packet failed: %1").arg(avErrorToString(result)));
             retryable = true;
             break;
+        }
+
+        if (isHardware && !presentedFrame && ++hwStallPacketCount >= 25) {
+            qWarning() << "[VideoDecoder] Hardware decoder stalled (no frames decoded after 25 packets), falling back to CPU software decoder";
+            avcodec_free_context(&codecContext);
+            codec = avcodec_find_decoder(videoStream->codecpar->codec_id);
+            isHardware = false;
+            if (codec) {
+                codecContext = avcodec_alloc_context3(codec);
+                if (codecContext && avcodec_parameters_to_context(codecContext, videoStream->codecpar) >= 0) {
+                    codecContext->thread_count = qBound(2, QThread::idealThreadCount() / 2, 4);
+                    codecContext->thread_type = FF_THREAD_FRAME;
+                    codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
+                    if (avcodec_open2(codecContext, codec, nullptr) >= 0) {
+                        emit decoderChanged(QStringLiteral("software"));
+                        qInfo() << "[VideoDecoder] Fallback to Software Decoder successful:" << codec->name;
+                    }
+                }
+            }
+            hwStallPacketCount = 0;
+            continue;
         }
 
         while (result >= 0) {

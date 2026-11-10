@@ -26,6 +26,8 @@
         <file alias="qml/SteamerPopup.qml">../src/ui/qml/SteamerPopup.qml</file>
         <file alias="qml/SteamerData.js">../src/ui/qml/SteamerData.js</file>
         <file alias="i18n/home_gui_zh_CN.ts">../i18n/home_gui_zh_CN.ts</file>
+        <file alias="icons/app_icon.svg">icons/app_icon.svg</file>
+        <file alias="icons/app_icon.png">icons/app_icon.png</file>
         <file alias="icons/light.svg">icons/light.svg</file>
         <file alias="icons/switch.svg">icons/switch.svg</file>
         <file alias="icons/cover.svg">icons/cover.svg</file>

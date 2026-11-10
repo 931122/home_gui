@@ -943,6 +943,13 @@ void AppController::updateVideoConfig(const AppConfig &config)
             ? QStringLiteral("auto")
             : activeVideoConfig.decoder.trimmed().toLower();
 
+    qInfo() << "[AppController::updateVideoConfig] camera:" << activeVideoConfig.cameraName
+            << "config.url:" << activeVideoConfig.url
+            << "globalState.videoStreamUrl:" << m_globalState->videoStreamUrl()
+            << "nextSource:" << nextSource.toDisplayString()
+            << "nextEnabled:" << nextEnabled
+            << "decoder:" << nextDecoder;
+
     bool changed = false;
     if (m_videoSource != nextSource) {
         m_videoSource = nextSource;
@@ -1233,8 +1240,8 @@ void AppController::startSteamer(int minutes, const QString &dishName)
     // 1. 若存在启动执行器脚本 (如 script.timed_cook_runner 或配置的自定义脚本)
     if (!m_steamerStartScript.isEmpty()) {
         QVariantMap data;
-        if (minutes > 0) {
-            data.insert(QStringLiteral("minutes"), minutes);
+        if (resolvedMinutes > 0) {
+            data.insert(QStringLiteral("minutes"), resolvedMinutes);
         }
         data.insert(QStringLiteral("dish_name"), m_steamerDishName);
         data.insert(QStringLiteral("mode"), m_steamerDishName);
@@ -1529,4 +1536,33 @@ void AppController::refreshCandidateConfigFiles()
 {
     emit candidateConfigFilesChanged();
 }
+
+void AppController::setStatusBarVisible(bool visible)
+{
+    PlatformHelper::setStatusBarVisible(visible);
+    QTimer::singleShot(100, this, [this]() {
+        emit safeAreaChanged();
+    });
+}
+
+qreal AppController::safeAreaTop() const
+{
+    return PlatformHelper::safeAreaTop();
+}
+
+qreal AppController::safeAreaBottom() const
+{
+    return PlatformHelper::safeAreaBottom();
+}
+
+qreal AppController::safeAreaLeft() const
+{
+    return PlatformHelper::safeAreaLeft();
+}
+
+qreal AppController::safeAreaRight() const
+{
+    return PlatformHelper::safeAreaRight();
+}
+
 

@@ -255,3 +255,147 @@ QString PlatformHelper::cookerSlugToTaste(const QString &slug)
     return trimmed.isEmpty() ? QStringLiteral("适中") : slug;
 }
 
+#if defined(Q_OS_ANDROID)
+#include <QGuiApplication>
+#include <QtCore/QJniObject>
+#include <QtCore/qnativeinterface.h>
+
+void PlatformHelper::setStatusBarVisible(bool visible)
+{
+    qInfo() << "[PlatformHelper] setStatusBarVisible:" << visible;
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([visible]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) {
+            qWarning() << "[PlatformHelper] activity not valid";
+            return;
+        }
+        QJniObject window = activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+        if (!window.isValid()) {
+            qWarning() << "[PlatformHelper] window not valid";
+            return;
+        }
+        QJniObject decorView = window.callObjectMethod("getDecorView", "()Landroid/view/View;");
+
+        // Android 11+ (API 30+) 使用 WindowInsetsController 控制状态栏显示/隐藏
+        QJniObject insetsController;
+        if (decorView.isValid()) {
+            insetsController = decorView.callObjectMethod("getWindowInsetsController", "()Landroid/view/WindowInsetsController;");
+        }
+        if (!insetsController.isValid()) {
+            insetsController = window.callObjectMethod("getInsetsController", "()Landroid/view/WindowInsetsController;");
+        }
+
+        const jint TYPE_STATUS_BARS = 1; // WindowInsets.Type.statusBars()
+        if (insetsController.isValid()) {
+            if (visible) {
+                insetsController.callMethod<void>("show", "(I)V", TYPE_STATUS_BARS);
+                qInfo() << "[PlatformHelper] insetsController->show(statusBars)";
+            } else {
+                insetsController.callMethod<void>("hide", "(I)V", TYPE_STATUS_BARS);
+                qInfo() << "[PlatformHelper] insetsController->hide(statusBars)";
+            }
+        }
+
+        // 同时维护 WindowManager FLAG_FULLSCREEN (完全兼顾各版本 Android)
+        const jint FLAG_FULLSCREEN = 1024; // WindowManager.LayoutParams.FLAG_FULLSCREEN
+        const jint SYSTEM_UI_FLAG_FULLSCREEN = 0x00000400;
+
+        if (visible) {
+            window.callMethod<void>("clearFlags", "(I)V", FLAG_FULLSCREEN);
+            if (decorView.isValid()) {
+                decorView.callMethod<void>("setSystemUiVisibility", "(I)V", 0);
+            }
+        } else {
+            window.callMethod<void>("addFlags", "(I)V", FLAG_FULLSCREEN);
+            if (decorView.isValid()) {
+                decorView.callMethod<void>("setSystemUiVisibility", "(I)V", SYSTEM_UI_FLAG_FULLSCREEN);
+            }
+        }
+    });
+}
+
+qreal PlatformHelper::safeAreaTop()
+{
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) return 0.0;
+    QJniObject resources = activity.callObjectMethod("getResources", "()Landroid/content/res/Resources;");
+    if (!resources.isValid()) return 0.0;
+    jint resourceId = resources.callMethod<jint>("getIdentifier", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                                                 QJniObject::fromString(QStringLiteral("status_bar_height")).object<jstring>(),
+                                                 QJniObject::fromString(QStringLiteral("dimen")).object<jstring>(),
+                                                 QJniObject::fromString(QStringLiteral("android")).object<jstring>());
+    if (resourceId > 0) {
+        jint heightPx = resources.callMethod<jint>("getDimensionPixelSize", "(I)I", resourceId);
+        QJniObject displayMetrics = resources.callObjectMethod("getDisplayMetrics", "()Landroid/util/DisplayMetrics;");
+        if (displayMetrics.isValid()) {
+            jfloat density = displayMetrics.getField<jfloat>("density");
+            if (density > 0.0f) {
+                return static_cast<qreal>(heightPx) / static_cast<qreal>(density);
+            }
+        }
+        return heightPx;
+    }
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaBottom()
+{
+    QJniObject activity = QNativeInterface::QAndroidApplication::context();
+    if (!activity.isValid()) return 0.0;
+    QJniObject resources = activity.callObjectMethod("getResources", "()Landroid/content/res/Resources;");
+    if (!resources.isValid()) return 0.0;
+    jint resourceId = resources.callMethod<jint>("getIdentifier", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                                                 QJniObject::fromString(QStringLiteral("navigation_bar_height")).object<jstring>(),
+                                                 QJniObject::fromString(QStringLiteral("dimen")).object<jstring>(),
+                                                 QJniObject::fromString(QStringLiteral("android")).object<jstring>());
+    if (resourceId > 0) {
+        jint heightPx = resources.callMethod<jint>("getDimensionPixelSize", "(I)I", resourceId);
+        QJniObject displayMetrics = resources.callObjectMethod("getDisplayMetrics", "()Landroid/util/DisplayMetrics;");
+        if (displayMetrics.isValid()) {
+            jfloat density = displayMetrics.getField<jfloat>("density");
+            if (density > 0.0f) {
+                return static_cast<qreal>(heightPx) / static_cast<qreal>(density);
+            }
+        }
+        return heightPx;
+    }
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaLeft()
+{
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaRight()
+{
+    return 0.0;
+}
+#elif !defined(Q_OS_IOS) && !defined(Q_OS_ANDROID)
+void PlatformHelper::setStatusBarVisible(bool visible)
+{
+    Q_UNUSED(visible);
+}
+
+qreal PlatformHelper::safeAreaTop()
+{
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaBottom()
+{
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaLeft()
+{
+    return 0.0;
+}
+
+qreal PlatformHelper::safeAreaRight()
+{
+    return 0.0;
+}
+#endif
+
+

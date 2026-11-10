@@ -377,17 +377,19 @@ Popup {
             }
         }
 
-        // ================= 2. 今日实况区域（透光磨砂实况卡片） =================
-        RowLayout {
+        // ================= 2. 今日实况区域（透光磨砂实况卡片：横屏左右并排，竖屏上下堆叠） =================
+        GridLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.dp(140)
-            spacing: root.dp(10)
+            Layout.preferredHeight: root.dp(root.isPortrait ? 176 : 140)
+            columns: root.isPortrait ? 1 : 2
+            rowSpacing: root.dp(8)
+            columnSpacing: root.dp(10)
 
-            // 左侧：实时天气核心 Hero 毛玻璃大卡片
+            // 左侧/上方：实时天气核心 Hero 毛玻璃大卡片
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: 3
+                Layout.preferredWidth: root.isPortrait ? -1 : 3
                 radius: root.cardRadius
                 color: Qt.rgba(1, 1, 1, 0.055)
                 border.color: Qt.rgba(1, 1, 1, 0.14)
@@ -520,12 +522,12 @@ Popup {
                 }
             }
 
-            // 右侧：4 宫格实况指标微卡片 (2x2 Frosted Grid)
+            // 右侧/下方：4 宫格实况指标微卡片 (横屏 2x2，竖屏 1x4 行)
             GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: 2
-                columns: 2
+                Layout.preferredWidth: root.isPortrait ? -1 : 2
+                columns: root.isPortrait ? 4 : 2
                 rowSpacing: root.dp(6)
                 columnSpacing: root.dp(6)
 

@@ -582,6 +582,7 @@ EOF
                 --disable-muxers \
                 --disable-filters \
                 --disable-devices \
+                --disable-hwaccels \
                 --disable-decoders \
                 --enable-jni \
                 --enable-mediacodec \
@@ -643,6 +644,87 @@ EOF
         sign_flag="ON"
     fi
 
+    ensure_android_ffmpeg() {
+        local abi="${1:-arm64-v8a}"
+        local ffmpeg_lib="${ROOT_DIR}/android/ffmpeg/lib/libavformat.a"
+        if [[ -f "${ffmpeg_lib}" ]]; then
+            return 0
+        fi
+
+        echo "正在为 Android (${abi}) 编译专用轻量版 FFmpeg 静态库..."
+        local ndk_llvm="${android_ndk_root}/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+        local cc_bin="${ndk_llvm}/aarch64-linux-android28-clang"
+        local ar_bin="${ndk_llvm}/llvm-ar"
+        local ranlib_bin="${ndk_llvm}/llvm-ranlib"
+        local strip_bin="${ndk_llvm}/llvm-strip"
+
+        if [[ ! -x "${cc_bin}" ]]; then
+            echo "警告: 未能检测到 Android NDK clang (${cc_bin})，跳过 Android FFmpeg 构建。" >&2
+            return 0
+        fi
+
+        local tmp_dir="/tmp/ffmpeg-build-android"
+        rm -rf "${tmp_dir}" && mkdir -p "${tmp_dir}"
+        local ffmpeg_tar="/tmp/ffmpeg-6.1.1.tar.xz"
+        if [[ ! -f "${ffmpeg_tar}" ]]; then
+            echo "正在下载 FFmpeg 源码..."
+            curl -s -L -o "${ffmpeg_tar}" https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz || {
+                echo "下载 FFmpeg 源码失败，跳过构建" >&2
+                return 0
+            }
+        fi
+        tar -xf "${ffmpeg_tar}" -C "${tmp_dir}" --strip-components=1
+
+        (
+            cd "${tmp_dir}"
+            ./configure \
+                --prefix="${ROOT_DIR}/android/ffmpeg" \
+                --enable-cross-compile \
+                --target-os=android \
+                --arch=aarch64 \
+                --cpu=armv8-a \
+                --cc="${cc_bin}" \
+                --ar="${ar_bin}" \
+                --ranlib="${ranlib_bin}" \
+                --strip="${strip_bin}" \
+                --extra-cflags="-fPIC -Os -fvisibility=hidden" \
+                --enable-static \
+                --disable-shared \
+                --enable-pic \
+                --disable-programs \
+                --disable-doc \
+                --disable-avdevice \
+                --disable-postproc \
+                --disable-avfilter \
+                --disable-swresample \
+                --disable-encoders \
+                --disable-muxers \
+                --disable-filters \
+                --disable-devices \
+                --disable-hwaccels \
+                --disable-decoders \
+                --enable-decoder=h264,hevc,mjpeg \
+                --disable-demuxers \
+                --enable-demuxer=rtsp,h264,hevc,mjpeg,sdp,asf,flv,matroska,mov,mp4 \
+                --disable-parsers \
+                --enable-parser=h264,hevc,mjpeg \
+                --disable-protocols \
+                --enable-protocol=tcp,udp,rtp,rtsp \
+                --disable-bsfs \
+                --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb \
+                --enable-network \
+                --enable-swscale \
+                --disable-debug \
+                --enable-small >/dev/null 2>&1
+
+            make -j"$(detect_build_jobs)" >/dev/null 2>&1
+            make prefix="${ROOT_DIR}/android/ffmpeg" install >/dev/null 2>&1
+        )
+        rm -rf "${tmp_dir}"
+        echo "Android FFmpeg 静态库准备就绪。"
+    }
+
+    ensure_android_ffmpeg "${android_abi}"
     ensure_qsb_shaders
 
     echo "Configuring project with Qt 6 CMake for Android..."

@@ -75,6 +75,10 @@ class AppController : public QObject
     Q_PROPERTY(bool isAndroid READ isAndroid CONSTANT)
     Q_PROPERTY(bool isIos READ isIos CONSTANT)
     Q_PROPERTY(bool isMobile READ isMobile CONSTANT)
+    Q_PROPERTY(qreal safeAreaTop READ safeAreaTop NOTIFY safeAreaChanged)
+    Q_PROPERTY(qreal safeAreaBottom READ safeAreaBottom NOTIFY safeAreaChanged)
+    Q_PROPERTY(qreal safeAreaLeft READ safeAreaLeft NOTIFY safeAreaChanged)
+    Q_PROPERTY(qreal safeAreaRight READ safeAreaRight NOTIFY safeAreaChanged)
 
 public:
     explicit AppController(ConfigManager *configManager,
@@ -207,6 +211,11 @@ public:
     Q_INVOKABLE bool loadConfigFile(const QString &fileUrlOrPath);
     Q_INVOKABLE void resetConfigFile();
     Q_INVOKABLE void refreshCandidateConfigFiles();
+    Q_INVOKABLE void setStatusBarVisible(bool visible);
+    Q_INVOKABLE qreal safeAreaTop() const;
+    Q_INVOKABLE qreal safeAreaBottom() const;
+    Q_INVOKABLE qreal safeAreaLeft() const;
+    Q_INVOKABLE qreal safeAreaRight() const;
 
     QString configFilePath() const;
     bool configLoaded() const;
@@ -240,6 +249,7 @@ signals:
     void configLoadedChanged();
     void configStatusTextChanged();
     void candidateConfigFilesChanged();
+    void safeAreaChanged();
 
 private:
     // 根据当前配置和全局状态，得到界面应该使用的“当前视频配置”。

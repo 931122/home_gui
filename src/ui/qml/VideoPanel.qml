@@ -10,6 +10,7 @@ Rectangle {
     property int panelRadius: dp(18)
     property int cardRadius: dp(14)
     property bool fullscreen: false
+    property bool isPortrait: false
 
     signal fullscreenToggleRequested()
     signal cameraSwipeRequested(int offset)
@@ -28,7 +29,9 @@ Rectangle {
         anchors.fill: parent
         anchors.margins: fullscreen ? 0 : 1
         active: appController.videoEnabled
-        source: active ? "qrc:/qml/VideoSurface.qml" : ""
+        source: "qrc:/qml/VideoSurface.qml"
+        onStatusChanged: console.log("[VideoPanel] videoLoader status:", status, "active:", active, "source:", source)
+        onLoaded: console.log("[VideoPanel] videoLoader loaded successfully!")
     }
 
     MouseArea {

@@ -102,7 +102,7 @@ Item {
     Item {
         id: trackContent
         anchors.fill: parent
-        visible: false
+        visible: true
 
         Rectangle {
             id: trackBg

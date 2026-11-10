@@ -413,10 +413,12 @@ Popup {
         return root.activeRecipe ? (root.activeRecipe.categoryName || "大厨专享") : "精选工艺"
     }
 
+    readonly property bool isPortrait: Overlay.overlay ? (Overlay.overlay.width < Overlay.overlay.height) : (parent ? (parent.width < parent.height) : (width < height))
+
     parent: Overlay.overlay
     anchors.centerIn: Overlay.overlay
-    width: Math.min((parent ? parent.width : 800) * 0.96, root.dp(parent && parent.width < parent.height ? 470 : 780))
-    height: Math.min((parent ? parent.height : 480) * 0.95, root.dp(parent && parent.width < parent.height ? 760 : 460))
+    width: Math.min((parent ? parent.width : 800) * 0.96, root.dp(root.isPortrait ? 470 : 780))
+    height: Math.min((parent ? parent.height : 480) * 0.95, root.dp(root.isPortrait ? 760 : 460))
     modal: true
     focus: true
     clip: true
@@ -652,8 +654,9 @@ Popup {
                     }
                 }
 
-                // 状态指示徽章（磨砂实体药丸）
+                // 状态指示徽章（磨砂实体药丸，横屏展示）
                 Rectangle {
+                    visible: !root.isPortrait
                     Layout.preferredHeight: root.dp(24)
                     radius: root.dp(12)
                     color: root.isKeepWarm
@@ -692,8 +695,9 @@ Popup {
                     }
                 }
 
-                // 实时压力徽章（磨砂实体药丸）
+                // 实时压力徽章（磨砂实体药丸，横屏展示）
                 Rectangle {
+                    visible: !root.isPortrait
                     Layout.preferredHeight: root.dp(24)
                     radius: root.dp(12)
                     color: Qt.rgba(0.12, 0.18, 0.26, 0.85)
@@ -722,8 +726,9 @@ Popup {
                     }
                 }
 
-                // 锅内温度徽章（磨砂实体药丸）
+                // 锅内温度徽章（磨砂实体药丸，横屏展示）
                 Rectangle {
+                    visible: !root.isPortrait
                     Layout.preferredHeight: root.dp(24)
                     radius: root.dp(12)
                     color: Qt.rgba(0.12, 0.18, 0.26, 0.85)
@@ -752,8 +757,9 @@ Popup {
                     }
                 }
 
-                // 倒计时 / 预估总耗时徽章（磨砂实体药丸）
+                // 倒计时 / 预估总耗时徽章（磨砂实体药丸，横屏展示）
                 Rectangle {
+                    visible: !root.isPortrait
                     Layout.preferredHeight: root.dp(24)
                     radius: root.dp(12)
                     color: root.isCooking ? Qt.rgba(0.35, 0.25, 0.08, 0.85) : Qt.rgba(0.12, 0.18, 0.26, 0.85)
@@ -794,10 +800,90 @@ Popup {
                 }
             }
 
+            // 竖屏专属状态徽章第二行
+            RowLayout {
+                visible: root.isPortrait
+                Layout.fillWidth: true
+                spacing: root.dp(6)
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.dp(24)
+                    radius: root.dp(12)
+                    color: root.isKeepWarm ? Qt.rgba(0.35, 0.22, 0.08, 0.85) : (root.isCooking ? Qt.rgba(0.12, 0.32, 0.18, 0.85) : Qt.rgba(0.12, 0.18, 0.26, 0.85))
+                    border.color: root.isKeepWarm ? Qt.rgba(0.95, 0.60, 0.20, 0.55) : (root.isCooking ? Qt.rgba(0.20, 0.75, 0.40, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.16))
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: root.dp(3)
+                        Rectangle {
+                            width: root.dp(5); height: root.dp(5); radius: 2.5
+                            color: root.isKeepWarm ? "#ffb347" : (root.isCooking ? "#52e379" : "#a8c0d2")
+                        }
+                        Text {
+                            text: root.isCooking ? (liveModel && liveModel.cookerPhaseZh ? liveModel.cookerPhaseZh : root.statusText) : root.statusText
+                            color: root.isKeepWarm ? "#ffc266" : (root.isCooking ? "#52e379" : "#ffffff")
+                            font.pixelSize: root.fs(9.5)
+                            font.bold: true
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.dp(24)
+                    radius: root.dp(12)
+                    color: Qt.rgba(0.12, 0.18, 0.26, 0.85)
+                    border.color: Qt.rgba(0.20, 0.60, 0.90, 0.30)
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: root.dp(3)
+                        Text { text: qsTr("压强"); color: "#38c2ff"; font.pixelSize: root.fs(9); font.bold: true }
+                        Text { text: root.currentPressure + "k"; color: "#c2efff"; font.pixelSize: root.fs(9.5); font.bold: true }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.dp(24)
+                    radius: root.dp(12)
+                    color: Qt.rgba(0.12, 0.18, 0.26, 0.85)
+                    border.color: Qt.rgba(0.95, 0.50, 0.20, 0.30)
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: root.dp(3)
+                        Text { text: qsTr("温度"); color: "#ff9542"; font.pixelSize: root.fs(9); font.bold: true }
+                        Text { text: root.currentTemp !== "--" ? (root.currentTemp + "°") : "--"; color: "#ffd4b2"; font.pixelSize: root.fs(9.5); font.bold: true }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.dp(24)
+                    radius: root.dp(12)
+                    color: root.isCooking ? Qt.rgba(0.35, 0.25, 0.08, 0.85) : Qt.rgba(0.12, 0.18, 0.26, 0.85)
+                    border.color: root.isCooking ? Qt.rgba(1.0, 0.80, 0.20, 0.60) : Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: root.dp(3)
+                        Text { text: qsTr("耗时"); color: root.isCooking ? "#ffd666" : "#a8c0d2"; font.pixelSize: root.fs(9); font.bold: true }
+                        Text { text: root.isCooking ? root.leftTimeFormatted : root.estimatedTimeText; color: root.isCooking ? "#ffd666" : "#ffffff"; font.pixelSize: root.fs(9.5); font.bold: true }
+                    }
+                }
+            }
+            }
+
             // ================= 2. 视图切换区 =================
-            // 视图 A: 主控视图（包含参数微调卡片 + 8常用+1更多入口）
+            // 视图 A: 主控视图 - 横屏紧凑网格（包含参数微调卡片 + 8常用+1更多入口）
             ColumnLayout {
-                visible: root.currentView === "main"
+                visible: root.currentView === "main" && !root.isPortrait
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: root.dp(5)
@@ -825,14 +911,123 @@ Popup {
                 // 口感偏好 & 保压时间调节卡片（磨砂实体卡片）
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: root.dp(68)
+                    Layout.preferredHeight: root.dp(root.isPortrait ? 116 : 68)
                     radius: root.cardRadius
                     color: Qt.rgba(0.10, 0.16, 0.24, 0.85)
                     border.color: Qt.rgba(1.0, 1.0, 1.0, 0.15)
                     border.width: 1
                     clip: true
 
+                    // 竖屏纵向布局
+                    ColumnLayout {
+                        visible: root.isPortrait
+                        anchors.fill: parent
+                        anchors.margins: root.dp(8)
+                        spacing: root.dp(6)
+
+                        // 口感偏好行
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: root.dp(6)
+                            Text {
+                                text: qsTr("口感:")
+                                color: "#b0c7d8"
+                                font.pixelSize: root.fs(11)
+                                font.bold: true
+                            }
+                            LiquidGlassTabBar {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: root.dp(26)
+                                tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                                model: root.tasteOptions
+                                currentValue: root.currentTaste
+                                accentColor: "#52e379"
+                                selectedTintColor: "#52e379"
+                                onTabSelected: function(index, value) {
+                                    appController.setCookerTaste(value)
+                                }
+                            }
+                            Text {
+                                text: root.currentTaste
+                                color: "#52e379"
+                                font.pixelSize: root.fs(11)
+                                font.bold: true
+                            }
+                        }
+
+                        // 保压时间行
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: root.dp(6)
+                            Text {
+                                text: qsTr("保压:")
+                                color: "#b0c7d8"
+                                font.pixelSize: root.fs(11)
+                                font.bold: true
+                            }
+                            Rectangle {
+                                Layout.preferredWidth: root.dp(24)
+                                Layout.preferredHeight: root.dp(24)
+                                radius: root.dp(12)
+                                color: Qt.rgba(0.20, 0.28, 0.38, 0.90)
+                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                border.width: 1
+                                Text { anchors.centerIn: parent; text: "-"; color: "#ffffff"; font.pixelSize: root.fs(14); font.bold: true }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        var val = Math.max(root.pressureMin, Math.round(root.effectivePressureTime - 1))
+                                        root.customPressureTime = val
+                                        if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                    }
+                                }
+                            }
+                            Slider {
+                                id: pPortSlider
+                                Layout.fillWidth: true
+                                from: root.pressureMin
+                                to: root.pressureMax
+                                stepSize: 1.0
+                                value: root.effectivePressureTime
+                                Binding on value {
+                                    when: !pPortSlider.pressed
+                                    value: root.effectivePressureTime
+                                }
+                                onMoved: {
+                                    var val = Math.round(value)
+                                    root.customPressureTime = val
+                                    if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                }
+                            }
+                            Rectangle {
+                                Layout.preferredWidth: root.dp(24)
+                                Layout.preferredHeight: root.dp(24)
+                                radius: root.dp(12)
+                                color: Qt.rgba(0.20, 0.28, 0.38, 0.90)
+                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                border.width: 1
+                                Text { anchors.centerIn: parent; text: "+"; color: "#ffffff"; font.pixelSize: root.fs(14); font.bold: true }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        var val = Math.min(root.pressureMax, Math.round(root.effectivePressureTime + 1))
+                                        root.customPressureTime = val
+                                        if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                    }
+                                }
+                            }
+                            Text {
+                                text: Math.round(root.effectivePressureTime) + qsTr("分")
+                                color: "#ffd666"
+                                font.pixelSize: root.fs(11)
+                                font.bold: true
+                            }
+                        }
+                    }
+
+                    // 横屏双列布局
                     RowLayout {
+                        visible: !root.isPortrait
                         anchors.fill: parent
                         anchors.margins: root.dp(7)
                         spacing: root.dp(10)
@@ -1074,12 +1269,12 @@ Popup {
                     }
                 }
 
-                // 核心 3x3 布局网格：8 道常用菜谱 + 1 个【更多菜谱(108道)】
+                // 核心布局网格：8 道常用菜谱 + 1 个【更多菜谱(108道)】（横屏3列，竖屏2列自适应）
                 GridLayout {
                     id: commonGrid
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    columns: 3
+                    columns: root.isPortrait ? 2 : 3
                     columnSpacing: root.dp(6)
                     rowSpacing: root.dp(6)
 
@@ -1089,7 +1284,8 @@ Popup {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            Layout.fillHeight: !root.isPortrait
+                            Layout.preferredHeight: root.isPortrait ? root.dp(52) : -1
                             radius: root.chipRadius
                             readonly property bool isRunningThis: root.isStrictCooking && (root.runningModeText === modelData.mode || root.runningModeText === modelData.name)
                             readonly property bool isSelected: isRunningThis || (root.selectedMode === modelData.mode)
@@ -1110,13 +1306,13 @@ Popup {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: root.dp(7)
-                                spacing: root.dp(6)
+                                anchors.margins: root.dp(root.isPortrait ? 6 : 7)
+                                spacing: root.dp(root.isPortrait ? 5 : 6)
 
                                 Rectangle {
-                                    Layout.preferredWidth: root.dp(38)
-                                    Layout.preferredHeight: root.dp(38)
-                                    radius: root.dp(9)
+                                    Layout.preferredWidth: root.dp(root.isPortrait ? 32 : 38)
+                                    Layout.preferredHeight: root.dp(root.isPortrait ? 32 : 38)
+                                    radius: root.dp(root.isPortrait ? 7 : 9)
                                     color: isRunningThis ? Qt.rgba(0.20, 0.70, 0.40, 0.25) : (isSelected ? Qt.rgba(0.20, 0.60, 0.90, 0.25) : Qt.rgba(0.96, 0.62, 0.15, 0.20))
                                     border.color: isRunningThis ? "#50e879" : (isSelected ? "#72d2ff" : Qt.rgba(0.96, 0.62, 0.15, 0.45))
                                     border.width: 1
@@ -1124,8 +1320,8 @@ Popup {
 
                                     Image {
                                         anchors.centerIn: parent
-                                        width: root.dp(22)
-                                        height: root.dp(22)
+                                        width: root.dp(root.isPortrait ? 18 : 22)
+                                        height: root.dp(root.isPortrait ? 18 : 22)
                                         sourceSize.width: root.dp(44)
                                         sourceSize.height: root.dp(44)
                                         source: RecipesData.getRecipeIcon(modelData.name, modelData.category)
@@ -1137,14 +1333,14 @@ Popup {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
-                                    spacing: 2
+                                    spacing: 1
 
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Text {
                                             text: modelData.name
                                             color: isRunningThis ? "#50e879" : (isSelected ? "#72d2ff" : "#ffffff")
-                                            font.pixelSize: root.fs(13)
+                                            font.pixelSize: root.fs(root.isPortrait ? 12 : 13)
                                             font.bold: true
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
@@ -1152,7 +1348,7 @@ Popup {
                                         Text {
                                             text: isRunningThis ? qsTr("运行中") : qsTr("已选")
                                             color: isRunningThis ? "#ffd666" : "#72d2ff"
-                                            font.pixelSize: root.fs(10)
+                                            font.pixelSize: root.fs(9)
                                             font.bold: true
                                             visible: isSelected
                                         }
@@ -1164,7 +1360,7 @@ Popup {
                                             return t ? (modelData.desc.split("，")[0] + " · " + t) : modelData.desc
                                         }
                                         color: isSelected ? "#c2e9ff" : "#a5bed0"
-                                        font.pixelSize: root.fs(10)
+                                        font.pixelSize: root.fs(9.5)
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                     }
@@ -1186,7 +1382,9 @@ Popup {
                     // 9. 【更多菜谱 (108道)】特别入口卡片（磨砂实体琥珀金）
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.fillHeight: !root.isPortrait
+                        Layout.preferredHeight: root.isPortrait ? root.dp(48) : -1
+                        Layout.columnSpan: root.isPortrait ? 2 : 1
                         radius: root.chipRadius
                         color: moreCardArea.pressed ? Qt.rgba(0.32, 0.25, 0.12, 0.90) : Qt.rgba(0.24, 0.19, 0.10, 0.85)
                         border.color: moreCardArea.containsMouse ? Qt.rgba(1.0, 0.85, 0.35, 0.70) : Qt.rgba(1.0, 0.80, 0.25, 0.50)
@@ -1289,6 +1487,396 @@ Popup {
                 }
             }
 
+            // 视图 A2: 主控视图 - 竖屏自适应滚动流（安全状态 + 参数微调卡片 + 8常用+1更多入口）
+            Flickable {
+                visible: root.currentView === "main" && root.isPortrait
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: portCookerMainCol.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickableDirection: Flickable.VerticalFlick
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                ColumnLayout {
+                    id: portCookerMainCol
+                    width: parent.width
+                    spacing: root.dp(8)
+
+                    // 安全锁与合盖状态
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: root.dp(6)
+
+                        Text {
+                            text: qsTr("安全状态: ") + root.lidStatus + " · " + root.lockStatus
+                            color: "#8cb2cc"
+                            font.pixelSize: root.fs(10)
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Text {
+                            text: qsTr("轻触选中模式 · 点右下角开始烹饪")
+                            color: "#7fa6be"
+                            font.pixelSize: root.fs(10)
+                        }
+                    }
+
+                    // 口感偏好 & 保压时间调节卡片（磨砂实体卡片）
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: root.dp(116)
+                        radius: root.cardRadius
+                        color: Qt.rgba(0.10, 0.16, 0.24, 0.85)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.15)
+                        border.width: 1
+                        clip: true
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: root.dp(8)
+                            spacing: root.dp(6)
+
+                            // 口感偏好行
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: root.dp(6)
+                                Text {
+                                    text: qsTr("口感:")
+                                    color: "#b0c7d8"
+                                    font.pixelSize: root.fs(11)
+                                    font.bold: true
+                                }
+                                LiquidGlassTabBar {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: root.dp(26)
+                                    tabMode: LiquidGlassTabBar.TabMode.ModeFixed
+                                    model: root.tasteOptions
+                                    currentValue: root.currentTaste
+                                    accentColor: "#52e379"
+                                    selectedTintColor: "#52e379"
+                                    onTabSelected: function(index, value) {
+                                        appController.setCookerTaste(value)
+                                    }
+                                }
+                                Text {
+                                    text: root.currentTaste
+                                    color: "#52e379"
+                                    font.pixelSize: root.fs(11)
+                                    font.bold: true
+                                }
+                            }
+
+                            // 保压时间行
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: root.dp(6)
+                                Text {
+                                    text: qsTr("保压:")
+                                    color: "#b0c7d8"
+                                    font.pixelSize: root.fs(11)
+                                    font.bold: true
+                                }
+                                Rectangle {
+                                    Layout.preferredWidth: root.dp(24)
+                                    Layout.preferredHeight: root.dp(24)
+                                    radius: root.dp(12)
+                                    color: Qt.rgba(0.20, 0.28, 0.38, 0.90)
+                                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                    border.width: 1
+                                    Text { anchors.centerIn: parent; text: "-"; color: "#ffffff"; font.pixelSize: root.fs(14); font.bold: true }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            var val = Math.max(root.pressureMin, Math.round(root.effectivePressureTime - 1))
+                                            root.customPressureTime = val
+                                            if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                        }
+                                    }
+                                }
+                                Slider {
+                                    id: portCookerMainSlider
+                                    Layout.fillWidth: true
+                                    from: root.pressureMin
+                                    to: root.pressureMax
+                                    stepSize: 1.0
+                                    value: root.effectivePressureTime
+                                    Binding on value {
+                                        when: !portCookerMainSlider.pressed
+                                        value: root.effectivePressureTime
+                                    }
+                                    onMoved: {
+                                        var val = Math.round(value)
+                                        root.customPressureTime = val
+                                        if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                    }
+                                }
+                                Rectangle {
+                                    Layout.preferredWidth: root.dp(24)
+                                    Layout.preferredHeight: root.dp(24)
+                                    radius: root.dp(12)
+                                    color: Qt.rgba(0.20, 0.28, 0.38, 0.90)
+                                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                    border.width: 1
+                                    Text { anchors.centerIn: parent; text: "+"; color: "#ffffff"; font.pixelSize: root.fs(14); font.bold: true }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            var val = Math.min(root.pressureMax, Math.round(root.effectivePressureTime + 1))
+                                            root.customPressureTime = val
+                                            if (!root.isStrictCooking) appController.setCookerPressureTime(val)
+                                        }
+                                    }
+                                }
+                                Text {
+                                    text: Math.round(root.effectivePressureTime) + qsTr("分")
+                                    color: "#ffd666"
+                                    font.pixelSize: root.fs(11)
+                                    font.bold: true
+                                }
+                            }
+                        }
+                    }
+
+                    // 常用菜谱标题行
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: qsTr("精选常用菜谱")
+                            color: "#b0c7d8"
+                            font.pixelSize: root.fs(11)
+                            font.bold: true
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: qsTr("共 108 道名厨菜谱 ›")
+                            color: "#60d0ff"
+                            font.pixelSize: root.fs(10)
+                            font.bold: true
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.currentView = "more"
+                            }
+                        }
+                    }
+
+                    // 竖屏2列常用菜谱网格
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: root.dp(6)
+                        rowSpacing: root.dp(6)
+
+                        Repeater {
+                            model: root.commonRecipes
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: root.dp(54)
+                                radius: root.chipRadius
+                                readonly property bool isRunningThis: root.isStrictCooking && (root.runningModeText === modelData.mode || root.runningModeText === modelData.name)
+                                readonly property bool isSelected: isRunningThis || (root.selectedMode === modelData.mode)
+                                color: isRunningThis
+                                       ? Qt.rgba(0.18, 0.75, 0.38, 0.35)
+                                       : (isSelected
+                                          ? Qt.rgba(0.0, 0.45, 0.95, 0.32)
+                                          : (portCommonArea.pressed ? Qt.rgba(0.16, 0.24, 0.34, 0.90) : Qt.rgba(0.11, 0.17, 0.25, 0.85)))
+                                border.color: isRunningThis
+                                              ? Qt.rgba(0.40, 0.85, 0.55, 0.85)
+                                              : (isSelected ? Qt.rgba(0.40, 0.80, 1.0, 0.85) : (portCommonArea.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.22) : Qt.rgba(1.0, 1.0, 1.0, 0.14)))
+                                border.width: (isRunningThis || isSelected) ? 1.5 : 1
+                                scale: portCommonArea.pressed ? 0.96 : 1.0
+                                clip: true
+
+                                Behavior on scale { NumberAnimation { duration: 90 } }
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: root.dp(6)
+                                    spacing: root.dp(6)
+
+                                    Rectangle {
+                                        Layout.preferredWidth: root.dp(34)
+                                        Layout.preferredHeight: root.dp(34)
+                                        radius: root.dp(8)
+                                        color: isRunningThis ? Qt.rgba(0.20, 0.70, 0.40, 0.25) : (isSelected ? Qt.rgba(0.20, 0.60, 0.90, 0.25) : Qt.rgba(0.96, 0.62, 0.15, 0.20))
+                                        border.color: isRunningThis ? "#50e879" : (isSelected ? "#72d2ff" : Qt.rgba(0.96, 0.62, 0.15, 0.45))
+                                        border.width: 1
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        Image {
+                                            anchors.centerIn: parent
+                                            width: root.dp(20)
+                                            height: root.dp(20)
+                                            sourceSize.width: root.dp(44)
+                                            sourceSize.height: root.dp(44)
+                                            source: RecipesData.getRecipeIcon(modelData.name, modelData.category)
+                                            fillMode: Image.PreserveAspectFit
+                                            smooth: true
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 1
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Text {
+                                                text: modelData.name
+                                                color: isRunningThis ? "#50e879" : (isSelected ? "#72d2ff" : "#ffffff")
+                                                font.pixelSize: root.fs(12)
+                                                font.bold: true
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                            Text {
+                                                text: isRunningThis ? qsTr("运行中") : qsTr("已选")
+                                                color: isRunningThis ? "#ffd666" : "#72d2ff"
+                                                font.pixelSize: root.fs(9)
+                                                font.bold: true
+                                                visible: isSelected
+                                            }
+                                        }
+
+                                        Text {
+                                            text: {
+                                                var t = root.getRecipeEstimatedTime(modelData.mode)
+                                                return t ? (modelData.desc.split("，")[0] + " · " + t) : modelData.desc
+                                            }
+                                            color: isSelected ? "#c2e9ff" : "#a5bed0"
+                                            font.pixelSize: root.fs(9.5)
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: portCommonArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.selectRecipeAndSync(modelData)
+                                    }
+                                }
+                            }
+                        }
+
+                        // 更多菜谱 (108道) 卡片
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: root.dp(48)
+                            Layout.columnSpan: 2
+                            radius: root.chipRadius
+                            color: portMoreArea.pressed ? Qt.rgba(0.32, 0.25, 0.12, 0.90) : Qt.rgba(0.24, 0.19, 0.10, 0.85)
+                            border.color: portMoreArea.containsMouse ? Qt.rgba(1.0, 0.85, 0.35, 0.70) : Qt.rgba(1.0, 0.80, 0.25, 0.50)
+                            border.width: 1.5
+                            scale: portMoreArea.pressed ? 0.96 : 1.0
+                            clip: true
+
+                            Behavior on scale { NumberAnimation { duration: 90 } }
+                            Behavior on color { ColorAnimation { duration: 100 } }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: root.dp(7)
+                                spacing: root.dp(6)
+
+                                Rectangle {
+                                    Layout.preferredWidth: root.dp(34)
+                                    Layout.preferredHeight: root.dp(34)
+                                    radius: root.dp(8)
+                                    color: Qt.rgba(1.0, 0.80, 0.20, 0.30)
+                                    border.color: Qt.rgba(1.0, 0.80, 0.20, 0.55)
+                                    border.width: 1
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: root.dp(18)
+                                        height: root.dp(18)
+                                        sourceSize.width: root.dp(18)
+                                        sourceSize.height: root.dp(18)
+                                        source: "qrc:/icons/cooker-chef.svg"
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 2
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: qsTr("更多菜谱")
+                                            color: "#ffdf7a"
+                                            font.pixelSize: root.fs(13)
+                                            font.bold: true
+                                        }
+                                        Rectangle {
+                                            Layout.preferredHeight: root.dp(18)
+                                            radius: root.dp(9)
+                                            color: Qt.rgba(1.0, 0.80, 0.20, 0.35)
+                                            border.color: Qt.rgba(1.0, 0.80, 0.20, 0.60)
+                                            border.width: 1
+                                            implicitWidth: portBadgeText.implicitWidth + root.dp(8)
+
+                                            Text {
+                                                id: portBadgeText
+                                                anchors.centerIn: parent
+                                                text: "108道"
+                                                color: "#fff3c4"
+                                                font.pixelSize: root.fs(10)
+                                                font.bold: true
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: qsTr("六大类名厨菜肴 · 做法详解")
+                                        color: "#ded2af"
+                                        font.pixelSize: root.fs(10)
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Text {
+                                    text: "›"
+                                    color: "#ffdf7a"
+                                    font.pixelSize: root.fs(18)
+                                    font.bold: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: portMoreArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.currentView = "more"
+                                    var list = RecipesData.getRecipesByCategory(root.selectedCategory, "")
+                                    if (list && list.length > 0) {
+                                        root.activeRecipe = list[0]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 视图 B: “更多菜谱”分类大厅视图（磨砂实体质感：左侧选菜列表，右侧实时大厨详尽做法与 HA 官方食谱同步）
             ColumnLayout {
                 visible: root.currentView === "more"
@@ -1376,153 +1964,12 @@ Popup {
                     }
                 }
 
-                // 主体区域：左右联动双栏（左侧当前分类菜品，右侧实时做法详解）
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: root.dp(6)
+                // 菜品详尽做法面板组件（横竖屏共享）
+                Component {
+                    id: recipeDetailPanelComp
 
-                    // 1. 左侧：当前分类菜品选择列表（磨砂实体深底微容器）
                     Rectangle {
-                        Layout.preferredWidth: root.dp(230)
-                        Layout.fillHeight: true
-                        radius: root.dp(10)
-                        color: Qt.rgba(0.09, 0.14, 0.21, 0.85)
-                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
-                        border.width: 1
-                        clip: true
-
-                        Flickable {
-                            id: allRecipesFlickable
-                            anchors.fill: parent
-                            anchors.margins: root.dp(4)
-                            contentWidth: width
-                            contentHeight: allListCol.implicitHeight + root.dp(8)
-                            boundsBehavior: Flickable.StopAtBounds
-                            flickableDirection: Flickable.VerticalFlick
-
-                            ScrollBar.vertical: ScrollBar {
-                                anchors.right: parent.right
-                                anchors.rightMargin: -root.dp(2)
-                                policy: ScrollBar.AsNeeded
-                                width: root.dp(4)
-                            }
-
-                            ColumnLayout {
-                                id: allListCol
-                                width: parent.width - root.dp(6)
-                                spacing: root.dp(4)
-
-                                Repeater {
-                                    model: RecipesData.getRecipesByCategory(root.selectedCategory, "")
-
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        implicitHeight: root.dp(46)
-                                        radius: root.dp(6)
-                                        readonly property bool isCurrentViewRecipe: root.activeRecipe && (root.activeRecipe.name === modelData.name || root.activeRecipe.mode === modelData.mode)
-                                        readonly property bool isRunningThis: root.isCooking && (root.runningModeText === modelData.mode || root.runningModeText === modelData.name)
-
-                                        color: isRunningThis
-                                               ? Qt.rgba(0.18, 0.75, 0.38, 0.35)
-                                               : (isCurrentViewRecipe
-                                                  ? Qt.rgba(0.0, 0.45, 0.95, 0.32)
-                                                  : (itemArea.pressed ? Qt.rgba(0.18, 0.26, 0.36, 0.90) : Qt.rgba(0.12, 0.18, 0.26, 0.85)))
-                                        border.color: isRunningThis
-                                                      ? Qt.rgba(0.40, 0.85, 0.55, 0.85)
-                                                      : (isCurrentViewRecipe ? Qt.rgba(0.40, 0.80, 1.0, 0.85) : (itemArea.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.20) : Qt.rgba(1.0, 1.0, 1.0, 0.12)))
-                                        border.width: (isRunningThis || isCurrentViewRecipe) ? 1.5 : 1
-                                        scale: itemArea.pressed ? 0.96 : 1.0
-
-                                        Behavior on scale { NumberAnimation { duration: 90 } }
-                                        Behavior on color { ColorAnimation { duration: 100 } }
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.margins: root.dp(4)
-                                            spacing: root.dp(4)
-
-                                            Rectangle {
-                                                Layout.preferredWidth: root.dp(26)
-                                                Layout.preferredHeight: root.dp(26)
-                                                radius: root.dp(6)
-                                                color: isRunningThis ? Qt.rgba(0.20, 0.70, 0.40, 0.25) : (isCurrentViewRecipe ? Qt.rgba(0.20, 0.60, 0.90, 0.25) : Qt.rgba(0.96, 0.62, 0.15, 0.20))
-                                                border.color: isRunningThis ? "#50e879" : (isCurrentViewRecipe ? "#72d2ff" : Qt.rgba(0.96, 0.62, 0.15, 0.40))
-                                                border.width: 1
-                                                Layout.alignment: Qt.AlignVCenter
-
-                                                Image {
-                                                    anchors.centerIn: parent
-                                                    width: root.dp(18)
-                                                    height: root.dp(18)
-                                                    sourceSize.width: root.dp(36)
-                                                    sourceSize.height: root.dp(36)
-                                                    source: RecipesData.getRecipeIcon(modelData.name, modelData.category)
-                                                    fillMode: Image.PreserveAspectFit
-                                                    smooth: true
-                                                }
-                                            }
-
-                                            ColumnLayout {
-                                                Layout.fillWidth: true
-                                                Layout.alignment: Qt.AlignVCenter
-                                                spacing: 1
-
-                                                RowLayout {
-                                                    Layout.fillWidth: true
-                                                    Text {
-                                                        text: modelData.name
-                                                        color: isRunningThis ? "#50e879" : (isCurrentViewRecipe ? "#72d2ff" : "#ffffff")
-                                                        font.pixelSize: root.fs(11)
-                                                        font.bold: isCurrentViewRecipe
-                                                        elide: Text.ElideRight
-                                                        Layout.fillWidth: true
-                                                    }
-                                                    Text {
-                                                        text: isRunningThis ? qsTr("运行中") : (isCurrentViewRecipe ? qsTr("查看中") : "")
-                                                        color: isRunningThis ? "#ffd666" : "#72d2ff"
-                                                        font.pixelSize: root.fs(9)
-                                                        font.bold: true
-                                                        visible: isCurrentViewRecipe || isRunningThis
-                                                    }
-                                                }
-
-                                                RowLayout {
-                                                    Layout.fillWidth: true
-                                                    spacing: root.dp(3)
-                                                    Text {
-                                                        text: (root.getRecipeEstimatedTime(modelData.mode) || modelData.estimatedTime)
-                                                        color: isCurrentViewRecipe ? "#c2e9ff" : "#ffd666"
-                                                        font.pixelSize: root.fs(8)
-                                                        font.bold: true
-                                                    }
-                                                    Text {
-                                                        text: "· 保压" + modelData.pressureTime
-                                                        color: "#9db3c4"
-                                                        font.pixelSize: root.fs(8)
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: itemArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                root.selectRecipeAndSync(modelData)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 2. 右侧：当前选中菜品大厨详尽做法面板 (实时展示，支持 HA 官方食谱与本地名厨做法)
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        anchors.fill: parent
                         radius: root.dp(10)
                         color: Qt.rgba(0.09, 0.14, 0.21, 0.85)
                         border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
@@ -1852,6 +2299,285 @@ Popup {
                                 }
                             }
                         }
+                    }
+                }
+
+                // 主体区域 A：横屏左右联动双栏（左侧当前分类菜品，右侧实时做法详解）
+                RowLayout {
+                    visible: !root.isPortrait
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: root.dp(6)
+
+                    // 1. 左侧：当前分类菜品选择列表（磨砂实体深底微容器）
+                    Rectangle {
+                        Layout.preferredWidth: root.dp(230)
+                        Layout.fillHeight: true
+                        radius: root.dp(10)
+                        color: Qt.rgba(0.09, 0.14, 0.21, 0.85)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                        border.width: 1
+                        clip: true
+
+                        Flickable {
+                            id: allRecipesFlickable
+                            anchors.fill: parent
+                            anchors.margins: root.dp(4)
+                            contentWidth: width
+                            contentHeight: allListCol.implicitHeight + root.dp(8)
+                            boundsBehavior: Flickable.StopAtBounds
+                            flickableDirection: Flickable.VerticalFlick
+
+                            ScrollBar.vertical: ScrollBar {
+                                anchors.right: parent.right
+                                anchors.rightMargin: -root.dp(2)
+                                policy: ScrollBar.AsNeeded
+                                width: root.dp(4)
+                            }
+
+                            ColumnLayout {
+                                id: allListCol
+                                width: parent.width - root.dp(6)
+                                spacing: root.dp(4)
+
+                                Repeater {
+                                    model: RecipesData.getRecipesByCategory(root.selectedCategory, "")
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: root.dp(46)
+                                        radius: root.dp(6)
+                                        readonly property bool isCurrentViewRecipe: root.activeRecipe && (root.activeRecipe.name === modelData.name || root.activeRecipe.mode === modelData.mode)
+                                        readonly property bool isRunningThis: root.isCooking && (root.runningModeText === modelData.mode || root.runningModeText === modelData.name)
+
+                                        color: isRunningThis
+                                               ? Qt.rgba(0.18, 0.75, 0.38, 0.35)
+                                               : (isCurrentViewRecipe
+                                                  ? Qt.rgba(0.0, 0.45, 0.95, 0.32)
+                                                  : (itemArea.pressed ? Qt.rgba(0.18, 0.26, 0.36, 0.90) : Qt.rgba(0.12, 0.18, 0.26, 0.85)))
+                                        border.color: isRunningThis
+                                                      ? Qt.rgba(0.40, 0.85, 0.55, 0.85)
+                                                      : (isCurrentViewRecipe ? Qt.rgba(0.40, 0.80, 1.0, 0.85) : (itemArea.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.20) : Qt.rgba(1.0, 1.0, 1.0, 0.12)))
+                                        border.width: (isRunningThis || isCurrentViewRecipe) ? 1.5 : 1
+                                        scale: itemArea.pressed ? 0.96 : 1.0
+
+                                        Behavior on scale { NumberAnimation { duration: 90 } }
+                                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: root.dp(4)
+                                            spacing: root.dp(4)
+
+                                            Rectangle {
+                                                Layout.preferredWidth: root.dp(26)
+                                                Layout.preferredHeight: root.dp(26)
+                                                radius: root.dp(6)
+                                                color: isRunningThis ? Qt.rgba(0.20, 0.70, 0.40, 0.25) : (isCurrentViewRecipe ? Qt.rgba(0.20, 0.60, 0.90, 0.25) : Qt.rgba(0.96, 0.62, 0.15, 0.20))
+                                                border.color: isRunningThis ? "#50e879" : (isCurrentViewRecipe ? "#72d2ff" : Qt.rgba(0.96, 0.62, 0.15, 0.40))
+                                                border.width: 1
+                                                Layout.alignment: Qt.AlignVCenter
+
+                                                Image {
+                                                    anchors.centerIn: parent
+                                                    width: root.dp(18)
+                                                    height: root.dp(18)
+                                                    sourceSize.width: root.dp(36)
+                                                    sourceSize.height: root.dp(36)
+                                                    source: RecipesData.getRecipeIcon(modelData.name, modelData.category)
+                                                    fillMode: Image.PreserveAspectFit
+                                                    smooth: true
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 1
+
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    Text {
+                                                        text: modelData.name
+                                                        color: isRunningThis ? "#50e879" : (isCurrentViewRecipe ? "#72d2ff" : "#ffffff")
+                                                        font.pixelSize: root.fs(11)
+                                                        font.bold: isCurrentViewRecipe
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+                                                    Text {
+                                                        text: isRunningThis ? qsTr("运行中") : (isCurrentViewRecipe ? qsTr("查看中") : "")
+                                                        color: isRunningThis ? "#ffd666" : "#72d2ff"
+                                                        font.pixelSize: root.fs(9)
+                                                        font.bold: true
+                                                        visible: isCurrentViewRecipe || isRunningThis
+                                                    }
+                                                }
+
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: root.dp(3)
+                                                    Text {
+                                                        text: (root.getRecipeEstimatedTime(modelData.mode) || modelData.estimatedTime)
+                                                        color: isCurrentViewRecipe ? "#c2e9ff" : "#ffd666"
+                                                        font.pixelSize: root.fs(8)
+                                                        font.bold: true
+                                                    }
+                                                    Text {
+                                                        text: "· 保压" + modelData.pressureTime
+                                                        color: "#9db3c4"
+                                                        font.pixelSize: root.fs(8)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: itemArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                root.selectRecipeAndSync(modelData)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. 右侧：当前选中菜品大厨详尽做法面板 (Loader 动态按需装载)
+                    Loader {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        sourceComponent: !root.isPortrait ? recipeDetailPanelComp : null
+                    }
+                }
+
+                // 主体区域 B：竖屏上下联动布局（上方水平滑动选择本类菜品，下方全屏展现做法）
+                ColumnLayout {
+                    visible: root.isPortrait
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: root.dp(6)
+
+                    // 上部：水平滚动的当前分类菜品选择轨道
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: root.dp(56)
+                        radius: root.dp(8)
+                        color: Qt.rgba(0.09, 0.14, 0.21, 0.85)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                        border.width: 1
+                        clip: true
+
+                        Flickable {
+                            anchors.fill: parent
+                            anchors.margins: root.dp(4)
+                            contentWidth: portDishRow.implicitWidth + root.dp(8)
+                            contentHeight: height
+                            boundsBehavior: Flickable.StopAtBounds
+                            flickableDirection: Flickable.HorizontalFlick
+
+                            RowLayout {
+                                id: portDishRow
+                                height: parent.height
+                                spacing: root.dp(6)
+
+                                Repeater {
+                                    model: RecipesData.getRecipesByCategory(root.selectedCategory, "")
+
+                                    Rectangle {
+                                        Layout.preferredWidth: root.dp(136)
+                                        implicitWidth: root.dp(136)
+                                        Layout.fillHeight: true
+                                        radius: root.dp(6)
+                                        readonly property bool isCurrentViewRecipe: root.activeRecipe && (root.activeRecipe.name === modelData.name || root.activeRecipe.mode === modelData.mode)
+                                        readonly property bool isRunningThis: root.isCooking && (root.runningModeText === modelData.mode || root.runningModeText === modelData.name)
+
+                                        color: isRunningThis
+                                               ? Qt.rgba(0.18, 0.75, 0.38, 0.35)
+                                               : (isCurrentViewRecipe
+                                                  ? Qt.rgba(0.0, 0.45, 0.95, 0.35)
+                                                  : (portItemArea.pressed ? Qt.rgba(0.18, 0.26, 0.36, 0.90) : Qt.rgba(0.12, 0.18, 0.26, 0.85)))
+                                        border.color: isRunningThis
+                                                      ? Qt.rgba(0.40, 0.85, 0.55, 0.85)
+                                                      : (isCurrentViewRecipe ? Qt.rgba(0.40, 0.80, 1.0, 0.85) : Qt.rgba(1.0, 1.0, 1.0, 0.12))
+                                        border.width: (isRunningThis || isCurrentViewRecipe) ? 1.5 : 1
+                                        scale: portItemArea.pressed ? 0.96 : 1.0
+
+                                        Behavior on scale { NumberAnimation { duration: 80 } }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: root.dp(4)
+                                            spacing: root.dp(5)
+
+                                            Rectangle {
+                                                Layout.preferredWidth: root.dp(26)
+                                                Layout.preferredHeight: root.dp(26)
+                                                radius: root.dp(6)
+                                                color: Qt.rgba(0.96, 0.62, 0.15, 0.20)
+                                                border.color: Qt.rgba(0.96, 0.62, 0.15, 0.35)
+                                                border.width: 1
+                                                Layout.alignment: Qt.AlignVCenter
+
+                                                Image {
+                                                    anchors.centerIn: parent
+                                                    width: root.dp(16)
+                                                    height: root.dp(16)
+                                                    sourceSize.width: root.dp(32)
+                                                    sourceSize.height: root.dp(32)
+                                                    source: RecipesData.getRecipeIcon(modelData.name, modelData.category)
+                                                    fillMode: Image.PreserveAspectFit
+                                                    smooth: true
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 1
+
+                                                Text {
+                                                    text: modelData.name
+                                                    color: isRunningThis ? "#50e879" : (isCurrentViewRecipe ? "#72d2ff" : "#ffffff")
+                                                    font.pixelSize: root.fs(11)
+                                                    font.bold: isCurrentViewRecipe
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Text {
+                                                    text: (root.getRecipeEstimatedTime(modelData.mode) || modelData.estimatedTime)
+                                                    color: isCurrentViewRecipe ? "#c2e9ff" : "#ffd666"
+                                                    font.pixelSize: root.fs(8.5)
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: portItemArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                root.selectRecipeAndSync(modelData)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 下部：占满剩余空间的做法详尽面板
+                    Loader {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        sourceComponent: root.isPortrait ? recipeDetailPanelComp : null
                     }
                 }
             }
@@ -2380,4 +3106,3 @@ Popup {
             }
         }
     }
-}
