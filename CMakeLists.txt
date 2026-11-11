@@ -124,6 +124,10 @@ qt_add_executable(home_gui
     src/modules/xiaozhi/xiaozhimodule.cpp
     src/modules/intercom/audiorecorder.cpp
     src/modules/intercom/intercommodule.cpp
+    src/modules/intercom/backends/ivoipbackend.cpp
+    src/modules/intercom/backends/embeddedvoipbackend.cpp
+    src/modules/intercom/backends/androidvoipbackend.cpp
+    src/modules/intercom/backends/voipbackendfactory.cpp
     src/ui/appcontroller.cpp
     src/ui/bootsplash.cpp
     src/ui/brightnesscontroller.cpp

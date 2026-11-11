@@ -14,6 +14,7 @@
 #include "audiorecorder.h"
 
 class ConfigManager;
+class IVoipBackend;
 
 class IntercomModule : public IModule
 {
@@ -112,6 +113,7 @@ private:
     QNetworkReply *m_qrPollReply = nullptr;
     QNetworkReply *m_qrLocationReply = nullptr;
     QString m_qrCandidateUserId;
+    IVoipBackend *m_voipBackend = nullptr;
     static IntercomModule *s_instance;
 };
 

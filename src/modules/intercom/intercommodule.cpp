@@ -15,13 +15,8 @@
 
 #include "core/configmanager.h"
 #include "core/globalstate.h"
-
-#if defined(Q_OS_ANDROID)
-#include <QtCore/qnativeinterface.h>
-#include <QtCore/QJniObject>
-#include <QtCore/QJniEnvironment>
-#include <QCoreApplication>
-#endif
+#include "backends/ivoipbackend.h"
+#include "backends/voipbackendfactory.h"
 
 IntercomModule *IntercomModule::s_instance = nullptr;
 
@@ -30,50 +25,19 @@ IntercomModule *IntercomModule::instance()
     return s_instance;
 }
 
-#if defined(Q_OS_ANDROID)
-extern "C" JNIEXPORT void JNICALL
-Java_org_qtproject_example_home_1gui_XiaoAiVoipManager_nativeOnVoipStateChanged(JNIEnv *env, jclass, jint state, jstring statusText)
-{
-    QString qStatus;
-    if (statusText) {
-        const char *chars = env->GetStringUTFChars(statusText, nullptr);
-        qStatus = QString::fromUtf8(chars);
-        env->ReleaseStringUTFChars(statusText, chars);
-    }
-    QMetaObject::invokeMethod(qApp, [state, qStatus]() {
-        if (IntercomModule::instance()) {
-            IntercomModule::instance()->onVoipStateChanged(state, qStatus);
-        }
-    }, Qt::QueuedConnection);
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_org_qtproject_example_home_1gui_XiaoAiVoipManager_nativeOnVoipDuration(JNIEnv *, jclass, jint durationSec)
-{
-    QMetaObject::invokeMethod(qApp, [durationSec]() {
-        if (IntercomModule::instance()) {
-            IntercomModule::instance()->onVoipDuration(durationSec);
-        }
-    }, Qt::QueuedConnection);
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_org_qtproject_example_home_1gui_XiaoAiVoipManager_nativeOnVoipAudioRoute(JNIEnv *, jclass, jboolean isSpeaker)
-{
-    QMetaObject::invokeMethod(qApp, [isSpeaker]() {
-        if (IntercomModule::instance()) {
-            IntercomModule::instance()->onVoipAudioRoute(isSpeaker);
-        }
-    }, Qt::QueuedConnection);
-}
-#endif
-
 IntercomModule::IntercomModule(ConfigManager *configManager, GlobalState *globalState, QObject *parent)
     : IModule(globalState, parent)
     , m_configManager(configManager)
 {
     s_instance = this;
     m_networkManager.setCookieJar(new QNetworkCookieJar(this));
+
+    m_voipBackend = VoipBackendFactory::createBackend(this);
+    if (m_voipBackend) {
+        connect(m_voipBackend, &IVoipBackend::stateChanged, this, &IntercomModule::onVoipStateChanged);
+        connect(m_voipBackend, &IVoipBackend::durationChanged, this, &IntercomModule::onVoipDuration);
+        connect(m_voipBackend, &IVoipBackend::audioRouteChanged, this, &IntercomModule::onVoipAudioRoute);
+    }
 
     connect(&m_audioRecorder, &AudioRecorder::recordingStarted, this, [this]() {
         if (this->globalState()) {
@@ -1363,25 +1327,9 @@ void IntercomModule::parseRoomsFromJson(const QByteArray &payload)
 
 void IntercomModule::initVoipRuntime()
 {
-#if defined(Q_OS_ANDROID)
-    if (m_config.micoapiServiceToken.isEmpty()) {
-        qWarning() << "[IntercomModule] initVoipRuntime: micoapiServiceToken is empty.";
-        return;
+    if (m_voipBackend) {
+        m_voipBackend->init(m_config.userId, m_config.micoapiServiceToken, m_config.mimcId);
     }
-    QJniObject activity = QNativeInterface::QAndroidApplication::context();
-    if (activity.isValid()) {
-        qInfo() << "[IntercomModule] Initializing XiaoAiVoipManager via JNI...";
-        QJniObject::callStaticMethod<void>(
-            "org/qtproject/example/home_gui/XiaoAiVoipManager",
-            "initVoip",
-            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            activity.object(),
-            QJniObject::fromString(m_config.userId).object(),
-            QJniObject::fromString(m_config.micoapiServiceToken).object(),
-            QJniObject::fromString(m_config.mimcId.isEmpty() ? QStringLiteral("251673189") : m_config.mimcId).object()
-        );
-    }
-#endif
 }
 
 void IntercomModule::fetchVoipContacts()
@@ -1515,34 +1463,17 @@ void IntercomModule::startVoipCall(const QString &targetDeviceId, const QString 
 
     notifyMiLinkEnable(uid);
 
-#if defined(Q_OS_ANDROID)
-    QJniObject::callStaticMethod<void>(
-        "org/qtproject/example/home_gui/XiaoAiVoipManager",
-        "startCall",
-        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V",
-        QJniObject::fromString(targetDeviceId).object(),
-        QJniObject::fromString(targetDeviceName).object(),
-        QJniObject::fromString(uid).object(),
-        QJniObject::fromString(deviceModel).object(),
-        static_cast<jint>(deviceType)
-    );
-#endif
+    if (m_voipBackend) {
+        m_voipBackend->startCall(targetDeviceId, targetDeviceName, uid, deviceModel, deviceType);
+    }
 }
 
 void IntercomModule::hangupVoipCall()
 {
     qInfo() << "[IntercomModule] Hanging up VoIP call";
-#if defined(Q_OS_ANDROID)
-    QJniObject::callStaticMethod<void>(
-        "org/qtproject/example/home_gui/XiaoAiVoipManager",
-        "hangupCall",
-        "()V"
-    );
-#else
-    if (globalState()) {
-        globalState()->setVoipState(4, tr("通话已结束"));
+    if (m_voipBackend) {
+        m_voipBackend->hangupCall();
     }
-#endif
 }
 
 void IntercomModule::setVoipMute(bool mute)
@@ -1550,14 +1481,9 @@ void IntercomModule::setVoipMute(bool mute)
     if (globalState()) {
         globalState()->setVoipMuted(mute);
     }
-#if defined(Q_OS_ANDROID)
-    QJniObject::callStaticMethod<void>(
-        "org/qtproject/example/home_gui/XiaoAiVoipManager",
-        "setMute",
-        "(Z)V",
-        static_cast<jboolean>(mute)
-    );
-#endif
+    if (m_voipBackend) {
+        m_voipBackend->setMute(mute);
+    }
 }
 
 void IntercomModule::setVoipSpeakerphone(bool enable)
@@ -1565,14 +1491,9 @@ void IntercomModule::setVoipSpeakerphone(bool enable)
     if (globalState()) {
         globalState()->setVoipSpeakerphone(enable);
     }
-#if defined(Q_OS_ANDROID)
-    QJniObject::callStaticMethod<void>(
-        "org/qtproject/example/home_gui/XiaoAiVoipManager",
-        "setSpeakerphone",
-        "(Z)V",
-        static_cast<jboolean>(enable)
-    );
-#endif
+    if (m_voipBackend) {
+        m_voipBackend->setSpeakerphone(enable);
+    }
 }
 
 void IntercomModule::onVoipStateChanged(int state, const QString &statusText)
