@@ -7,9 +7,6 @@
 
 IVoipBackend *VoipBackendFactory::createBackend(QObject *parent)
 {
-#if defined(Q_OS_ANDROID)
-    return new AndroidVoipBackend(parent);
-#else
+    // Use the pure C++ EmbeddedVoipBackend on all platforms (Android, Linux, macOS)
     return new EmbeddedVoipBackend(parent);
-#endif
 }

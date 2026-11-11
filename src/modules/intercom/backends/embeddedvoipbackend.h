@@ -45,6 +45,7 @@ private:
     void sendMilinkWakeup(const QString &uid);
     void startRingbackTone();
     void stopRingbackTone();
+    void playToneChunk();
     void connectToMiLinkServer();
     void sendMiLinkPacket(const QString &command, const QByteArray &data, int seqId = 0);
     void setState(int newState, const QString &statusText = QString());

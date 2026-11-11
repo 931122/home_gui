@@ -1328,7 +1328,8 @@ void IntercomModule::parseRoomsFromJson(const QByteArray &payload)
 void IntercomModule::initVoipRuntime()
 {
     if (m_voipBackend) {
-        m_voipBackend->init(m_config.userId, m_config.micoapiServiceToken, m_config.mimcId);
+        const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;
+        m_voipBackend->init(m_config.userId, token, m_config.mimcId);
     }
 }
 

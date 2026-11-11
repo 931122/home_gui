@@ -336,9 +336,8 @@ void EmbeddedVoipBackend::sendMilinkWakeup(const QString &uid)
 void EmbeddedVoipBackend::startRingbackTone()
 {
     m_toneCycleCount = 0;
-    m_toneCadenceHigh = true;
+    playToneChunk();
     m_ringbackCadenceTimer.start();
-    handleRingbackTick();
 }
 
 void EmbeddedVoipBackend::stopRingbackTone()
@@ -354,32 +353,44 @@ void EmbeddedVoipBackend::stopRingbackTone()
 #endif
 }
 
+void EmbeddedVoipBackend::playToneChunk()
+{
+#ifdef HOME_GUI_HAS_MULTIMEDIA
+    if (m_state != StateCalling && m_state != StateRinging) {
+        return;
+    }
+
+    if (!m_audioSink) {
+        QAudioFormat format;
+        format.setSampleRate(16000);
+        format.setChannelCount(1);
+        format.setSampleFormat(QAudioFormat::Int16);
+
+        const QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
+        if (!defaultDevice.isNull()) {
+            m_audioSink = new QAudioSink(defaultDevice, format, this);
+        } else {
+            m_audioSink = new QAudioSink(format, this);
+        }
+    }
+
+    if (m_audioSink) {
+        m_toneBuffer.close();
+        m_toneBuffer.setData(m_toneData);
+        m_toneBuffer.open(QIODevice::ReadOnly);
+        m_audioSink->start(&m_toneBuffer);
+    }
+#endif
+}
+
 void EmbeddedVoipBackend::handleRingbackTick()
 {
 #ifdef HOME_GUI_HAS_MULTIMEDIA
-    // Telecom cadence: 1s sound (high), 4s silence (low)
+    // Telecom cadence: 1s sound (count == 0), 4s silence (count == 1..4)
     m_toneCycleCount = (m_toneCycleCount + 1) % 5;
-    m_toneCadenceHigh = (m_toneCycleCount == 0);
 
-    if (m_toneCadenceHigh && (m_state == StateCalling || m_state == StateRinging)) {
-        if (!m_audioSink) {
-            QAudioFormat format;
-            format.setSampleRate(16000);
-            format.setChannelCount(1);
-            format.setSampleFormat(QAudioFormat::Int16);
-
-            const QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
-            if (!defaultDevice.isNull()) {
-                m_audioSink = new QAudioSink(defaultDevice, format, this);
-            }
-        }
-
-        if (m_audioSink) {
-            m_toneBuffer.close();
-            m_toneBuffer.setData(m_toneData);
-            m_toneBuffer.open(QIODevice::ReadOnly);
-            m_audioSink->start(&m_toneBuffer);
-        }
+    if (m_toneCycleCount == 0 && (m_state == StateCalling || m_state == StateRinging)) {
+        playToneChunk();
     } else {
         if (m_audioSink) {
             m_audioSink->stop();
