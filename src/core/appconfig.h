@@ -108,6 +108,21 @@ struct XiaozhiConfig
     int wakeGpioDebounceMs = 80;
 };
 
+struct IntercomConfig
+{
+    bool enabled = true;
+    QString userId;
+    QString deviceId;
+    QString serviceToken;
+    QString passToken;
+    QString refreshToken;
+    QString homeId;
+    QString micoapiServiceToken; // VoIP 专用 serviceToken
+    QString mimcId;              // VoIP MIMC ID
+    QString defaultRoomId = QStringLiteral("WHOLE_0");
+    QString serverUrl = QStringLiteral("https://i.xiaomixiaoai.com");
+};
+
 struct UiConfig
 {
     QString videoBottomCardMode = QStringLiteral("camera"); // "camera" (A: 多路监控), "scene" (B: 快捷场景), "security" (C: 安防速览)
@@ -125,6 +140,7 @@ struct AppConfig
     WifiConfig wifi;
     ScreenPowerConfig screenPower;
     XiaozhiConfig xiaozhi;
+    IntercomConfig intercom;
 };
 
 Q_DECLARE_METATYPE(PlatformConfig)
@@ -136,6 +152,7 @@ Q_DECLARE_METATYPE(WeatherConfig)
 Q_DECLARE_METATYPE(WifiConfig)
 Q_DECLARE_METATYPE(ScreenPowerConfig)
 Q_DECLARE_METATYPE(XiaozhiConfig)
+Q_DECLARE_METATYPE(IntercomConfig)
 Q_DECLARE_METATYPE(AppConfig)
 
 #endif

@@ -80,6 +80,8 @@ ApplicationWindow {
     readonly property bool hasOpenPopup: (cookerPopup.opened) ||
                                          (washerPopup.opened) ||
                                          (steamerPopup.opened) ||
+                                         (intercomRoomSelectPopup.opened) ||
+                                         (intercomLoginPopup.opened) ||
                                          (calendarLoader.status === Loader.Ready && calendarLoader.item && calendarLoader.item.opened) ||
                                          (weatherLoader.status === Loader.Ready && weatherLoader.item && weatherLoader.item.opened) ||
                                          (cameraLoader.status === Loader.Ready && cameraLoader.item && cameraLoader.item.opened) ||
@@ -115,6 +117,14 @@ ApplicationWindow {
         }
         if (steamerPopup.opened) {
             steamerPopup.close()
+            return true
+        }
+        if (intercomLoginPopup.opened) {
+            intercomLoginPopup.close()
+            return true
+        }
+        if (intercomRoomSelectPopup.opened) {
+            intercomRoomSelectPopup.close()
             return true
         }
         if (settingsLoader.status === Loader.Ready && settingsLoader.item && settingsLoader.item.opened) {
@@ -174,6 +184,10 @@ ApplicationWindow {
             settingsLoader.item.open()
         }
     }
+    function openIntercomLoginPopup() {
+        console.log("[Main] openIntercomLoginPopup called, opening intercomLoginPopup")
+        intercomLoginPopup.open()
+    }
 
     // 主屏幕完整场景层（背景 + 顶栏 + 实时监控视频 + 智能家居侧边栏）
     Item {
@@ -185,8 +199,8 @@ ApplicationWindow {
         Item {
             id: ambientBackdrop
             anchors.fill: parent
-            readonly property bool enableAuroraMotion: (typeof glassRuntime === "undefined" || glassRuntime.animationsEnabled)
-                                                    && (typeof appController === "undefined" || (!appController.isScreenOff && !appController.screenBlanked))
+            // 背景常驻深空极光网格保持静态渲染，彻底消除持续 120Hz/60Hz 全屏毛玻璃重绘造成的 GPU/CPU 发热与耗电
+            readonly property bool enableAuroraMotion: false
 
             // 1. 基底流体光幕（明澈高级的深空宝石蓝与黛青渐变：彻底消除暗沉死黑）
             Rectangle {
@@ -319,6 +333,8 @@ ApplicationWindow {
             // 顶部栏：摄像头切换、系统设置、天气、时间
             TopBar {
                 id: topBar
+                layer.enabled: true
+                layer.smooth: true
                 visible: !root.videoFullscreen
                 anchors.top: parent.top
                 anchors.left: parent.left
@@ -386,6 +402,8 @@ ApplicationWindow {
             // 智能家居控制面板（自适应填满剩余空间，竖屏自适应纵向弹性滑动流）
             HaSidebar {
                 id: haSidebar
+                layer.enabled: true
+                layer.smooth: true
                 visible: !root.videoFullscreen
                 isPortrait: root.isPortrait
                 anchors.top: root.isPortrait ? mainVideoCard.bottom : parent.top
@@ -491,6 +509,9 @@ ApplicationWindow {
                     item.wifiRequested.connect(wifiLoader.openWifi)
                     signalConnected = true
                 }
+                if (item.intercomLoginRequested) {
+                    item.intercomLoginRequested.connect(root.openIntercomLoginPopup)
+                }
                 item.open()
             }
         }
@@ -538,6 +559,74 @@ ApplicationWindow {
         cardRadius: root.cardRadius
         chipRadius: root.chipRadius
         onClosed: root.contentItem.forceActiveFocus()
+    }
+
+    IntercomRoomSelectPopup {
+        id: intercomRoomSelectPopup
+        scaleUnit: root.su
+        panelRadius: root.panelRadius
+        cardRadius: root.cardRadius
+        chipRadius: root.chipRadius
+        onClosed: root.contentItem.forceActiveFocus()
+        onSpeakerSelectRequested: voipSpeakerSelectPopup.open()
+    }
+
+    VoipCallPopup {
+        id: voipCallPopup
+        scaleUnit: root.su
+        panelRadius: root.panelRadius
+        cardRadius: root.cardRadius
+        chipRadius: root.chipRadius
+        onClosed: root.contentItem.forceActiveFocus()
+    }
+
+    VoipSpeakerSelectPopup {
+        id: voipSpeakerSelectPopup
+        scaleUnit: root.su
+        panelRadius: root.panelRadius
+        cardRadius: root.cardRadius
+        chipRadius: root.chipRadius
+        onClosed: root.contentItem.forceActiveFocus()
+    }
+
+    IntercomLoginPopup {
+        id: intercomLoginPopup
+        scaleUnit: root.su
+        panelRadius: root.panelRadius
+        cardRadius: root.cardRadius
+        chipRadius: root.chipRadius
+        onClosed: root.contentItem.forceActiveFocus()
+    }
+
+    // 小爱家庭传声 (Intercom) 悬浮语音按钮
+    IntercomFloatingButton {
+        id: intercomFloatingBtn
+        anchors.right: parent.right
+        anchors.rightMargin: root.dp(root.isPortrait ? 18 : 24) + ((root.isIosPlatform && typeof appController !== "undefined") ? appController.safeAreaRight : 0)
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.dp(root.isPortrait ? 24 : 18) + ((root.isIosPlatform && typeof appController !== "undefined") ? appController.safeAreaBottom : 0)
+        scaleUnit: root.su
+        visible: !root.videoFullscreen
+        z: 1050
+        onRoomSelectRequested: function(ms) {
+            intercomRoomSelectPopup.openWithDuration(ms)
+        }
+        onSpeakerSelectRequested: {
+            voipSpeakerSelectPopup.open()
+        }
+    }
+
+    Connections {
+        target: (typeof appController !== "undefined") ? appController : null
+        function onIntercomRecordingReady(durationMs) {
+            intercomRoomSelectPopup.openWithDuration(durationMs)
+        }
+        function onIntercomLoginResult(success, message) {
+            root.showToast(message, success ? "qrc:/icons/check.svg" : "qrc:/icons/close.svg")
+        }
+        function onIntercomSendResult(success, message) {
+            root.showToast(message, success ? "qrc:/icons/check.svg" : "qrc:/icons/close.svg")
+        }
     }
 
     // 灭屏防误触与轻触唤醒层 (Tap to Wake)

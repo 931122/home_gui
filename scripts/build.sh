@@ -703,7 +703,9 @@ EOF
                 --disable-devices \
                 --disable-hwaccels \
                 --disable-decoders \
-                --enable-decoder=h264,hevc,mjpeg \
+                --enable-jni \
+                --enable-mediacodec \
+                --enable-decoder=h264,hevc,mjpeg,h264_mediacodec,hevc_mediacodec \
                 --disable-demuxers \
                 --enable-demuxer=rtsp,h264,hevc,mjpeg,sdp,asf,flv,matroska,mov,mp4 \
                 --disable-parsers \

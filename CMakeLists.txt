@@ -56,6 +56,7 @@ endif()
 # 纯 Qt 6 架构要求
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Qml Quick Network WebSockets)
 find_package(Qt6Svg QUIET)
+find_package(Qt6 COMPONENTS Multimedia QUIET)
 
 message(STATUS "Configured with Qt ${Qt6_VERSION}")
 
@@ -121,6 +122,8 @@ qt_add_executable(home_gui
     src/modules/homeassistant/homeassistantmodule.cpp
     src/modules/wifi/wifimodule.cpp
     src/modules/xiaozhi/xiaozhimodule.cpp
+    src/modules/intercom/audiorecorder.cpp
+    src/modules/intercom/intercommodule.cpp
     src/ui/appcontroller.cpp
     src/ui/bootsplash.cpp
     src/ui/brightnesscontroller.cpp
@@ -159,6 +162,8 @@ if(ANDROID)
     # QT_ANDROID_SIGN_APK is enabled; production builds can override the
     # keystore through QT_ANDROID_KEYSTORE_* environment variables.
     set(QT_ANDROID_SIGN_APK ON CACHE BOOL "Sign Android APKs during packaging")
+
+    target_link_libraries(home_gui PRIVATE aaudio mediandk android)
 
     if(ANDROID_FFMPEG_LIBRARIES)
         target_link_libraries(home_gui PRIVATE ${ANDROID_FFMPEG_LIBRARIES} z)
@@ -230,6 +235,11 @@ endif()
 
 if(Qt6Svg_FOUND)
     target_link_libraries(home_gui PRIVATE Qt6::Svg)
+endif()
+
+if(Qt6Multimedia_FOUND)
+    target_link_libraries(home_gui PRIVATE Qt6::Multimedia)
+    add_compile_definitions(HOME_GUI_HAS_MULTIMEDIA)
 endif()
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)

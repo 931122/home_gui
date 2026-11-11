@@ -79,6 +79,32 @@ class AppController : public QObject
     Q_PROPERTY(qreal safeAreaBottom READ safeAreaBottom NOTIFY safeAreaChanged)
     Q_PROPERTY(qreal safeAreaLeft READ safeAreaLeft NOTIFY safeAreaChanged)
     Q_PROPERTY(qreal safeAreaRight READ safeAreaRight NOTIFY safeAreaChanged)
+    Q_PROPERTY(bool intercomAvailable READ intercomAvailable NOTIFY intercomStateChanged)
+    Q_PROPERTY(QString intercomStatus READ intercomStatus NOTIFY intercomStateChanged)
+    Q_PROPERTY(QString intercomUserId READ intercomUserId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomDeviceId READ intercomDeviceId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomServiceToken READ intercomServiceToken NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomHomeId READ intercomHomeId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QVariantList intercomRooms READ intercomRooms NOTIFY intercomRoomsChanged)
+    Q_PROPERTY(bool intercomRecording READ intercomRecording NOTIFY intercomRecordingChanged)
+    Q_PROPERTY(int intercomRecordDuration READ intercomRecordDuration NOTIFY intercomRecordingChanged)
+    Q_PROPERTY(qreal intercomAudioLevel READ intercomAudioLevel NOTIFY intercomAudioLevelChanged)
+    Q_PROPERTY(QString intercomQrImageUrl READ intercomQrImageUrl NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(QString intercomQrWebUrl READ intercomQrWebUrl NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(QString intercomQrLoginStatus READ intercomQrLoginStatus NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(bool intercomQrLoggingIn READ intercomQrLoggingIn NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(bool voipAvailable READ voipAvailable NOTIFY voipAvailableChanged)
+    Q_PROPERTY(bool voipActive READ voipActive NOTIFY voipStateChanged)
+    Q_PROPERTY(int voipState READ voipState NOTIFY voipStateChanged)
+    Q_PROPERTY(QString voipStatusText READ voipStatusText NOTIFY voipStateChanged)
+    Q_PROPERTY(QString voipTargetDeviceId READ voipTargetDeviceId NOTIFY voipTargetChanged)
+    Q_PROPERTY(QString voipTargetDeviceName READ voipTargetDeviceName NOTIFY voipTargetChanged)
+    Q_PROPERTY(QString voipTargetAvatar READ voipTargetAvatar NOTIFY voipTargetChanged)
+    Q_PROPERTY(int voipDurationSeconds READ voipDurationSeconds NOTIFY voipDurationChanged)
+    Q_PROPERTY(QString voipDurationText READ voipDurationText NOTIFY voipDurationChanged)
+    Q_PROPERTY(bool voipMuted READ voipMuted NOTIFY voipAudioSettingsChanged)
+    Q_PROPERTY(bool voipSpeakerphone READ voipSpeakerphone NOTIFY voipAudioSettingsChanged)
+    Q_PROPERTY(QVariantList voipSpeakers READ voipSpeakers NOTIFY voipSpeakersChanged)
 
 public:
     explicit AppController(ConfigManager *configManager,
@@ -158,6 +184,50 @@ public:
 #endif
     }
     ScreenPowerManager *screenPower() const;
+
+    bool intercomAvailable() const;
+    QString intercomStatus() const;
+    QString intercomUserId() const;
+    QString intercomDeviceId() const;
+    QString intercomServiceToken() const;
+    QString intercomHomeId() const;
+    QVariantList intercomRooms() const;
+    bool intercomRecording() const;
+    int intercomRecordDuration() const;
+    qreal intercomAudioLevel() const;
+    QString intercomQrImageUrl() const;
+    QString intercomQrWebUrl() const;
+    QString intercomQrLoginStatus() const;
+    bool intercomQrLoggingIn() const;
+    bool voipAvailable() const;
+    bool voipActive() const;
+    int voipState() const;
+    QString voipStatusText() const;
+    QString voipTargetDeviceId() const;
+    QString voipTargetDeviceName() const;
+    QString voipTargetAvatar() const;
+    int voipDurationSeconds() const;
+    QString voipDurationText() const;
+    bool voipMuted() const;
+    bool voipSpeakerphone() const;
+    QVariantList voipSpeakers() const;
+
+    Q_INVOKABLE bool startIntercomRecord();
+    Q_INVOKABLE void stopIntercomRecord();
+    Q_INVOKABLE void cancelIntercomRecord();
+    Q_INVOKABLE void sendIntercomAudio(const QString &roomId, const QString &roomName);
+    Q_INVOKABLE void loginIntercom(const QString &username, const QString &password);
+    Q_INVOKABLE void startIntercomQrLogin();
+    Q_INVOKABLE void cancelIntercomQrLogin();
+    Q_INVOKABLE bool importLocalXiaoAiToken();
+    Q_INVOKABLE void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId);
+    Q_INVOKABLE void refreshIntercomRooms();
+    Q_INVOKABLE void startVoipCall(const QString &deviceId, const QString &deviceName, const QString &avatar = QString(),
+                                   const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0);
+    Q_INVOKABLE void hangupVoipCall();
+    Q_INVOKABLE void setVoipMute(bool mute);
+    Q_INVOKABLE void setVoipSpeakerphone(bool enable);
+    Q_INVOKABLE void refreshVoipContacts();
 
 public slots:
     void startDeferredServices();
@@ -250,6 +320,21 @@ signals:
     void configStatusTextChanged();
     void candidateConfigFilesChanged();
     void safeAreaChanged();
+    void intercomStateChanged();
+    void intercomConfigChanged();
+    void intercomRoomsChanged();
+    void intercomRecordingChanged();
+    void intercomAudioLevelChanged();
+    void intercomQrLoginChanged();
+    void intercomRecordingReady(qint64 durationMs);
+    void intercomLoginResult(bool success, const QString &message);
+    void intercomSendResult(bool success, const QString &message);
+    void voipAvailableChanged();
+    void voipStateChanged();
+    void voipTargetChanged();
+    void voipDurationChanged();
+    void voipAudioSettingsChanged();
+    void voipSpeakersChanged();
 
 private:
     // 根据当前配置和全局状态，得到界面应该使用的“当前视频配置”。

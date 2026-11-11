@@ -145,6 +145,36 @@ AppController::AppController(ConfigManager *configManager,
             this, &AppController::weatherSummaryChanged);
     connect(m_globalState, &GlobalState::wifiAvailableChanged,
             this, &AppController::wifiStateChanged);
+    connect(m_globalState, &GlobalState::intercomStateChanged,
+            this, &AppController::intercomStateChanged);
+    connect(m_globalState, &GlobalState::intercomConfigChanged,
+            this, &AppController::intercomConfigChanged);
+    connect(m_globalState, &GlobalState::intercomRoomsChanged,
+            this, &AppController::intercomRoomsChanged);
+    connect(m_globalState, &GlobalState::intercomRecordingChanged,
+            this, &AppController::intercomRecordingChanged);
+    connect(m_globalState, &GlobalState::intercomAudioLevelChanged,
+            this, &AppController::intercomAudioLevelChanged);
+    connect(m_globalState, &GlobalState::intercomQrLoginChanged,
+            this, &AppController::intercomQrLoginChanged);
+    connect(m_globalState, &GlobalState::voipAvailableChanged,
+            this, &AppController::voipAvailableChanged);
+    connect(m_globalState, &GlobalState::voipStateChanged,
+            this, &AppController::voipStateChanged);
+    connect(m_globalState, &GlobalState::voipTargetChanged,
+            this, &AppController::voipTargetChanged);
+    connect(m_globalState, &GlobalState::voipDurationChanged,
+            this, &AppController::voipDurationChanged);
+    connect(m_globalState, &GlobalState::voipAudioSettingsChanged,
+            this, &AppController::voipAudioSettingsChanged);
+    connect(m_globalState, &GlobalState::voipSpeakersChanged,
+            this, &AppController::voipSpeakersChanged);
+    connect(m_moduleManager, &ModuleManager::intercomLoginResult,
+            this, &AppController::intercomLoginResult);
+    connect(m_moduleManager, &ModuleManager::intercomSendAudioResult,
+            this, &AppController::intercomSendResult);
+    connect(m_moduleManager, &ModuleManager::intercomRecordingReadyForRoomSelect,
+            this, &AppController::intercomRecordingReady);
     connect(&m_steamerTimer, &QTimer::timeout, this, [this]() {
         if (m_steamerRemainSeconds > 0) {
             --m_steamerRemainSeconds;
@@ -1563,6 +1593,249 @@ qreal AppController::safeAreaLeft() const
 qreal AppController::safeAreaRight() const
 {
     return PlatformHelper::safeAreaRight();
+}
+
+bool AppController::intercomAvailable() const
+{
+    return m_globalState ? m_globalState->intercomAvailable() : false;
+}
+
+QString AppController::intercomStatus() const
+{
+    return m_globalState ? m_globalState->intercomStatus() : QString();
+}
+
+QString AppController::intercomUserId() const
+{
+    return m_globalState ? m_globalState->intercomUserId() : QString();
+}
+
+QString AppController::intercomDeviceId() const
+{
+    return m_globalState ? m_globalState->intercomDeviceId() : QString();
+}
+
+QString AppController::intercomServiceToken() const
+{
+    return m_globalState ? m_globalState->intercomServiceToken() : QString();
+}
+
+QString AppController::intercomHomeId() const
+{
+    return m_globalState ? m_globalState->intercomHomeId() : QString();
+}
+
+QVariantList AppController::intercomRooms() const
+{
+    return m_globalState ? m_globalState->intercomRooms() : QVariantList();
+}
+
+bool AppController::intercomRecording() const
+{
+    return m_globalState ? m_globalState->intercomRecording() : false;
+}
+
+int AppController::intercomRecordDuration() const
+{
+    return m_globalState ? m_globalState->intercomRecordDuration() : 0;
+}
+
+qreal AppController::intercomAudioLevel() const
+{
+    return m_globalState ? m_globalState->intercomAudioLevel() : 0.0;
+}
+
+QString AppController::intercomQrImageUrl() const
+{
+    return m_globalState ? m_globalState->intercomQrImageUrl() : QString();
+}
+
+QString AppController::intercomQrWebUrl() const
+{
+    return m_globalState ? m_globalState->intercomQrWebUrl() : QString();
+}
+
+QString AppController::intercomQrLoginStatus() const
+{
+    return m_globalState ? m_globalState->intercomQrLoginStatus() : QString();
+}
+
+bool AppController::intercomQrLoggingIn() const
+{
+    return m_globalState ? m_globalState->intercomQrLoggingIn() : false;
+}
+
+bool AppController::startIntercomRecord()
+{
+    if (m_moduleManager) {
+        return m_moduleManager->startIntercomRecording();
+    }
+    return false;
+}
+
+void AppController::stopIntercomRecord()
+{
+    if (m_moduleManager) {
+        m_moduleManager->stopIntercomRecording();
+    }
+}
+
+void AppController::cancelIntercomRecord()
+{
+    if (m_moduleManager) {
+        m_moduleManager->cancelIntercomRecording();
+    }
+}
+
+void AppController::sendIntercomAudio(const QString &roomId, const QString &roomName)
+{
+    if (m_moduleManager) {
+        m_moduleManager->sendIntercomAudio(roomId, roomName);
+    }
+}
+
+void AppController::loginIntercom(const QString &username, const QString &password)
+{
+    if (m_moduleManager) {
+        m_moduleManager->loginIntercom(username, password);
+    }
+}
+
+void AppController::startIntercomQrLogin()
+{
+    if (m_moduleManager) {
+        m_moduleManager->startIntercomQrLogin();
+    }
+}
+
+void AppController::cancelIntercomQrLogin()
+{
+    if (m_moduleManager) {
+        m_moduleManager->cancelIntercomQrLogin();
+    }
+}
+
+bool AppController::importLocalXiaoAiToken()
+{
+    if (m_moduleManager) {
+        return m_moduleManager->importIntercomLocalXiaoAiToken();
+    }
+    return false;
+}
+
+void AppController::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId)
+{
+    if (m_moduleManager) {
+        m_moduleManager->saveIntercomSettings(userId, serviceToken, deviceId, homeId);
+    }
+}
+
+void AppController::refreshIntercomRooms()
+{
+    if (m_moduleManager) {
+        m_moduleManager->fetchIntercomRooms();
+    }
+}
+
+bool AppController::voipAvailable() const
+{
+    return m_globalState ? m_globalState->voipAvailable() : false;
+}
+
+bool AppController::voipActive() const
+{
+    return m_globalState ? m_globalState->voipActive() : false;
+}
+
+int AppController::voipState() const
+{
+    return m_globalState ? m_globalState->voipState() : 0;
+}
+
+QString AppController::voipStatusText() const
+{
+    return m_globalState ? m_globalState->voipStatusText() : QString();
+}
+
+QString AppController::voipTargetDeviceId() const
+{
+    return m_globalState ? m_globalState->voipTargetDeviceId() : QString();
+}
+
+QString AppController::voipTargetDeviceName() const
+{
+    return m_globalState ? m_globalState->voipTargetDeviceName() : QString();
+}
+
+QString AppController::voipTargetAvatar() const
+{
+    return m_globalState ? m_globalState->voipTargetAvatar() : QString();
+}
+
+int AppController::voipDurationSeconds() const
+{
+    return m_globalState ? m_globalState->voipDurationSeconds() : 0;
+}
+
+QString AppController::voipDurationText() const
+{
+    const int s = m_globalState ? m_globalState->voipDurationSeconds() : 0;
+    const int mins = s / 60;
+    const int secs = s % 60;
+    return QStringLiteral("%1:%2")
+        .arg(mins, 2, 10, QLatin1Char('0'))
+        .arg(secs, 2, 10, QLatin1Char('0'));
+}
+
+bool AppController::voipMuted() const
+{
+    return m_globalState ? m_globalState->voipMuted() : false;
+}
+
+bool AppController::voipSpeakerphone() const
+{
+    return m_globalState ? m_globalState->voipSpeakerphone() : true;
+}
+
+QVariantList AppController::voipSpeakers() const
+{
+    return m_globalState ? m_globalState->voipSpeakers() : QVariantList();
+}
+
+void AppController::startVoipCall(const QString &deviceId, const QString &deviceName, const QString &avatar,
+                                   const QString &uid, const QString &deviceModel, int deviceType)
+{
+    if (m_moduleManager) {
+        m_moduleManager->startVoipCall(deviceId, deviceName, avatar, uid, deviceModel, deviceType);
+    }
+}
+
+void AppController::hangupVoipCall()
+{
+    if (m_moduleManager) {
+        m_moduleManager->hangupVoipCall();
+    }
+}
+
+void AppController::setVoipMute(bool mute)
+{
+    if (m_moduleManager) {
+        m_moduleManager->setVoipMute(mute);
+    }
+}
+
+void AppController::setVoipSpeakerphone(bool enable)
+{
+    if (m_moduleManager) {
+        m_moduleManager->setVoipSpeakerphone(enable);
+    }
+}
+
+void AppController::refreshVoipContacts()
+{
+    if (m_moduleManager) {
+        m_moduleManager->fetchVoipContacts();
+    }
 }
 
 

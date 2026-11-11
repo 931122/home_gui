@@ -18,6 +18,11 @@
         <file alias="qml/WeatherPopup.qml">../src/ui/qml/WeatherPopup.qml</file>
         <file alias="qml/WifiPopups.qml">../src/ui/qml/WifiPopups.qml</file>
         <file alias="qml/XiaozhiOverlay.qml">../src/ui/qml/XiaozhiOverlay.qml</file>
+        <file alias="qml/IntercomFloatingButton.qml">../src/ui/qml/IntercomFloatingButton.qml</file>
+        <file alias="qml/IntercomRoomSelectPopup.qml">../src/ui/qml/IntercomRoomSelectPopup.qml</file>
+        <file alias="qml/IntercomLoginPopup.qml">../src/ui/qml/IntercomLoginPopup.qml</file>
+        <file alias="qml/VoipCallPopup.qml">../src/ui/qml/VoipCallPopup.qml</file>
+        <file alias="qml/VoipSpeakerSelectPopup.qml">../src/ui/qml/VoipSpeakerSelectPopup.qml</file>
         <file alias="qml/TapToWakeOverlay.qml">../src/ui/qml/TapToWakeOverlay.qml</file>
         <file alias="qml/CookerPopup.qml">../src/ui/qml/CookerPopup.qml</file>
         <file alias="qml/CookerRecipes.js">../src/ui/qml/CookerRecipes.js</file>

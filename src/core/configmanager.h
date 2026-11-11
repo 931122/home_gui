@@ -24,6 +24,7 @@ public:
     void resetConfig();
     bool updateCameraOnvifProfile(int cameraIndex, const QString &profile);
     bool updateScreenPowerSettings(int idleTimeoutSeconds, const QString &panelConfig);
+    bool updateIntercomConfig(bool enabled, const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken = QString(), const QString &micoapiServiceToken = QString(), const QString &mimcId = QString());
 
     // 静态辅助方法：启动引导阶段（QApplication 创建前）快速读取平台配置
     static PlatformConfig loadBootPlatformConfig(const QString &configPath);

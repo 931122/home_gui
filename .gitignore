@@ -35,3 +35,4 @@ CMakeUserPresets.json
 
 # Compiled shaders
 *.qsb
+*.qm

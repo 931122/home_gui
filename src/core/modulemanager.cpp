@@ -7,6 +7,7 @@
 #include "modules/video/videomodule.h"
 #include "modules/wifi/wifimodule.h"
 #include "modules/xiaozhi/xiaozhimodule.h"
+#include "modules/intercom/intercommodule.h"
 
 ModuleManager::ModuleManager(ConfigManager *configManager, GlobalState *globalState, QObject *parent)
     : QObject(parent)
@@ -178,6 +179,125 @@ void ModuleManager::hideXiaozhiOverlay()
     }
 }
 
+bool ModuleManager::startIntercomRecording()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        return m_intercomModule->startRecording();
+    }
+    return false;
+}
+
+void ModuleManager::stopIntercomRecording()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->stopRecording();
+    }
+}
+
+void ModuleManager::cancelIntercomRecording()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->cancelRecording();
+    }
+}
+
+void ModuleManager::sendIntercomAudio(const QString &roomId, const QString &roomName)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->sendPendingAudio(roomId, roomName);
+    }
+}
+
+void ModuleManager::loginIntercom(const QString &username, const QString &password)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->login(username, password);
+    }
+}
+
+void ModuleManager::startIntercomQrLogin()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->startQrLogin();
+    }
+}
+
+void ModuleManager::cancelIntercomQrLogin()
+{
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->cancelQrLogin();
+    }
+}
+
+bool ModuleManager::importIntercomLocalXiaoAiToken()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        return m_intercomModule->importLocalXiaoAiToken();
+    }
+    return false;
+}
+
+void ModuleManager::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->saveCredentials(userId, serviceToken, deviceId, homeId);
+    }
+}
+
+void ModuleManager::fetchIntercomRooms()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->fetchRooms();
+    }
+}
+
+void ModuleManager::startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar,
+                                   const QString &uid, const QString &deviceModel, int deviceType)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->startVoipCall(targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType);
+    }
+}
+
+void ModuleManager::hangupVoipCall()
+{
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->hangupVoipCall();
+    }
+}
+
+void ModuleManager::setVoipMute(bool mute)
+{
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->setVoipMute(mute);
+    }
+}
+
+void ModuleManager::setVoipSpeakerphone(bool enable)
+{
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->setVoipSpeakerphone(enable);
+    }
+}
+
+void ModuleManager::fetchVoipContacts()
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->fetchVoipContacts();
+    }
+}
+
 void ModuleManager::ensureModules()
 {
     if (!m_modules.isEmpty()) {
@@ -189,11 +309,17 @@ void ModuleManager::ensureModules()
     m_homeAssistantModule = new HomeAssistantModule(m_globalState, this);
     m_wifiModule = new WifiModule(m_globalState, this);
     m_xiaozhiModule = new XiaozhiModule(m_globalState, this);
+    m_intercomModule = new IntercomModule(m_configManager, m_globalState, this);
+
+    connect(m_intercomModule, &IntercomModule::loginResult, this, &ModuleManager::intercomLoginResult);
+    connect(m_intercomModule, &IntercomModule::sendAudioResult, this, &ModuleManager::intercomSendAudioResult);
+    connect(m_intercomModule, &IntercomModule::recordingReadyForRoomSelect, this, &ModuleManager::intercomRecordingReadyForRoomSelect);
 
     m_modules.append(m_videoModule);
     m_modules.append(m_homeAssistantModule);
     m_modules.append(m_wifiModule);
     m_modules.append(m_xiaozhiModule);
+    m_modules.append(m_intercomModule);
 }
 
 void ModuleManager::applyPlatformState(const AppConfig &config)

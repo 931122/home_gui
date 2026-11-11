@@ -368,6 +368,73 @@ bool ConfigManager::updateScreenPowerSettings(int idleTimeoutSeconds, const QStr
     return loaded;
 }
 
+bool ConfigManager::updateIntercomConfig(bool enabled, const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken, const QString &micoapiServiceToken, const QString &mimcId)
+{
+    QFile file(m_configPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        emit configLoadFailed(tr("Failed to open config file: %1").arg(m_configPath));
+        return false;
+    }
+
+    const QByteArray rawData = file.readAll();
+    file.close();
+
+    fkyaml::node root;
+    try {
+        root = fkyaml::node::deserialize(std::string(rawData.constData(), rawData.size()));
+    } catch (const std::exception &e) {
+        emit configLoadFailed(tr("Invalid config YAML: %1").arg(QString::fromUtf8(e.what())));
+        return false;
+    }
+
+    if (!root.is_mapping()) {
+        emit configLoadFailed(tr("Invalid root configuration in YAML"));
+        return false;
+    }
+
+    if (!root.contains("intercom") || !root["intercom"].is_mapping()) {
+        root["intercom"] = fkyaml::node::mapping();
+    }
+
+    root["intercom"]["enabled"] = enabled;
+    root["intercom"]["userId"] = userId.trimmed().toStdString();
+    root["intercom"]["serviceToken"] = serviceToken.trimmed().toStdString();
+    if (!deviceId.isEmpty()) {
+        root["intercom"]["deviceId"] = deviceId.trimmed().toStdString();
+    }
+    if (!homeId.isEmpty()) {
+        root["intercom"]["homeId"] = homeId.trimmed().toStdString();
+    }
+    if (!refreshToken.isEmpty()) {
+        root["intercom"]["refreshToken"] = refreshToken.trimmed().toStdString();
+    }
+    if (!micoapiServiceToken.isEmpty()) {
+        root["intercom"]["micoapiServiceToken"] = micoapiServiceToken.trimmed().toStdString();
+    }
+    if (!mimcId.isEmpty()) {
+        root["intercom"]["mimcId"] = mimcId.trimmed().toStdString();
+    }
+
+    std::stringstream ss;
+    ss << root;
+    const std::string yamlStr = ss.str();
+
+    QString writeError;
+    m_ignoreNextFileChange = true;
+    if (!writeYamlAtomically(m_configPath, yamlStr, writeError)) {
+        m_ignoreNextFileChange = false;
+        emit configLoadFailed(writeError);
+        return false;
+    }
+
+    const bool loaded = load();
+    QTimer::singleShot(1000, this, [this]() {
+        m_ignoreNextFileChange = false;
+        ensureWatch();
+    });
+    return loaded;
+}
+
 PlatformConfig ConfigManager::loadBootPlatformConfig(const QString &configPath)
 {
     PlatformConfig config;
@@ -694,6 +761,19 @@ bool ConfigManager::parseConfig(const QByteArray &payload, AppConfig &nextConfig
     nextConfig.xiaozhi.wakeGpioDebounceMs = qBound(20,
                                                    getYamlInt(xiaozhi, "wakeGpioDebounceMs", 80),
                                                    2000);
+
+    const auto &intercom = root["intercom"];
+    nextConfig.intercom.enabled = getYamlBool(intercom, "enabled", true);
+    nextConfig.intercom.userId = getYamlString(intercom, "userId").trimmed();
+    nextConfig.intercom.deviceId = getYamlString(intercom, "deviceId").trimmed();
+    nextConfig.intercom.serviceToken = getYamlString(intercom, "serviceToken").trimmed();
+    nextConfig.intercom.passToken = getYamlString(intercom, "passToken").trimmed();
+    nextConfig.intercom.refreshToken = getYamlString(intercom, "refreshToken").trimmed();
+    nextConfig.intercom.homeId = getYamlString(intercom, "homeId").trimmed();
+    nextConfig.intercom.micoapiServiceToken = getYamlString(intercom, "micoapiServiceToken").trimmed();
+    nextConfig.intercom.mimcId = getYamlString(intercom, "mimcId").trimmed();
+    nextConfig.intercom.defaultRoomId = getYamlString(intercom, "defaultRoomId", QStringLiteral("WHOLE_0")).trimmed();
+    nextConfig.intercom.serverUrl = getYamlString(intercom, "serverUrl", QStringLiteral("https://i.xiaomixiaoai.com")).trimmed();
 
     return true;
 }

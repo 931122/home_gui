@@ -31,6 +31,20 @@ class GlobalState : public QObject
     Q_PROPERTY(bool ptzAvailable READ ptzAvailable NOTIFY ptzAvailableChanged)
     Q_PROPERTY(bool reducedEffects READ reducedEffects NOTIFY reducedEffectsChanged)
     Q_PROPERTY(QString activeVideoDecoder READ activeVideoDecoder WRITE setActiveVideoDecoder NOTIFY activeVideoDecoderChanged)
+    Q_PROPERTY(bool intercomAvailable READ intercomAvailable NOTIFY intercomStateChanged)
+    Q_PROPERTY(QString intercomStatus READ intercomStatus NOTIFY intercomStateChanged)
+    Q_PROPERTY(QString intercomUserId READ intercomUserId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomDeviceId READ intercomDeviceId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomServiceToken READ intercomServiceToken NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString intercomHomeId READ intercomHomeId NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QVariantList intercomRooms READ intercomRooms NOTIFY intercomRoomsChanged)
+    Q_PROPERTY(bool intercomRecording READ intercomRecording NOTIFY intercomRecordingChanged)
+    Q_PROPERTY(int intercomRecordDuration READ intercomRecordDuration NOTIFY intercomRecordingChanged)
+    Q_PROPERTY(qreal intercomAudioLevel READ intercomAudioLevel NOTIFY intercomAudioLevelChanged)
+    Q_PROPERTY(QString intercomQrImageUrl READ intercomQrImageUrl NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(QString intercomQrWebUrl READ intercomQrWebUrl NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(QString intercomQrLoginStatus READ intercomQrLoginStatus NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(bool intercomQrLoggingIn READ intercomQrLoggingIn NOTIFY intercomQrLoginChanged)
 
 public:
     explicit GlobalState(QObject *parent = nullptr);
@@ -56,6 +70,33 @@ public:
     bool ptzAvailable() const;
     bool reducedEffects() const;
     QString activeVideoDecoder() const;
+    bool intercomAvailable() const;
+    QString intercomStatus() const;
+    QString intercomUserId() const;
+    QString intercomDeviceId() const;
+    QString intercomServiceToken() const;
+    QString intercomHomeId() const;
+    QVariantList intercomRooms() const;
+    bool intercomRecording() const;
+    int intercomRecordDuration() const;
+    qreal intercomAudioLevel() const;
+    QString intercomQrImageUrl() const;
+    QString intercomQrWebUrl() const;
+    QString intercomQrLoginStatus() const;
+    bool intercomQrLoggingIn() const;
+    bool voipAvailable() const;
+    bool voipActive() const;
+    int voipState() const;
+    QString voipStatusText() const;
+    QString voipTargetDeviceId() const;
+    QString voipTargetDeviceName() const;
+    QString voipTargetAvatar() const;
+    int voipDurationSeconds() const;
+    bool voipMuted() const;
+    bool voipSpeakerphone() const;
+    QVariantList voipSpeakers() const;
+    QString micoapiServiceToken() const;
+    QString mimcId() const;
 
 public slots:
     void setPlatform(const QString &platform);
@@ -79,6 +120,31 @@ public slots:
     void setPtzAvailable(bool ptzAvailable);
     void setReducedEffects(bool reducedEffects);
     void setActiveVideoDecoder(const QString &decoder);
+    void setIntercomAvailable(bool available);
+    void setIntercomStatus(const QString &status);
+    void setIntercomUserId(const QString &userId);
+    void setIntercomDeviceId(const QString &deviceId);
+    void setIntercomServiceToken(const QString &serviceToken);
+    void setIntercomHomeId(const QString &homeId);
+    void setIntercomRooms(const QVariantList &rooms);
+    void setIntercomRecording(bool recording);
+    void setIntercomRecordDuration(int duration);
+    void setIntercomAudioLevel(qreal level);
+    void setIntercomQrImageUrl(const QString &url);
+    void setIntercomQrWebUrl(const QString &url);
+    void setIntercomQrLoginStatus(const QString &status);
+    void setIntercomQrLoggingIn(bool loggingIn);
+    void setVoipAvailable(bool available);
+    void setVoipActive(bool active);
+    void setVoipState(int state, const QString &statusText = QString());
+    void setVoipStatusText(const QString &text);
+    void setVoipTarget(const QString &deviceId, const QString &deviceName, const QString &avatar = QString());
+    void setVoipDurationSeconds(int seconds);
+    void setVoipMuted(bool muted);
+    void setVoipSpeakerphone(bool speakerphone);
+    void setVoipSpeakers(const QVariantList &speakers);
+    void setMicoapiServiceToken(const QString &token);
+    void setMimcId(const QString &mimcId);
 
 signals:
     void platformChanged();
@@ -99,6 +165,18 @@ signals:
     void ptzAvailableChanged();
     void reducedEffectsChanged();
     void activeVideoDecoderChanged();
+    void intercomStateChanged();
+    void intercomConfigChanged();
+    void intercomRoomsChanged();
+    void intercomRecordingChanged();
+    void intercomAudioLevelChanged();
+    void intercomQrLoginChanged();
+    void voipAvailableChanged();
+    void voipStateChanged();
+    void voipTargetChanged();
+    void voipDurationChanged();
+    void voipAudioSettingsChanged();
+    void voipSpeakersChanged();
 
 private:
     QString m_platform;
@@ -122,6 +200,33 @@ private:
     bool m_ptzAvailable = false;
     bool m_reducedEffects = false;
     QString m_activeVideoDecoder;
+    bool m_intercomAvailable = false;
+    QString m_intercomStatus;
+    QString m_intercomUserId;
+    QString m_intercomDeviceId;
+    QString m_intercomServiceToken;
+    QString m_intercomHomeId;
+    QVariantList m_intercomRooms;
+    bool m_intercomRecording = false;
+    int m_intercomRecordDuration = 0;
+    qreal m_intercomAudioLevel = 0.0;
+    QString m_intercomQrImageUrl;
+    QString m_intercomQrWebUrl;
+    QString m_intercomQrLoginStatus;
+    bool m_intercomQrLoggingIn = false;
+    bool m_voipAvailable = false;
+    bool m_voipActive = false;
+    int m_voipState = 0;
+    QString m_voipStatusText;
+    QString m_voipTargetDeviceId;
+    QString m_voipTargetDeviceName;
+    QString m_voipTargetAvatar;
+    int m_voipDurationSeconds = 0;
+    bool m_voipMuted = false;
+    bool m_voipSpeakerphone = true;
+    QVariantList m_voipSpeakers;
+    QString m_micoapiServiceToken;
+    QString m_mimcId;
 };
 
 #endif

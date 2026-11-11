@@ -130,3 +130,9 @@ xiaozhi:
   websocketHost: api.tenclass.net
   websocketPath: /xiaozhi/v1/
   websocketPort: 443
+intercom:
+  deviceId: ''
+  enabled: true
+  homeId: ''
+  serviceToken: ''
+  userId: ''

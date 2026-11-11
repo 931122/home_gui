@@ -218,9 +218,13 @@ bool LibavDecodeThread::openStream(bool &retryable)
         isHardware = false;
 
 #if defined(Q_OS_ANDROID)
-        // 在 Android 上，仅在显式配置为 hardware 或 mediacodec 时才尝试 MediaCodec 硬解。
-        // "auto" 或未设置时默认使用 CPU 多线程软解（在骁龙8Gen3/天玑上仅占单核约2% CPU，无 Surface 兼容性问题与黑屏风险）。
-        if (decoderPreference == QStringLiteral("hardware") || decoderPreference == QStringLiteral("mediacodec")) {
+        // 在 Android 上，当配置为 "auto"、"hardware"、"mediacodec" 或未显式指定时，优先尝试 MediaCodec 硬解。
+        // 若未找到硬解器或硬解初始化失败，将无缝自动平滑回退到 CPU 多线程软解。
+        if (decoderPreference != QStringLiteral("software") && decoderPreference != QStringLiteral("cpu")) {
+            JavaVM *vm = QJniEnvironment::javaVM();
+            if (vm) {
+                av_jni_set_java_vm(vm, nullptr);
+            }
             if (videoStream->codecpar->codec_id == AV_CODEC_ID_H264) {
                 codec = avcodec_find_decoder_by_name("h264_mediacodec");
             } else if (videoStream->codecpar->codec_id == AV_CODEC_ID_HEVC) {
@@ -228,6 +232,7 @@ bool LibavDecodeThread::openStream(bool &retryable)
             }
             if (codec) {
                 isHardware = true;
+                qInfo() << "[VideoDecoder] Attempting MediaCodec hardware decoder:" << codec->name;
             }
         }
 #endif
@@ -408,10 +413,17 @@ bool LibavDecodeThread::openStream(bool &retryable)
 
             int outputWidth = frame->width;
             int outputHeight = frame->height;
-            // 若原分辨率高于 960x540（如 2K/2.5K/4K 超清监控源），等比降采样至 960x540 以内
-            // 手机屏上由 GPU (QSGTexture::Linear) 硬件插值放大，不仅画质毫无损失，更能减少 45% 的内存搬运带宽
-            if (outputWidth > 960 || outputHeight > 540) {
-                const double scale = qMin(960.0 / outputWidth, 540.0 / outputHeight);
+            // 依据目标渲染区域进行动态等比降采样（默认上限 960x540，手机主屏卡片适配为 640x360）
+            // 手机屏上由 GPU (QSGTexture::Linear) 硬件插值放大，画质无损且可大幅削减 50% 以上 sws_scale 内存转换带宽
+            int maxTargetW = 960;
+            int maxTargetH = 540;
+            if (targetSize.isValid() && targetSize.width() > 0 && targetSize.height() > 0) {
+                maxTargetW = qBound(320, targetSize.width(), 960);
+                maxTargetH = qBound(180, targetSize.height(), 540);
+            }
+            if (outputWidth > maxTargetW || outputHeight > maxTargetH) {
+                const double scale = qMin(static_cast<double>(maxTargetW) / outputWidth,
+                                          static_cast<double>(maxTargetH) / outputHeight);
                 outputWidth = static_cast<int>(std::round(outputWidth * scale));
                 outputHeight = static_cast<int>(std::round(outputHeight * scale));
             }

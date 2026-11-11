@@ -300,3 +300,338 @@ void GlobalState::setActiveVideoDecoder(const QString &decoder)
     m_activeVideoDecoder = decoder;
     emit activeVideoDecoderChanged();
 }
+
+bool GlobalState::intercomAvailable() const
+{
+    return m_intercomAvailable;
+}
+
+QString GlobalState::intercomStatus() const
+{
+    return m_intercomStatus;
+}
+
+QString GlobalState::intercomUserId() const
+{
+    return m_intercomUserId;
+}
+
+QString GlobalState::intercomDeviceId() const
+{
+    return m_intercomDeviceId;
+}
+
+QString GlobalState::intercomServiceToken() const
+{
+    return m_intercomServiceToken;
+}
+
+QString GlobalState::intercomHomeId() const
+{
+    return m_intercomHomeId;
+}
+
+QVariantList GlobalState::intercomRooms() const
+{
+    return m_intercomRooms;
+}
+
+bool GlobalState::intercomRecording() const
+{
+    return m_intercomRecording;
+}
+
+int GlobalState::intercomRecordDuration() const
+{
+    return m_intercomRecordDuration;
+}
+
+qreal GlobalState::intercomAudioLevel() const
+{
+    return m_intercomAudioLevel;
+}
+
+QString GlobalState::intercomQrImageUrl() const
+{
+    return m_intercomQrImageUrl;
+}
+
+QString GlobalState::intercomQrWebUrl() const
+{
+    return m_intercomQrWebUrl;
+}
+
+QString GlobalState::intercomQrLoginStatus() const
+{
+    return m_intercomQrLoginStatus;
+}
+
+bool GlobalState::intercomQrLoggingIn() const
+{
+    return m_intercomQrLoggingIn;
+}
+
+bool GlobalState::voipAvailable() const
+{
+    return m_voipAvailable;
+}
+
+bool GlobalState::voipActive() const
+{
+    return m_voipActive;
+}
+
+int GlobalState::voipState() const
+{
+    return m_voipState;
+}
+
+QString GlobalState::voipStatusText() const
+{
+    return m_voipStatusText;
+}
+
+QString GlobalState::voipTargetDeviceId() const
+{
+    return m_voipTargetDeviceId;
+}
+
+QString GlobalState::voipTargetDeviceName() const
+{
+    return m_voipTargetDeviceName;
+}
+
+QString GlobalState::voipTargetAvatar() const
+{
+    return m_voipTargetAvatar;
+}
+
+int GlobalState::voipDurationSeconds() const
+{
+    return m_voipDurationSeconds;
+}
+
+bool GlobalState::voipMuted() const
+{
+    return m_voipMuted;
+}
+
+bool GlobalState::voipSpeakerphone() const
+{
+    return m_voipSpeakerphone;
+}
+
+QVariantList GlobalState::voipSpeakers() const
+{
+    return m_voipSpeakers;
+}
+
+QString GlobalState::micoapiServiceToken() const
+{
+    return m_micoapiServiceToken;
+}
+
+QString GlobalState::mimcId() const
+{
+    return m_mimcId;
+}
+
+void GlobalState::setIntercomAvailable(bool available)
+{
+    if (m_intercomAvailable == available) {
+        return;
+    }
+    m_intercomAvailable = available;
+    emit intercomStateChanged();
+}
+
+void GlobalState::setIntercomStatus(const QString &status)
+{
+    if (m_intercomStatus == status) {
+        return;
+    }
+    m_intercomStatus = status;
+    emit intercomStateChanged();
+}
+
+void GlobalState::setIntercomUserId(const QString &userId)
+{
+    if (m_intercomUserId == userId) {
+        return;
+    }
+    m_intercomUserId = userId;
+    emit intercomConfigChanged();
+}
+
+void GlobalState::setIntercomDeviceId(const QString &deviceId)
+{
+    if (m_intercomDeviceId == deviceId) {
+        return;
+    }
+    m_intercomDeviceId = deviceId;
+    emit intercomConfigChanged();
+}
+
+void GlobalState::setIntercomServiceToken(const QString &serviceToken)
+{
+    if (m_intercomServiceToken == serviceToken) {
+        return;
+    }
+    m_intercomServiceToken = serviceToken;
+    emit intercomConfigChanged();
+}
+
+void GlobalState::setIntercomHomeId(const QString &homeId)
+{
+    if (m_intercomHomeId == homeId) {
+        return;
+    }
+    m_intercomHomeId = homeId;
+    emit intercomConfigChanged();
+}
+
+void GlobalState::setIntercomRooms(const QVariantList &rooms)
+{
+    m_intercomRooms = rooms;
+    emit intercomRoomsChanged();
+}
+
+void GlobalState::setIntercomRecording(bool recording)
+{
+    if (m_intercomRecording == recording) {
+        return;
+    }
+    m_intercomRecording = recording;
+    emit intercomRecordingChanged();
+}
+
+void GlobalState::setIntercomRecordDuration(int duration)
+{
+    if (m_intercomRecordDuration == duration) {
+        return;
+    }
+    m_intercomRecordDuration = duration;
+    emit intercomRecordingChanged();
+}
+
+void GlobalState::setIntercomAudioLevel(qreal level)
+{
+    m_intercomAudioLevel = level;
+    emit intercomAudioLevelChanged();
+}
+
+void GlobalState::setIntercomQrImageUrl(const QString &url)
+{
+    if (m_intercomQrImageUrl == url) {
+        return;
+    }
+    m_intercomQrImageUrl = url;
+    emit intercomQrLoginChanged();
+}
+
+void GlobalState::setIntercomQrWebUrl(const QString &url)
+{
+    if (m_intercomQrWebUrl == url) {
+        return;
+    }
+    m_intercomQrWebUrl = url;
+    emit intercomQrLoginChanged();
+}
+
+void GlobalState::setIntercomQrLoginStatus(const QString &status)
+{
+    if (m_intercomQrLoginStatus == status) {
+        return;
+    }
+    m_intercomQrLoginStatus = status;
+    emit intercomQrLoginChanged();
+}
+
+void GlobalState::setIntercomQrLoggingIn(bool loggingIn)
+{
+    if (m_intercomQrLoggingIn == loggingIn) {
+        return;
+    }
+    m_intercomQrLoggingIn = loggingIn;
+    emit intercomQrLoginChanged();
+}
+
+void GlobalState::setVoipAvailable(bool available)
+{
+    if (m_voipAvailable == available) return;
+    m_voipAvailable = available;
+    emit voipAvailableChanged();
+}
+
+void GlobalState::setVoipActive(bool active)
+{
+    if (m_voipActive == active) return;
+    m_voipActive = active;
+    emit voipStateChanged();
+}
+
+void GlobalState::setVoipState(int state, const QString &statusText)
+{
+    m_voipState = state;
+    if (!statusText.isEmpty()) {
+        m_voipStatusText = statusText;
+    }
+    if (state == 0) {
+        m_voipActive = false;
+    } else {
+        m_voipActive = true;
+    }
+    emit voipStateChanged();
+}
+
+void GlobalState::setVoipStatusText(const QString &text)
+{
+    if (m_voipStatusText == text) return;
+    m_voipStatusText = text;
+    emit voipStateChanged();
+}
+
+void GlobalState::setVoipTarget(const QString &deviceId, const QString &deviceName, const QString &avatar)
+{
+    m_voipTargetDeviceId = deviceId;
+    m_voipTargetDeviceName = deviceName;
+    m_voipTargetAvatar = avatar;
+    emit voipTargetChanged();
+}
+
+void GlobalState::setVoipDurationSeconds(int seconds)
+{
+    if (m_voipDurationSeconds == seconds) return;
+    m_voipDurationSeconds = seconds;
+    emit voipDurationChanged();
+}
+
+void GlobalState::setVoipMuted(bool muted)
+{
+    if (m_voipMuted == muted) return;
+    m_voipMuted = muted;
+    emit voipAudioSettingsChanged();
+}
+
+void GlobalState::setVoipSpeakerphone(bool speakerphone)
+{
+    if (m_voipSpeakerphone == speakerphone) return;
+    m_voipSpeakerphone = speakerphone;
+    emit voipAudioSettingsChanged();
+}
+
+void GlobalState::setVoipSpeakers(const QVariantList &speakers)
+{
+    m_voipSpeakers = speakers;
+    emit voipSpeakersChanged();
+}
+
+void GlobalState::setMicoapiServiceToken(const QString &token)
+{
+    m_micoapiServiceToken = token;
+}
+
+void GlobalState::setMimcId(const QString &mimcId)
+{
+    m_mimcId = mimcId;
+}

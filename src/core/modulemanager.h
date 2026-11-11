@@ -15,6 +15,7 @@ class HomeAssistantModule;
 class VideoModule;
 class WifiModule;
 class XiaozhiModule;
+class IntercomModule;
 
 // 模块管理器。
 // 统一负责模块创建、启动、配置热重载，以及当前摄像头切换。
@@ -44,8 +45,31 @@ public:
     void wakeXiaozhi();
     void hideXiaozhiOverlay();
 
+    // 小爱家庭传声 (Intercom) 接口
+    bool startIntercomRecording();
+    void stopIntercomRecording();
+    void cancelIntercomRecording();
+    void sendIntercomAudio(const QString &roomId, const QString &roomName);
+    void loginIntercom(const QString &username, const QString &password);
+    void startIntercomQrLogin();
+    void cancelIntercomQrLogin();
+    bool importIntercomLocalXiaoAiToken();
+    void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId);
+    void fetchIntercomRooms();
+
+    // 音箱实时 VoIP 通话控制
+    void startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
+                       const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0);
+    void hangupVoipCall();
+    void setVoipMute(bool mute);
+    void setVoipSpeakerphone(bool enable);
+    void fetchVoipContacts();
+
 signals:
     void activeCameraChanged(int index);
+    void intercomLoginResult(bool success, const QString &message);
+    void intercomSendAudioResult(bool success, const QString &message);
+    void intercomRecordingReadyForRoomSelect(qint64 durationMs);
 
 public slots:
     void reloadModules(const AppConfig &config);
@@ -63,6 +87,7 @@ private:
     HomeAssistantModule *m_homeAssistantModule = nullptr;
     WifiModule *m_wifiModule = nullptr;
     XiaozhiModule *m_xiaozhiModule = nullptr;
+    IntercomModule *m_intercomModule = nullptr;
     QString m_activeCameraName;
     QString m_activeCameraUrl;
 };
