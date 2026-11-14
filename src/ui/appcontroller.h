@@ -84,6 +84,7 @@ class AppController : public QObject
     Q_PROPERTY(QString intercomUserId READ intercomUserId NOTIFY intercomConfigChanged)
     Q_PROPERTY(QString intercomDeviceId READ intercomDeviceId NOTIFY intercomConfigChanged)
     Q_PROPERTY(QString intercomServiceToken READ intercomServiceToken NOTIFY intercomConfigChanged)
+    Q_PROPERTY(QString micoapiServiceToken READ micoapiServiceToken NOTIFY intercomConfigChanged)
     Q_PROPERTY(QString intercomHomeId READ intercomHomeId NOTIFY intercomConfigChanged)
     Q_PROPERTY(QVariantList intercomRooms READ intercomRooms NOTIFY intercomRoomsChanged)
     Q_PROPERTY(bool intercomRecording READ intercomRecording NOTIFY intercomRecordingChanged)
@@ -105,6 +106,7 @@ class AppController : public QObject
     Q_PROPERTY(bool voipMuted READ voipMuted NOTIFY voipAudioSettingsChanged)
     Q_PROPERTY(bool voipSpeakerphone READ voipSpeakerphone NOTIFY voipAudioSettingsChanged)
     Q_PROPERTY(QVariantList voipSpeakers READ voipSpeakers NOTIFY voipSpeakersChanged)
+    Q_PROPERTY(QString voipBackendType READ voipBackendType NOTIFY voipBackendTypeChanged)
 
 public:
     explicit AppController(ConfigManager *configManager,
@@ -190,6 +192,7 @@ public:
     QString intercomUserId() const;
     QString intercomDeviceId() const;
     QString intercomServiceToken() const;
+    QString micoapiServiceToken() const;
     QString intercomHomeId() const;
     QVariantList intercomRooms() const;
     bool intercomRecording() const;
@@ -211,6 +214,7 @@ public:
     bool voipMuted() const;
     bool voipSpeakerphone() const;
     QVariantList voipSpeakers() const;
+    QString voipBackendType() const;
 
     Q_INVOKABLE bool startIntercomRecord();
     Q_INVOKABLE void stopIntercomRecord();
@@ -220,14 +224,19 @@ public:
     Q_INVOKABLE void startIntercomQrLogin();
     Q_INVOKABLE void cancelIntercomQrLogin();
     Q_INVOKABLE bool importLocalXiaoAiToken();
-    Q_INVOKABLE void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId);
+    Q_INVOKABLE void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &micoapiToken = QString());
     Q_INVOKABLE void refreshIntercomRooms();
     Q_INVOKABLE void startVoipCall(const QString &deviceId, const QString &deviceName, const QString &avatar = QString(),
-                                   const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0);
+                                   const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                                   const QString &did = QString());
+    Q_INVOKABLE void startDirectIntercom(const QString &deviceId, const QString &deviceName, const QString &avatar = QString(),
+                                         const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                                         const QString &did = QString());
     Q_INVOKABLE void hangupVoipCall();
     Q_INVOKABLE void setVoipMute(bool mute);
     Q_INVOKABLE void setVoipSpeakerphone(bool enable);
     Q_INVOKABLE void refreshVoipContacts();
+    Q_INVOKABLE void setVoipBackendType(const QString &backendType);
 
 public slots:
     void startDeferredServices();
@@ -335,6 +344,7 @@ signals:
     void voipDurationChanged();
     void voipAudioSettingsChanged();
     void voipSpeakersChanged();
+    void voipBackendTypeChanged();
 
 private:
     // 根据当前配置和全局状态，得到界面应该使用的“当前视频配置”。

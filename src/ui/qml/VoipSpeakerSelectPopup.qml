@@ -14,7 +14,7 @@ GlassPopup {
     readonly property bool isPortrait: Overlay.overlay && Overlay.overlay.width < Overlay.overlay.height
 
     width: Math.min((Overlay.overlay ? Overlay.overlay.width : 800) * 0.92, Theme.dp(isPortrait ? 400 : 460))
-    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.90, Theme.dp(isPortrait ? 460 : 380))
+    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.90, Theme.dp(isPortrait ? 500 : 420))
 
     function dp(val) { return Theme.dp(val) }
     function fs(val) { return Theme.fs(val) }
@@ -165,26 +165,54 @@ GlassPopup {
                                 }
                             }
 
-                            // 发起通话按钮
-                            GlassButton {
-                                scaleUnit: root.scaleUnit
-                                styleType: modelData.isOnline ? "primary" : "neutral"
-                                implicitWidth: root.dp(78)
-                                implicitHeight: root.dp(36)
-                                text: qsTr("📞 通话")
-                                textPixelSize: root.fs(12)
-                                disabled: !modelData.isOnline
+                            // 发起通话与对讲按钮组
+                            RowLayout {
+                                spacing: root.dp(6)
 
-                                onClicked: {
-                                    if (typeof appController !== "undefined") {
-                                        appController.startVoipCall(modelData.deviceId,
-                                                                   modelData.deviceName,
-                                                                   modelData.avatar,
-                                                                   modelData.uid || "",
-                                                                   modelData.deviceModel || "",
-                                                                   modelData.deviceType || 0)
+                                GlassButton {
+                                    scaleUnit: root.scaleUnit
+                                    styleType: modelData.isOnline ? "primary" : "neutral"
+                                    implicitWidth: root.dp(72)
+                                    implicitHeight: root.dp(36)
+                                    text: qsTr("📢 对讲")
+                                    textPixelSize: root.fs(12)
+                                    disabled: !modelData.isOnline
+
+                                    onClicked: {
+                                        if (typeof appController !== "undefined") {
+                                            appController.startDirectIntercom(modelData.deviceId,
+                                                                             modelData.deviceName,
+                                                                             modelData.avatar,
+                                                                             modelData.uid || "",
+                                                                             modelData.deviceModel || "",
+                                                                             modelData.deviceType || 0,
+                                                                             modelData.did || "")
+                                        }
+                                        root.close()
                                     }
-                                    root.close()
+                                }
+
+                                GlassButton {
+                                    scaleUnit: root.scaleUnit
+                                    styleType: "neutral"
+                                    implicitWidth: root.dp(72)
+                                    implicitHeight: root.dp(36)
+                                    text: qsTr("📞 电话")
+                                    textPixelSize: root.fs(12)
+                                    disabled: !modelData.isOnline
+
+                                    onClicked: {
+                                        if (typeof appController !== "undefined") {
+                                            appController.startVoipCall(modelData.deviceId,
+                                                                       modelData.deviceName,
+                                                                       modelData.avatar,
+                                                                       modelData.uid || "",
+                                                                       modelData.deviceModel || "",
+                                                                       modelData.deviceType || 0,
+                                                                       modelData.did || "")
+                                        }
+                                        root.close()
+                                    }
                                 }
                             }
                         }

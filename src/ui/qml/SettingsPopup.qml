@@ -603,7 +603,7 @@ GlassPopup {
                 implicitHeight: intercomCol.implicitHeight + root.dp(28)
                 clip: true
 
-                property bool showAdvanced: false
+                property bool showAdvanced: true
 
                 ColumnLayout {
                     id: intercomCol
@@ -660,7 +660,7 @@ GlassPopup {
                             styleType: "neutral"
                             implicitWidth: root.dp(80)
                             implicitHeight: root.dp(28)
-                            text: intercomCol.parent.showAdvanced ? qsTr("收起高级") : qsTr("高级设置")
+                            text: intercomCol.parent.showAdvanced ? qsTr("收起手动") : qsTr("手动输入")
                             textPixelSize: root.fs(11)
                             onClicked: {
                                 intercomCol.parent.showAdvanced = !intercomCol.parent.showAdvanced
@@ -668,7 +668,7 @@ GlassPopup {
                         }
                     }
 
-                    // 2. 扫码与浏览器快捷登录 (支持图形验证码与快捷授权)
+                    // 2. 方式一：扫码登录设置 (推荐)
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: quickLoginCol.implicitHeight + root.dp(18)
@@ -685,10 +685,24 @@ GlassPopup {
                             anchors.margins: root.dp(10)
                             spacing: root.dp(8)
 
+                            RowLayout {
+                                spacing: root.dp(6)
+                                Text {
+                                    text: "📷"
+                                    font.pixelSize: root.fs(12)
+                                }
+                                Text {
+                                    text: qsTr("方式一：扫码登录 (推荐)")
+                                    color: "#93c5fd"
+                                    font.pixelSize: root.fs(12)
+                                    font.bold: true
+                                }
+                            }
+
                             Text {
                                 Layout.fillWidth: true
-                                text: qsTr("支持图形滑块验证、短信验证或手机扫码快速登录")
-                                color: "#93c5fd"
+                                text: qsTr("使用小米手机或米家 App 扫码，或在系统浏览器中快速完成授权登录")
+                                color: "#94a3b8"
                                 font.pixelSize: root.fs(11)
                                 wrapMode: Text.WordWrap
                             }
@@ -697,276 +711,250 @@ GlassPopup {
                                 Layout.fillWidth: true
                                 scaleUnit: root.scaleUnit
                                 styleType: "primary"
-                                implicitHeight: root.dp(34)
-                                text: qsTr("🌐 扫码 / 浏览器登录 (推荐)")
+                                implicitHeight: root.dp(36)
+                                text: qsTr("🌐 打开扫码登录 / 网页授权")
                                 textPixelSize: root.fs(12)
                                 onClicked: {
-                                    console.log("[SettingsPopup] 扫码/浏览器登录 clicked!")
+                                    console.log("[SettingsPopup] 扫码登录 requested!")
                                     root.intercomLoginRequested()
                                 }
                             }
-
-                            GlassButton {
-                                Layout.fillWidth: true
-                                scaleUnit: root.scaleUnit
-                                styleType: "accent"
-                                implicitHeight: root.dp(34)
-                                visible: root.isAndroidPlatform || (typeof appController !== "undefined" && appController.isAndroidPlatform)
-                                text: qsTr("📱 从系统小爱一键导入凭证 (免登录)")
-                                textPixelSize: root.fs(12)
-                                onClicked: {
-                                    if (typeof appController !== "undefined") {
-                                        appController.importLocalXiaoAiToken()
-                                    }
-                                }
-                            }
                         }
                     }
 
-                    // 3. 小米账号密码登录区域 (备用)
-                    ColumnLayout {
+                    // 3. 方式二：手动输入凭证逻辑
+                    Rectangle {
                         Layout.fillWidth: true
-                        spacing: root.dp(6)
+                        implicitHeight: manualInputCol.implicitHeight + root.dp(18)
+                        radius: root.chipRadius
+                        color: Qt.rgba(1.0, 1.0, 1.0, 0.04)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                        border.width: 1
 
-                        Text {
-                            text: qsTr("账号密码登录 (若无需图形验证):")
-                            color: "#94a3b8"
-                            font.pixelSize: root.fs(11)
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
+                        ColumnLayout {
+                            id: manualInputCol
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.margins: root.dp(10)
                             spacing: root.dp(8)
 
-                            Rectangle {
+                            RowLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: root.dp(34)
-                                radius: root.dp(6)
-                                color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                border.width: 1
-
-                                TextInput {
-                                    id: xiaomiUserInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: root.dp(8)
-                                    anchors.rightMargin: root.dp(8)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    color: "#f8fafc"
-                                    font.pixelSize: root.fs(12)
-                                    selectByMouse: true
-                                    clip: true
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: qsTr("手机号 / 小米ID / 邮箱")
-                                        color: "#64748b"
-                                        font.pixelSize: root.fs(12)
-                                        visible: !xiaomiUserInput.text && !xiaomiUserInput.activeFocus
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.dp(34)
-                                radius: root.dp(6)
-                                color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                border.width: 1
-
-                                TextInput {
-                                    id: xiaomiPwdInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: root.dp(8)
-                                    anchors.rightMargin: root.dp(8)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    echoMode: TextInput.Password
-                                    color: "#f8fafc"
-                                    font.pixelSize: root.fs(12)
-                                    selectByMouse: true
-                                    clip: true
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: qsTr("小米账号密码")
-                                        color: "#64748b"
-                                        font.pixelSize: root.fs(12)
-                                        visible: !xiaomiPwdInput.text && !xiaomiPwdInput.activeFocus
-                                    }
-                                }
-                            }
-
-                            GlassButton {
-                                scaleUnit: root.scaleUnit
-                                styleType: "primary"
-                                implicitWidth: root.dp(100)
-                                implicitHeight: root.dp(34)
-                                text: qsTr("登录获取Token")
-                                textPixelSize: root.fs(11)
-                                onClicked: {
-                                    if (typeof appController !== "undefined") {
-                                        appController.loginIntercom(xiaomiUserInput.text, xiaomiPwdInput.text)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. 高级配置（手动修改/粘贴 serviceToken）
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: root.dp(6)
-                        visible: intercomCol.parent.showAdvanced
-
-                        Text {
-                            text: qsTr("手动填入凭证 (支持免密直连或应对两步验证):")
-                            color: "#fb923c"
-                            font.pixelSize: root.fs(11)
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: root.dp(8)
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.dp(32)
-                                radius: root.dp(6)
-                                color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                border.width: 1
-
-                                TextInput {
-                                    id: advUserIdInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: root.dp(8)
-                                    anchors.rightMargin: root.dp(8)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    text: (typeof appController !== "undefined" && appController.intercomUserId) ? appController.intercomUserId : ""
-                                    color: "#f8fafc"
-                                    font.pixelSize: root.fs(11)
-                                    selectByMouse: true
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: qsTr("userId (小米账号ID)")
-                                        color: "#64748b"
-                                        font.pixelSize: root.fs(11)
-                                        visible: !advUserIdInput.text && !advUserIdInput.activeFocus
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.dp(32)
-                                radius: root.dp(6)
-                                color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                border.width: 1
-
-                                TextInput {
-                                    id: advDeviceIdInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: root.dp(8)
-                                    anchors.rightMargin: root.dp(8)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    text: (typeof appController !== "undefined" && appController.intercomDeviceId) ? appController.intercomDeviceId : ""
-                                    color: "#f8fafc"
-                                    font.pixelSize: root.fs(11)
-                                    selectByMouse: true
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: qsTr("deviceId (留空自动生成)")
-                                        color: "#64748b"
-                                        font.pixelSize: root.fs(11)
-                                        visible: !advDeviceIdInput.text && !advDeviceIdInput.activeFocus
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: root.dp(32)
-                            radius: root.dp(6)
-                            color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                            border.width: 1
-
-                            TextInput {
-                                id: advTokenInput
-                                anchors.fill: parent
-                                anchors.leftMargin: root.dp(8)
-                                anchors.rightMargin: root.dp(8)
-                                verticalAlignment: TextInput.AlignVCenter
-                                text: (typeof appController !== "undefined" && appController.intercomServiceToken) ? appController.intercomServiceToken : ""
-                                color: "#f8fafc"
-                                font.pixelSize: root.fs(11)
-                                selectByMouse: true
-                                clip: true
+                                spacing: root.dp(6)
 
                                 Text {
-                                    anchors.fill: parent
-                                    verticalAlignment: Text.AlignVCenter
-                                    text: qsTr("serviceToken (直接粘贴抓取的Token)")
-                                    color: "#64748b"
-                                    font.pixelSize: root.fs(11)
-                                    visible: !advTokenInput.text && !advTokenInput.activeFocus
+                                    text: "📝"
+                                    font.pixelSize: root.fs(12)
                                 }
-                            }
-                        }
+                                Text {
+                                    text: qsTr("方式二：手动填入凭证")
+                                    color: "#fb923c"
+                                    font.pixelSize: root.fs(12)
+                                    font.bold: true
+                                }
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: root.dp(8)
+                                Item { Layout.fillWidth: true }
 
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: root.dp(32)
-                                radius: root.dp(6)
-                                color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
-                                border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                border.width: 1
-
-                                TextInput {
-                                    id: advHomeIdInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: root.dp(8)
-                                    anchors.rightMargin: root.dp(8)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    text: (typeof appController !== "undefined" && appController.intercomHomeId) ? appController.intercomHomeId : ""
-                                    color: "#f8fafc"
-                                    font.pixelSize: root.fs(11)
-                                    selectByMouse: true
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: qsTr("homeId (家庭ID，留空自动拉取)")
-                                        color: "#64748b"
-                                        font.pixelSize: root.fs(11)
-                                        visible: !advHomeIdInput.text && !advHomeIdInput.activeFocus
+                                GlassButton {
+                                    scaleUnit: root.scaleUnit
+                                    styleType: "neutral"
+                                    implicitWidth: root.dp(60)
+                                    implicitHeight: root.dp(24)
+                                    text: intercomCol.parent.showAdvanced ? qsTr("收起") : qsTr("展开")
+                                    textPixelSize: root.fs(10)
+                                    onClicked: {
+                                        intercomCol.parent.showAdvanced = !intercomCol.parent.showAdvanced
                                     }
                                 }
                             }
 
-                            GlassButton {
-                                scaleUnit: root.scaleUnit
-                                styleType: "primary"
-                                implicitWidth: root.dp(80)
-                                implicitHeight: root.dp(32)
-                                text: qsTr("保存凭证")
-                                textPixelSize: root.fs(11)
-                                onClicked: {
-                                    if (typeof appController !== "undefined") {
-                                        appController.saveIntercomSettings(advUserIdInput.text, advTokenInput.text, advDeviceIdInput.text, advHomeIdInput.text)
+                            Text {
+                                Layout.fillWidth: true
+                                text: qsTr("直接填入小米账号 ID、Token 或音箱通话凭证免密直连")
+                                color: "#94a3b8"
+                                font.pixelSize: root.fs(11)
+                                wrapMode: Text.WordWrap
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: root.dp(6)
+                                visible: intercomCol.parent.showAdvanced
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: root.dp(8)
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: root.dp(32)
+                                        radius: root.dp(6)
+                                        color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
+                                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                        border.width: 1
+
+                                        TextInput {
+                                            id: advUserIdInput
+                                            anchors.fill: parent
+                                            anchors.leftMargin: root.dp(8)
+                                            anchors.rightMargin: root.dp(8)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: (typeof appController !== "undefined" && appController.intercomUserId) ? appController.intercomUserId : ""
+                                            color: "#f8fafc"
+                                            font.pixelSize: root.fs(11)
+                                            selectByMouse: true
+
+                                            Text {
+                                                anchors.fill: parent
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: qsTr("userId (小米账号ID)")
+                                                color: "#64748b"
+                                                font.pixelSize: root.fs(11)
+                                                visible: !advUserIdInput.text && !advUserIdInput.activeFocus
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: root.dp(32)
+                                        radius: root.dp(6)
+                                        color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
+                                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                        border.width: 1
+
+                                        TextInput {
+                                            id: advDeviceIdInput
+                                            anchors.fill: parent
+                                            anchors.leftMargin: root.dp(8)
+                                            anchors.rightMargin: root.dp(8)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: (typeof appController !== "undefined" && appController.intercomDeviceId) ? appController.intercomDeviceId : ""
+                                            color: "#f8fafc"
+                                            font.pixelSize: root.fs(11)
+                                            selectByMouse: true
+
+                                            Text {
+                                                anchors.fill: parent
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: qsTr("deviceId (留空自动生成)")
+                                                color: "#64748b"
+                                                font.pixelSize: root.fs(11)
+                                                visible: !advDeviceIdInput.text && !advDeviceIdInput.activeFocus
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: root.dp(32)
+                                    radius: root.dp(6)
+                                    color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
+                                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                    border.width: 1
+
+                                    TextInput {
+                                        id: advTokenInput
+                                        anchors.fill: parent
+                                        anchors.leftMargin: root.dp(8)
+                                        anchors.rightMargin: root.dp(8)
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        text: (typeof appController !== "undefined" && appController.intercomServiceToken) ? appController.intercomServiceToken : ""
+                                        color: "#f8fafc"
+                                        font.pixelSize: root.fs(11)
+                                        selectByMouse: true
+                                        clip: true
+
+                                        Text {
+                                            anchors.fill: parent
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: qsTr("serviceToken (直接粘贴抓取的Token)")
+                                            color: "#64748b"
+                                            font.pixelSize: root.fs(11)
+                                            visible: !advTokenInput.text && !advTokenInput.activeFocus
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: root.dp(32)
+                                    radius: root.dp(6)
+                                    color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
+                                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                    border.width: 1
+
+                                    TextInput {
+                                        id: advMicoapiTokenInput
+                                        anchors.fill: parent
+                                        anchors.leftMargin: root.dp(8)
+                                        anchors.rightMargin: root.dp(8)
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        text: (typeof appController !== "undefined" && appController.micoapiServiceToken) ? appController.micoapiServiceToken : ""
+                                        color: "#f8fafc"
+                                        font.pixelSize: root.fs(11)
+                                        selectByMouse: true
+                                        clip: true
+
+                                        Text {
+                                            anchors.fill: parent
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: qsTr("micoapiServiceToken (音箱通话凭证，以sXEJM开头)")
+                                            color: "#64748b"
+                                            font.pixelSize: root.fs(11)
+                                            visible: !advMicoapiTokenInput.text && !advMicoapiTokenInput.activeFocus
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: root.dp(8)
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: root.dp(32)
+                                        radius: root.dp(6)
+                                        color: Qt.rgba(0.0, 0.0, 0.0, 0.35)
+                                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                        border.width: 1
+
+                                        TextInput {
+                                            id: advHomeIdInput
+                                            anchors.fill: parent
+                                            anchors.leftMargin: root.dp(8)
+                                            anchors.rightMargin: root.dp(8)
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            text: (typeof appController !== "undefined" && appController.intercomHomeId) ? appController.intercomHomeId : ""
+                                            color: "#f8fafc"
+                                            font.pixelSize: root.fs(11)
+                                            selectByMouse: true
+
+                                            Text {
+                                                anchors.fill: parent
+                                                verticalAlignment: Text.AlignVCenter
+                                                text: qsTr("homeId (家庭ID，留空自动拉取)")
+                                                color: "#64748b"
+                                                font.pixelSize: root.fs(11)
+                                                visible: !advHomeIdInput.text && !advHomeIdInput.activeFocus
+                                            }
+                                        }
+                                    }
+
+                                    GlassButton {
+                                        scaleUnit: root.scaleUnit
+                                        styleType: "primary"
+                                        implicitWidth: root.dp(80)
+                                        implicitHeight: root.dp(32)
+                                        text: qsTr("保存凭证")
+                                        textPixelSize: root.fs(11)
+                                        onClicked: {
+                                            if (typeof appController !== "undefined") {
+                                                appController.saveIntercomSettings(advUserIdInput.text, advTokenInput.text, advDeviceIdInput.text, advHomeIdInput.text, advMicoapiTokenInput.text)
+                                            }
+                                        }
                                     }
                                 }
                             }

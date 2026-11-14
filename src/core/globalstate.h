@@ -95,6 +95,7 @@ public:
     bool voipMuted() const;
     bool voipSpeakerphone() const;
     QVariantList voipSpeakers() const;
+    QString voipBackendType() const;
     QString micoapiServiceToken() const;
     QString mimcId() const;
 
@@ -143,6 +144,7 @@ public slots:
     void setVoipMuted(bool muted);
     void setVoipSpeakerphone(bool speakerphone);
     void setVoipSpeakers(const QVariantList &speakers);
+    void setVoipBackendType(const QString &backendType);
     void setMicoapiServiceToken(const QString &token);
     void setMimcId(const QString &mimcId);
 
@@ -177,6 +179,7 @@ signals:
     void voipDurationChanged();
     void voipAudioSettingsChanged();
     void voipSpeakersChanged();
+    void voipBackendTypeChanged();
 
 private:
     QString m_platform;
@@ -225,6 +228,7 @@ private:
     bool m_voipMuted = false;
     bool m_voipSpeakerphone = true;
     QVariantList m_voipSpeakers;
+    QString m_voipBackendType;
     QString m_micoapiServiceToken;
     QString m_mimcId;
 };

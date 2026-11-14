@@ -126,7 +126,6 @@ qt_add_executable(home_gui
     src/modules/intercom/intercommodule.cpp
     src/modules/intercom/backends/ivoipbackend.cpp
     src/modules/intercom/backends/embeddedvoipbackend.cpp
-    src/modules/intercom/backends/androidvoipbackend.cpp
     src/modules/intercom/backends/voipbackendfactory.cpp
     src/ui/appcontroller.cpp
     src/ui/bootsplash.cpp
@@ -147,6 +146,22 @@ if(IOS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/include")
 endif()
 
 find_package(ZLIB QUIET)
+if(NOT ANDROID AND NOT IOS)
+    if(APPLE AND NOT OPENSSL_ROOT_DIR)
+        if(EXISTS "/usr/local/opt/openssl@3")
+            set(OPENSSL_ROOT_DIR "/usr/local/opt/openssl@3")
+        elseif(EXISTS "/opt/homebrew/opt/openssl@3")
+            set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl@3")
+        endif()
+    endif()
+    find_package(OpenSSL QUIET)
+    if(NOT OpenSSL_FOUND)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(OPENSSL_CRYPTO QUIET IMPORTED_TARGET libcrypto)
+        endif()
+    endif()
+endif()
 
 target_link_libraries(home_gui PRIVATE
     home_gui_liquidglass
@@ -195,16 +210,32 @@ if(ANDROID)
         QT_ANDROID_MIN_SDK_VERSION "23"
     )
 elseif(IOS)
-    target_sources(home_gui PRIVATE src/core/platform_ios.mm)
+    target_sources(home_gui PRIVATE
+        src/core/platform_ios.mm
+        src/modules/intercom/backends/agoramediabridge_ios.h
+        src/modules/intercom/backends/agoramediabridge_ios.mm
+    )
+    target_compile_definitions(home_gui PRIVATE MILINK_USE_APPLE_CRYPTO)
+
+    set(IOS_AGORA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ios/agora")
+    if(EXISTS "${IOS_AGORA_DIR}/AgoraRtcKit.xcframework")
+        file(GLOB IOS_AGORA_FRAMEWORKS CONFIGURE_DEPENDS "${IOS_AGORA_DIR}/*.xcframework")
+        target_compile_definitions(home_gui PRIVATE HOME_GUI_HAS_AGORA_IOS)
+        target_link_libraries(home_gui PRIVATE ${IOS_AGORA_FRAMEWORKS})
+        set_target_properties(home_gui PROPERTIES
+            XCODE_EMBED_FRAMEWORKS "${IOS_AGORA_FRAMEWORKS}"
+            XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY ON
+            XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "$(inherited) @executable_path/Frameworks"
+        )
+        message(STATUS "Found Agora iOS Voice SDK at ${IOS_AGORA_DIR}")
+    else()
+        message(WARNING "Agora iOS SDK not found at ${IOS_AGORA_DIR}; run ./scripts/build.sh ios to download it.")
+    endif()
+
     if(IOS_FFMPEG_LIBRARIES)
         target_link_libraries(home_gui PRIVATE
             ${IOS_FFMPEG_LIBRARIES}
             z bz2 iconv
-            "-framework VideoToolbox"
-            "-framework CoreMedia"
-            "-framework CoreVideo"
-            "-framework AudioToolbox"
-            "-framework AVFoundation"
         )
     endif()
 
@@ -221,15 +252,25 @@ elseif(IOS)
         XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
     )
 
-
     target_link_libraries(home_gui PRIVATE
         "-framework UIKit"
         "-framework Foundation"
+        "-framework CoreFoundation"
         "-framework CoreGraphics"
         "-framework QuartzCore"
         "-framework Network"
         "-framework Security"
         "-framework SystemConfiguration"
+        "-framework CFNetwork"
+        "-framework CoreTelephony"
+        "-framework CoreMotion"
+        "-framework Accelerate"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework CoreMedia"
+        "-framework CoreVideo"
+        "-framework VideoToolbox"
+        resolv
     )
 else()
     if(FFMPEG_FOUND)
@@ -246,8 +287,20 @@ if(Qt6Multimedia_FOUND)
     add_compile_definitions(HOME_GUI_HAS_MULTIMEDIA)
 endif()
 
-if(UNIX AND NOT APPLE AND NOT ANDROID)
+if(ZLIB_FOUND)
+    target_link_libraries(home_gui PRIVATE ZLIB::ZLIB)
+else()
     target_link_libraries(home_gui PRIVATE z)
+endif()
+
+if(NOT ANDROID AND NOT IOS)
+    if(TARGET OpenSSL::Crypto)
+        target_link_libraries(home_gui PRIVATE OpenSSL::Crypto)
+    elseif(TARGET PkgConfig::OPENSSL_CRYPTO)
+        target_link_libraries(home_gui PRIVATE PkgConfig::OPENSSL_CRYPTO)
+    else()
+        message(WARNING "OpenSSL libcrypto not found; MiLink crypto on non-Android/non-iOS may fail to link.")
+    endif()
 endif()
 
 
@@ -274,6 +327,35 @@ if(HOME_GUI_ENABLE_XIAOZHI AND NOT ANDROID AND NOT IOS)
         )
     else()
         message(WARNING "Xiaozhi audio backend skipped: alsa/opus/speexdsp development files not found")
+    endif()
+endif()
+
+if(NOT ANDROID AND NOT IOS)
+    add_executable(voip_cli
+        tools/voip_cli/main.cpp
+        src/modules/intercom/backends/ivoipbackend.cpp
+        src/modules/intercom/backends/embeddedvoipbackend.cpp
+    )
+    target_include_directories(voip_cli PRIVATE
+        src/modules/intercom/backends
+        src/core
+    )
+    target_link_libraries(voip_cli PRIVATE
+        Qt6::Core
+        Qt6::Network
+    )
+    if(ZLIB_FOUND)
+        target_link_libraries(voip_cli PRIVATE ZLIB::ZLIB)
+    else()
+        target_link_libraries(voip_cli PRIVATE z)
+    endif()
+    if(TARGET OpenSSL::Crypto)
+        target_link_libraries(voip_cli PRIVATE OpenSSL::Crypto)
+    elseif(TARGET PkgConfig::OPENSSL_CRYPTO)
+        target_link_libraries(voip_cli PRIVATE PkgConfig::OPENSSL_CRYPTO)
+    endif()
+    if(Qt6Multimedia_FOUND)
+        target_link_libraries(voip_cli PRIVATE Qt6::Multimedia)
     endif()
 endif()
 

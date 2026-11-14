@@ -1,5 +1,6 @@
 #include "configmanager.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
@@ -8,6 +9,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTimer>
 
 #include <sstream>
@@ -368,8 +370,44 @@ bool ConfigManager::updateScreenPowerSettings(int idleTimeoutSeconds, const QStr
     return loaded;
 }
 
-bool ConfigManager::updateIntercomConfig(bool enabled, const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken, const QString &micoapiServiceToken, const QString &mimcId)
+QString ConfigManager::ensureWritableConfigPath()
 {
+    if (!m_configPath.isEmpty() && QFile::exists(m_configPath)) {
+        return m_configPath;
+    }
+
+    QString targetPath = m_configPath.trimmed();
+    if (targetPath.isEmpty()) {
+        QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        if (appDataDir.isEmpty()) {
+            appDataDir = QDir::currentPath();
+        }
+        targetPath = appDataDir + QStringLiteral("/config.yaml");
+    }
+
+    QDir().mkpath(QFileInfo(targetPath).absolutePath());
+    if (!QFile::exists(targetPath)) {
+        QString writeErr;
+        if (!writeYamlAtomically(targetPath, "platform: {}\nintercom: {}\n", writeErr)) {
+            qWarning() << "[ConfigManager] Failed to initialize writable config:" << writeErr;
+            return QString();
+        }
+    }
+
+    m_configPath = QFileInfo(targetPath).absoluteFilePath();
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("home_gui"));
+    settings.setValue(QStringLiteral("customConfigPath"), m_configPath);
+    settings.remove(QStringLiteral("configExplicitlyCleared"));
+    return m_configPath;
+}
+
+bool ConfigManager::updateIntercomConfig(bool enabled, const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken, const QString &micoapiServiceToken, const QString &mimcId, const QString &passToken)
+{
+    if (ensureWritableConfigPath().isEmpty()) {
+        emit configLoadFailed(tr("Failed to prepare config file: %1").arg(m_configPath));
+        return false;
+    }
+
     QFile file(m_configPath);
     if (!file.open(QIODevice::ReadOnly)) {
         emit configLoadFailed(tr("Failed to open config file: %1").arg(m_configPath));
@@ -396,24 +434,84 @@ bool ConfigManager::updateIntercomConfig(bool enabled, const QString &userId, co
         root["intercom"] = fkyaml::node::mapping();
     }
 
+    const QString trimmedUserId = userId.trimmed();
+    const QString prevUserId = getYamlString(root["intercom"], "userId").trimmed();
+    const bool userChanged = !prevUserId.isEmpty() && !trimmedUserId.isEmpty() && prevUserId != trimmedUserId;
+
     root["intercom"]["enabled"] = enabled;
-    root["intercom"]["userId"] = userId.trimmed().toStdString();
-    root["intercom"]["serviceToken"] = serviceToken.trimmed().toStdString();
-    if (!deviceId.isEmpty()) {
+    root["intercom"]["userId"] = trimmedUserId.toStdString();
+    if (!serviceToken.trimmed().isEmpty() || userChanged) {
+        root["intercom"]["serviceToken"] = serviceToken.trimmed().toStdString();
+    }
+    if (!deviceId.trimmed().isEmpty()) {
         root["intercom"]["deviceId"] = deviceId.trimmed().toStdString();
     }
-    if (!homeId.isEmpty()) {
+    if (!homeId.trimmed().isEmpty()) {
         root["intercom"]["homeId"] = homeId.trimmed().toStdString();
     }
-    if (!refreshToken.isEmpty()) {
+    if (!refreshToken.trimmed().isEmpty() || userChanged) {
         root["intercom"]["refreshToken"] = refreshToken.trimmed().toStdString();
     }
-    if (!micoapiServiceToken.isEmpty()) {
+    if (!micoapiServiceToken.trimmed().isEmpty() || userChanged) {
         root["intercom"]["micoapiServiceToken"] = micoapiServiceToken.trimmed().toStdString();
     }
-    if (!mimcId.isEmpty()) {
+    if (!mimcId.trimmed().isEmpty() || userChanged) {
         root["intercom"]["mimcId"] = mimcId.trimmed().toStdString();
     }
+    if (!passToken.trimmed().isEmpty() || userChanged) {
+        root["intercom"]["passToken"] = passToken.trimmed().toStdString();
+    }
+
+    std::stringstream ss;
+    ss << root;
+    const std::string yamlStr = ss.str();
+
+    QString writeError;
+    m_ignoreNextFileChange = true;
+    if (!writeYamlAtomically(m_configPath, yamlStr, writeError)) {
+        m_ignoreNextFileChange = false;
+        emit configLoadFailed(writeError);
+        return false;
+    }
+
+    const bool loaded = load();
+    QTimer::singleShot(1000, this, [this]() {
+        m_ignoreNextFileChange = false;
+        ensureWatch();
+    });
+    return loaded;
+}
+
+bool ConfigManager::updateIntercomBackend(const QString &backend)
+{
+    if (ensureWritableConfigPath().isEmpty()) {
+        return false;
+    }
+
+    QFile file(m_configPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    const QByteArray rawData = file.readAll();
+    file.close();
+
+    fkyaml::node root;
+    try {
+        root = fkyaml::node::deserialize(std::string(rawData.constData(), rawData.size()));
+    } catch (const std::exception &e) {
+        emit configLoadFailed(tr("Invalid config YAML: %1").arg(QString::fromUtf8(e.what())));
+        return false;
+    }
+
+    if (!root.is_mapping()) {
+        return false;
+    }
+    if (!root.contains("intercom") || !root["intercom"].is_mapping()) {
+        root["intercom"] = fkyaml::node::mapping();
+    }
+
+    const QString normalized = backend.trimmed().isEmpty() ? QStringLiteral("auto") : backend.trimmed().toLower();
+    root["intercom"]["backend"] = normalized.toStdString();
 
     std::stringstream ss;
     ss << root;
@@ -772,6 +870,7 @@ bool ConfigManager::parseConfig(const QByteArray &payload, AppConfig &nextConfig
     nextConfig.intercom.homeId = getYamlString(intercom, "homeId").trimmed();
     nextConfig.intercom.micoapiServiceToken = getYamlString(intercom, "micoapiServiceToken").trimmed();
     nextConfig.intercom.mimcId = getYamlString(intercom, "mimcId").trimmed();
+    nextConfig.intercom.backend = getYamlString(intercom, "backend", QStringLiteral("auto")).trimmed().toLower();
     nextConfig.intercom.defaultRoomId = getYamlString(intercom, "defaultRoomId", QStringLiteral("WHOLE_0")).trimmed();
     nextConfig.intercom.serverUrl = getYamlString(intercom, "serverUrl", QStringLiteral("https://i.xiaomixiaoai.com")).trimmed();
 

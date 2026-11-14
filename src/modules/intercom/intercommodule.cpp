@@ -15,6 +15,7 @@
 
 #include "core/configmanager.h"
 #include "core/globalstate.h"
+#include "backends/embeddedvoipbackend.h"
 #include "backends/ivoipbackend.h"
 #include "backends/voipbackendfactory.h"
 
@@ -30,13 +31,22 @@ IntercomModule::IntercomModule(ConfigManager *configManager, GlobalState *global
     , m_configManager(configManager)
 {
     s_instance = this;
-    m_networkManager.setCookieJar(new QNetworkCookieJar(this));
+    m_cookieJar = new AccessibleCookieJar(this);
+    m_networkManager.setCookieJar(m_cookieJar);
 
-    m_voipBackend = VoipBackendFactory::createBackend(this);
-    if (m_voipBackend) {
-        connect(m_voipBackend, &IVoipBackend::stateChanged, this, &IntercomModule::onVoipStateChanged);
-        connect(m_voipBackend, &IVoipBackend::durationChanged, this, &IntercomModule::onVoipDuration);
-        connect(m_voipBackend, &IVoipBackend::audioRouteChanged, this, &IntercomModule::onVoipAudioRoute);
+    const QString initialBackend = m_configManager
+        ? m_configManager->config().intercom.backend
+        : QStringLiteral("auto");
+    ensureVoipBackend(initialBackend);
+
+    if (m_configManager) {
+        connect(m_configManager, &ConfigManager::configReloaded, this, [this](const AppConfig &cfg) {
+            if (!(this->globalState() && this->globalState()->voipActive())) {
+                if (ensureVoipBackend(cfg.intercom.backend)) {
+                    initVoipRuntime();
+                }
+            }
+        });
     }
 
     connect(&m_audioRecorder, &AudioRecorder::recordingStarted, this, [this]() {
@@ -96,6 +106,8 @@ QString IntercomModule::name() const
 void IntercomModule::applyConfig(const AppConfig &config)
 {
     m_config = config.intercom;
+    m_retriedVoip401 = false;
+    m_retriedMicoapi5003 = false;
     ensureDeviceId();
 
     if (globalState()) {
@@ -119,19 +131,20 @@ void IntercomModule::start()
 {
     initDefaultRooms();
 
-#if defined(Q_OS_ANDROID)
-    if (m_config.enabled && (m_config.serviceToken.trimmed().isEmpty() || m_config.serviceToken.trimmed().length() < 30 || m_config.micoapiServiceToken.trimmed().isEmpty())) {
-        if (importLocalXiaoAiToken()) {
-            return;
-        }
-    }
-#endif
-
     if (m_config.enabled) {
         if (!m_config.serviceToken.isEmpty()) {
             fetchRooms();
+        } else if (!m_config.userId.isEmpty() && !m_config.passToken.isEmpty()) {
+            exchangeTokenWithPassToken(QStringLiteral("ai-service"));
         }
+
         if (!m_config.micoapiServiceToken.isEmpty()) {
+            initVoipRuntime();
+            fetchVoipContacts();
+        } else if (!m_config.userId.isEmpty() && !m_config.passToken.isEmpty()) {
+            initVoipRuntime();
+            exchangeTokenWithPassToken(QStringLiteral("micoapi"));
+        } else if (!m_config.serviceToken.isEmpty()) {
             initVoipRuntime();
             fetchVoipContacts();
         }
@@ -337,7 +350,13 @@ bool IntercomModule::importLocalXiaoAiToken()
             m_config.refreshToken = refreshToken;
         }
         if (!micoapiToken.isEmpty()) {
-            m_config.micoapiServiceToken = micoapiToken;
+            if (m_config.micoapiServiceToken.isEmpty() || micoapiToken.length() >= m_config.micoapiServiceToken.length()) {
+                m_config.micoapiServiceToken = micoapiToken;
+            } else {
+                qInfo() << "[IntercomModule] Preserving existing micoapiServiceToken (len:"
+                        << m_config.micoapiServiceToken.length() << ") over shorter imported token (len:"
+                        << micoapiToken.length() << ")";
+            }
         }
         if (!mimcId.isEmpty()) {
             m_config.mimcId = mimcId;
@@ -365,6 +384,9 @@ bool IntercomModule::importLocalXiaoAiToken()
             globalState()->setMimcId(m_config.mimcId);
             globalState()->setIntercomStatus(tr("已从系统小爱导入凭证"));
         }
+
+        m_retriedVoip401 = false;
+        m_retriedMicoapi5003 = false;
 
         if (!m_config.serviceToken.isEmpty()) {
             fetchRooms();
@@ -631,10 +653,39 @@ void IntercomModule::handleUploadAudioReply()
     }
 }
 
-void IntercomModule::saveCredentials(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken)
+void IntercomModule::saveCredentials(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken, const QString &micoapiToken)
 {
-    m_config.userId = userId.trimmed();
-    m_config.serviceToken = serviceToken.trimmed();
+    const QString prevUserId = m_config.userId.trimmed();
+    const QString trimmedUserId = userId.trimmed();
+    const bool userChanged = !prevUserId.isEmpty() && !trimmedUserId.isEmpty() && prevUserId != trimmedUserId;
+
+    m_config.userId = trimmedUserId;
+    const QString tokenInput = serviceToken.trimmed();
+    const QString micoapiInput = micoapiToken.trimmed();
+
+    if (userChanged) {
+        m_config.micoapiServiceToken.clear();
+        m_config.passToken.clear();
+        m_config.refreshToken.clear();
+        m_config.mimcId.clear();
+    }
+
+    if (!tokenInput.isEmpty()) {
+        if (tokenInput.startsWith(QStringLiteral("sXEJM"))) {
+            // sXEJM 开头明确为 micoapi serviceToken
+            m_config.micoapiServiceToken = tokenInput;
+            if (m_config.serviceToken.isEmpty() || m_config.serviceToken.startsWith(QStringLiteral("sXEJM"))) {
+                m_config.serviceToken = tokenInput;
+            }
+        } else {
+            m_config.serviceToken = tokenInput;
+        }
+    }
+
+    if (!micoapiInput.isEmpty()) {
+        m_config.micoapiServiceToken = micoapiInput;
+    }
+
     if (!deviceId.trimmed().isEmpty()) {
         m_config.deviceId = deviceId.trimmed();
     }
@@ -644,20 +695,125 @@ void IntercomModule::saveCredentials(const QString &userId, const QString &servi
     if (!refreshToken.trimmed().isEmpty()) {
         m_config.refreshToken = refreshToken.trimmed();
     }
+    m_retriedVoip401 = false;
+    m_retriedMicoapi5003 = false;
 
     if (m_configManager) {
-        m_configManager->updateIntercomConfig(m_config.enabled, m_config.userId, m_config.serviceToken, m_config.deviceId, m_config.homeId, m_config.refreshToken);
+        m_configManager->updateIntercomConfig(
+            m_config.enabled,
+            m_config.userId,
+            m_config.serviceToken,
+            m_config.deviceId,
+            m_config.homeId,
+            m_config.refreshToken,
+            m_config.micoapiServiceToken,
+            m_config.mimcId,
+            m_config.passToken
+        );
     }
 
     if (globalState()) {
         globalState()->setIntercomUserId(m_config.userId);
         globalState()->setIntercomServiceToken(m_config.serviceToken);
+        globalState()->setMicoapiServiceToken(m_config.micoapiServiceToken);
         globalState()->setIntercomDeviceId(m_config.deviceId);
         globalState()->setIntercomHomeId(m_config.homeId);
-        globalState()->setIntercomStatus(tr("已更新 Token，账号: %1").arg(m_config.userId));
+        globalState()->setMimcId(m_config.mimcId);
+        globalState()->setIntercomStatus(tr("已更新凭证，账号: %1").arg(m_config.userId));
     }
 
-    fetchRooms();
+    if (!m_config.serviceToken.isEmpty()) {
+        fetchRooms();
+    }
+    if (!m_config.micoapiServiceToken.isEmpty() || !m_config.serviceToken.isEmpty()) {
+        initVoipRuntime();
+        fetchVoipContacts();
+    }
+}
+
+void IntercomModule::applyLoginTokens(const QString &userId, const QString &sid, const QString &token, const QString &passToken, const QString &statusMsg)
+{
+    const QString prevUserId = m_config.userId.trimmed();
+    const QString trimmedUserId = userId.trimmed();
+    if (!trimmedUserId.isEmpty() && !prevUserId.isEmpty() && prevUserId != trimmedUserId) {
+        m_config.serviceToken.clear();
+        m_config.micoapiServiceToken.clear();
+        m_config.passToken.clear();
+        m_config.refreshToken.clear();
+        m_config.mimcId.clear();
+    }
+
+    if (!trimmedUserId.isEmpty()) {
+        m_config.userId = trimmedUserId;
+    }
+    if (!passToken.trimmed().isEmpty()) {
+        m_config.passToken = passToken.trimmed();
+    }
+
+    const QString cleanSid = sid.trimmed();
+    const QString cleanToken = token.trimmed();
+    if (!cleanToken.isEmpty()) {
+        if (cleanSid == QStringLiteral("micoapi")) {
+            m_config.micoapiServiceToken = cleanToken;
+            m_retriedVoip401 = false;
+            m_retriedMicoapi5003 = false;
+        } else {
+            m_config.serviceToken = cleanToken;
+        }
+    }
+
+    if (m_configManager) {
+        m_configManager->updateIntercomConfig(
+            m_config.enabled,
+            m_config.userId,
+            m_config.serviceToken,
+            m_config.deviceId,
+            m_config.homeId,
+            m_config.refreshToken,
+            m_config.micoapiServiceToken,
+            m_config.mimcId,
+            m_config.passToken
+        );
+    }
+
+    if (globalState()) {
+        globalState()->setIntercomUserId(m_config.userId);
+        globalState()->setIntercomServiceToken(m_config.serviceToken);
+        globalState()->setMicoapiServiceToken(m_config.micoapiServiceToken);
+        globalState()->setIntercomDeviceId(m_config.deviceId);
+        globalState()->setIntercomHomeId(m_config.homeId);
+        globalState()->setMimcId(m_config.mimcId);
+        globalState()->setIntercomStatus(
+            !statusMsg.isEmpty() ? statusMsg : tr("已登录账号: %1").arg(m_config.userId));
+    }
+
+    qInfo() << "[IntercomModule] Saved login tokens for userId=" << m_config.userId
+            << "sid=" << cleanSid
+            << "hasMicoapi=" << !m_config.micoapiServiceToken.isEmpty()
+            << "hasAiService=" << !m_config.serviceToken.isEmpty()
+            << "hasPassToken=" << !m_config.passToken.isEmpty();
+
+    if (cleanSid == QStringLiteral("micoapi")) {
+        if (!m_config.micoapiServiceToken.isEmpty()) {
+            initVoipRuntime();
+            fetchVoipContacts();
+        }
+        if (m_config.serviceToken.isEmpty() && !m_config.passToken.isEmpty() && !m_config.userId.isEmpty()) {
+            exchangeTokenWithPassToken(QStringLiteral("ai-service"));
+        } else if (!m_config.serviceToken.isEmpty()) {
+            fetchRooms();
+        }
+    } else {
+        if (!m_config.serviceToken.isEmpty()) {
+            fetchRooms();
+        }
+        if (m_config.micoapiServiceToken.isEmpty() && !m_config.passToken.isEmpty() && !m_config.userId.isEmpty()) {
+            exchangeTokenWithPassToken(QStringLiteral("micoapi"));
+        } else if (!m_config.micoapiServiceToken.isEmpty()) {
+            initVoipRuntime();
+            fetchVoipContacts();
+        }
+    }
 }
 
 void IntercomModule::login(const QString &username, const QString &password)
@@ -667,11 +823,15 @@ void IntercomModule::login(const QString &username, const QString &password)
         return;
     }
 
+    m_loginSid = QStringLiteral("micoapi");
     m_loginUser = username.trimmed();
     m_loginPwdHash = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Md5).toHex().toUpper();
+    m_loginCandidateUserId.clear();
+    m_loginCandidatePassToken.clear();
+    clearAuthCookiesForSid(m_loginSid, true);
 
-    // 步骤 1: 请求 serviceLogin 获得 _sign, qs, callback
-    const QUrl url(QStringLiteral("https://account.xiaomi.com/pass/serviceLogin?sid=ai-service&_json=true"));
+    // 步骤 1: 请求 micoapi 的 serviceLogin 获得 _sign, qs, callback
+    const QUrl url(QStringLiteral("https://account.xiaomi.com/pass/serviceLogin?sid=micoapi&_json=true"));
     QNetworkRequest request(url);
     request.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
 
@@ -720,7 +880,7 @@ void IntercomModule::handleLoginStep1Reply()
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("user"), m_loginUser);
     query.addQueryItem(QStringLiteral("hash"), m_loginPwdHash);
-    query.addQueryItem(QStringLiteral("sid"), QStringLiteral("ai-service"));
+    query.addQueryItem(QStringLiteral("sid"), m_loginSid);
     query.addQueryItem(QStringLiteral("_sign"), m_loginSign);
     query.addQueryItem(QStringLiteral("qs"), m_loginQs);
     query.addQueryItem(QStringLiteral("callback"), m_loginCallback);
@@ -755,34 +915,43 @@ void IntercomModule::handleLoginStep2Reply()
 
     const QJsonObject obj = doc.object();
     const int code = obj.value(QStringLiteral("code")).toInt(-1);
-    qInfo() << "[IntercomModule] QR poll reply code:" << code;
+    qInfo() << "[IntercomModule] Password login reply code:" << code << "sid:" << m_loginSid;
 
     if (code == 70016) {
         emit loginResult(false, tr("账号或密码错误"));
         return;
     }
     if (code == 87001 || obj.contains(QStringLiteral("notificationUrl"))) {
-        emit loginResult(false, tr("该账号开启了双重验证或需要图形验证，请直接在设置面板中填入 serviceToken"));
+        emit loginResult(false, tr("该账号开启了双重验证或需要图形验证，请使用扫码或浏览器登录"));
         return;
     }
 
-    const QString userId = QString::number(obj.value(QStringLiteral("userId")).toVariant().toLongLong());
+    const qint64 uidNum = obj.value(QStringLiteral("userId")).toVariant().toLongLong();
+    const QString userId = uidNum > 0 ? QString::number(uidNum) : QString();
     const QString serviceToken = obj.value(QStringLiteral("serviceToken")).toString();
+    const QString passToken = extractPassToken(reply, obj);
     const QString location = obj.value(QStringLiteral("location")).toString();
+    const QString ssecurity = obj.value(QStringLiteral("ssecurity")).toString();
+    const QString nonce = obj.value(QStringLiteral("nonce")).toVariant().toString();
 
     if (!serviceToken.isEmpty() && !userId.isEmpty()) {
-        saveCredentials(userId, serviceToken, m_config.deviceId, m_config.homeId);
-        emit loginResult(true, tr("登录成功！已获取对讲凭证"));
+        applyLoginTokens(userId, m_loginSid, serviceToken, passToken, tr("登录成功，账号: %1").arg(userId));
+        emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
         return;
     }
 
     if (!location.isEmpty()) {
-        // 请求重定向 location 获取最终 Set-Cookie
-        const QUrl locUrl(location);
+        // 请求重定向 location 获取最终 Set-Cookie (需要带 clientSign 并允许跨子域重定向)
+        const QString stsUrl = buildStsUrl(location, nonce, ssecurity);
+        const QUrl locUrl(stsUrl);
         QNetworkRequest locReq(locUrl);
+        locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         locReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+        m_loginCandidateUserId = userId;
+        m_loginCandidatePassToken = passToken;
+        m_loginCandidateSsecurity = ssecurity;
+        m_loginCandidateNonce = nonce;
         m_currentReply = m_networkManager.get(locReq);
-        m_config.userId = userId;
         connect(m_currentReply, &QNetworkReply::finished, this, &IntercomModule::handleLoginLocationReply);
         return;
     }
@@ -790,15 +959,97 @@ void IntercomModule::handleLoginStep2Reply()
     emit loginResult(false, tr("未能获取有效 Token: %1").arg(obj.value(QStringLiteral("description")).toString()));
 }
 
-QString IntercomModule::extractServiceToken(QNetworkReply *reply)
+QString IntercomModule::buildStsUrl(const QString &locationUrl, const QString &nonce, const QString &ssecurity)
+{
+    if (locationUrl.isEmpty()) {
+        return locationUrl;
+    }
+    const QString cleanNonce = nonce.trimmed();
+    const QString cleanSsec = ssecurity.trimmed();
+    if (cleanNonce.isEmpty() || cleanSsec.isEmpty()) {
+        return locationUrl;
+    }
+    // STS formula: clientSign = base64(sha1("nonce=" + nonce + "&" + ssecurity))
+    const QString nsec = QStringLiteral("nonce=%1&%2").arg(cleanNonce, cleanSsec);
+    const QByteArray sha = QCryptographicHash::hash(nsec.toUtf8(), QCryptographicHash::Sha1);
+    const QString clientSign = QString::fromLatin1(sha.toBase64());
+    const QString encSign = QString::fromUtf8(QUrl::toPercentEncoding(clientSign));
+
+    if (locationUrl.contains(QLatin1Char('?'))) {
+        return locationUrl + QStringLiteral("&clientSign=") + encSign;
+    } else {
+        return locationUrl + QStringLiteral("?clientSign=") + encSign;
+    }
+}
+
+void IntercomModule::clearAuthCookiesForSid(const QString &sid, bool includePassToken)
+{
+    if (m_cookieJar) {
+        QList<QNetworkCookie> remaining;
+        for (const QNetworkCookie &c : m_cookieJar->allCookiesList()) {
+            const QString name = QString::fromUtf8(c.name());
+            const QString domain = c.domain().toLower();
+            bool remove = false;
+
+            if (name == QStringLiteral("serviceToken")) {
+                if (sid.isEmpty()) {
+                    remove = true;
+                } else if (sid == QStringLiteral("micoapi") && (domain.contains(QStringLiteral("mina")) || domain.contains(QStringLiteral("xiaoaisound")))) {
+                    remove = true;
+                } else if (sid == QStringLiteral("ai-service") && domain.contains(QStringLiteral("ai.xiaomi"))) {
+                    remove = true;
+                }
+            } else if (includePassToken && (name == QStringLiteral("passToken") || name == QStringLiteral("userId"))) {
+                remove = true;
+            }
+
+            if (!remove) {
+                remaining.append(c);
+            }
+        }
+        m_cookieJar->setAllCookiesList(remaining);
+        return;
+    }
+
+    auto *jar = m_networkManager.cookieJar();
+    if (!jar) return;
+
+    QList<QUrl> urls = {
+        QUrl(QStringLiteral("https://account.xiaomi.com")),
+        QUrl(QStringLiteral("https://mi.com"))
+    };
+    if (sid == QStringLiteral("micoapi") || sid.isEmpty()) {
+        urls << QUrl(QStringLiteral("https://api2.mina.mi.com"))
+             << QUrl(QStringLiteral("https://api.mina.mi.com"))
+             << QUrl(QStringLiteral("https://voip.mina.xiaoaisound.com"));
+    }
+    if (sid == QStringLiteral("ai-service") || sid.isEmpty()) {
+        urls << QUrl(QStringLiteral("https://account.ai.xiaomi.com"))
+             << QUrl(QStringLiteral("https://i.xiaomixiaoai.com"));
+    }
+
+    for (const QUrl &u : urls) {
+        const auto cookies = jar->cookiesForUrl(u);
+        for (const QNetworkCookie &c : cookies) {
+            if (c.name() == "serviceToken" ||
+                (includePassToken && (c.name() == "passToken" || c.name() == "userId"))) {
+                jar->deleteCookie(c);
+            }
+        }
+    }
+}
+
+QString IntercomModule::extractCookieOrHeaderValue(QNetworkReply *reply, const QString &cookieName, const QList<QUrl> &preferredUrls) const
 {
     if (!reply) return QString();
+
+    const QByteArray nameBytes = cookieName.toUtf8();
 
     // 1. 从 Set-Cookie 头提取
     const QVariant cookiesVariant = reply->header(QNetworkRequest::SetCookieHeader);
     const QList<QNetworkCookie> cookies = qvariant_cast<QList<QNetworkCookie>>(cookiesVariant);
     for (const QNetworkCookie &c : cookies) {
-        if (c.name() == "serviceToken") {
+        if (c.name() == nameBytes && !c.value().isEmpty()) {
             return QString::fromUtf8(c.value());
         }
     }
@@ -808,38 +1059,184 @@ QString IntercomModule::extractServiceToken(QNetworkReply *reply)
         if (pair.first.compare("Set-Cookie", Qt::CaseInsensitive) == 0) {
             const auto parsedCookies = QNetworkCookie::parseCookies(pair.second);
             for (const auto &c : parsedCookies) {
-                if (c.name() == "serviceToken") {
+                if (c.name() == nameBytes && !c.value().isEmpty()) {
                     return QString::fromUtf8(c.value());
                 }
             }
         }
     }
 
-    // 3. 从 CookieJar 提取
+    // 3. 从 AccessibleCookieJar 提取所有 Cookie 搜索
+    if (m_cookieJar) {
+        for (const QNetworkCookie &c : m_cookieJar->allCookiesList()) {
+            if (c.name() == nameBytes && !c.value().isEmpty()) {
+                return QString::fromUtf8(c.value());
+            }
+        }
+    }
+
+    // 4. 从 preferredUrls 检查
     if (m_networkManager.cookieJar()) {
-        const QList<QUrl> checkUrls = {
-            reply->url(),
-            QUrl(QStringLiteral("https://api.mina.mi.com")),
-            QUrl(QStringLiteral("https://account.xiaomi.com")),
-            QUrl(QStringLiteral("https://mi.com"))
-        };
-        for (const auto &u : checkUrls) {
+        for (const QUrl &u : preferredUrls) {
+            if (!u.isValid() || u.isEmpty()) continue;
             const auto jarCookies = m_networkManager.cookieJar()->cookiesForUrl(u);
-            for (const auto &c : jarCookies) {
-                if (c.name() == "serviceToken") {
+            for (const QNetworkCookie &c : jarCookies) {
+                if (c.name() == nameBytes && !c.value().isEmpty()) {
                     return QString::fromUtf8(c.value());
                 }
             }
         }
     }
 
-    // 4. 从 URL 查询参数提取（若存在重定向附带）
+    // 5. 从 URL 查询参数提取（若存在重定向附带）
     const QUrlQuery query(reply->url());
-    if (query.hasQueryItem(QStringLiteral("serviceToken"))) {
-        return query.queryItemValue(QStringLiteral("serviceToken"));
+    if (query.hasQueryItem(cookieName)) {
+        return query.queryItemValue(cookieName);
     }
 
     return QString();
+}
+
+QString IntercomModule::extractServiceToken(QNetworkReply *reply, const QString &sid)
+{
+    const QByteArray nameBytes = "serviceToken";
+    if (!reply) return QString();
+
+    // 1. Check raw reply header first (Set-Cookie)
+    for (const auto &pair : reply->rawHeaderPairs()) {
+        if (pair.first.compare("Set-Cookie", Qt::CaseInsensitive) == 0) {
+            const auto cookies = QNetworkCookie::parseCookies(pair.second);
+            for (const auto &c : cookies) {
+                if (c.name() == nameBytes && !c.value().isEmpty()) {
+                    const QString val = QString::fromUtf8(c.value()).trimmed();
+                    qInfo() << "[IntercomModule] Extracted serviceToken from raw header, domain=" << c.domain()
+                            << "len=" << val.length();
+                    return val;
+                }
+            }
+        }
+    }
+
+    // 1.1 Check QNetworkRequest::SetCookieHeader
+    const QVariant cookieHeaderVar = reply->header(QNetworkRequest::SetCookieHeader);
+    if (cookieHeaderVar.isValid()) {
+        const auto cookies = qvariant_cast<QList<QNetworkCookie>>(cookieHeaderVar);
+        for (const auto &c : cookies) {
+            if (c.name() == nameBytes && !c.value().isEmpty()) {
+                const QString val = QString::fromUtf8(c.value()).trimmed();
+                qInfo() << "[IntercomModule] Extracted serviceToken from SetCookieHeader, domain=" << c.domain()
+                        << "len=" << val.length();
+                return val;
+            }
+        }
+    }
+
+    // 1.2 Check Location redirect header query parameter
+    const QString locHeader = QString::fromUtf8(reply->rawHeader("Location"));
+    if (!locHeader.isEmpty() && locHeader.contains(QStringLiteral("serviceToken="))) {
+        const QUrl locUrl(locHeader);
+        const QUrlQuery q(locUrl.query());
+        const QString t = q.queryItemValue(QStringLiteral("serviceToken")).trimmed();
+        if (!t.isEmpty()) {
+            qInfo() << "[IntercomModule] Extracted serviceToken from Location header, len=" << t.length();
+            return t;
+        }
+    }
+
+    // 1.3 Check response JSON body
+    const QByteArray body = reply->peek(4096);
+    if (!body.isEmpty()) {
+        QByteArray cleanBody = body;
+        if (cleanBody.startsWith("&&&START&&&")) {
+            cleanBody.remove(0, 11);
+        }
+        const QJsonDocument doc = QJsonDocument::fromJson(cleanBody);
+        if (doc.isObject()) {
+            const QString t = doc.object().value(QStringLiteral("serviceToken")).toString().trimmed();
+            if (!t.isEmpty()) {
+                qInfo() << "[IntercomModule] Extracted serviceToken from JSON body, len=" << t.length();
+                return t;
+            }
+        }
+    }
+
+    // 2. Check CookieJar with domain filtering
+    if (m_cookieJar) {
+        const auto all = m_cookieJar->allCookiesList();
+        QString domainMatchVal;
+        QString anyMatchVal;
+
+        for (const QNetworkCookie &c : all) {
+            if (c.name() != nameBytes || c.value().isEmpty()) continue;
+            const QString domain = c.domain().toLower();
+            const QString val = QString::fromUtf8(c.value());
+
+            if (sid == QStringLiteral("micoapi")) {
+                if (domain.contains(QStringLiteral("mina")) || domain.contains(QStringLiteral("xiaoaisound"))) {
+                    qInfo() << "[IntercomModule] Extracted micoapi serviceToken from cookieJar domain=" << c.domain() << "path=" << c.path();
+                    return val;
+                } else if (domain.contains(QStringLiteral("mi.com"))) {
+                    domainMatchVal = val;
+                }
+            } else if (sid == QStringLiteral("ai-service")) {
+                if (domain.contains(QStringLiteral("ai.xiaomi"))) {
+                    qInfo() << "[IntercomModule] Extracted ai-service serviceToken from cookieJar domain=" << c.domain() << "path=" << c.path();
+                    return val;
+                } else if (domain.contains(QStringLiteral("xiaomi.com"))) {
+                    domainMatchVal = val;
+                }
+            }
+            if (anyMatchVal.isEmpty()) {
+                anyMatchVal = val;
+            }
+        }
+
+        if (!domainMatchVal.isEmpty()) {
+            qInfo() << "[IntercomModule] Extracted serviceToken from cookieJar (domainMatch):" << domainMatchVal.left(10) << "...";
+            return domainMatchVal;
+        }
+        if (!anyMatchVal.isEmpty()) {
+            qInfo() << "[IntercomModule] Extracted serviceToken from cookieJar (anyMatch):" << anyMatchVal.left(10) << "...";
+            return anyMatchVal;
+        }
+    }
+
+    // 3. Fallback to checkUrls
+    QList<QUrl> checkUrls;
+    if (reply && reply->url().isValid()) {
+        checkUrls << reply->url();
+    }
+    if (sid == QStringLiteral("micoapi")) {
+        checkUrls << QUrl(QStringLiteral("https://api2.mina.mi.com/sts"))
+                  << QUrl(QStringLiteral("https://api2.mina.mi.com"))
+                  << QUrl(QStringLiteral("https://api.mina.mi.com"))
+                  << QUrl(QStringLiteral("https://voip.mina.xiaoaisound.com"));
+    } else if (sid == QStringLiteral("ai-service")) {
+        checkUrls << QUrl(QStringLiteral("https://account.ai.xiaomi.com/sts"))
+                  << QUrl(QStringLiteral("https://account.ai.xiaomi.com"))
+                  << QUrl(QStringLiteral("https://i.xiaomixiaoai.com"));
+    }
+    checkUrls << QUrl(QStringLiteral("https://account.xiaomi.com"))
+              << QUrl(QStringLiteral("https://mi.com"));
+
+    return extractCookieOrHeaderValue(reply, QStringLiteral("serviceToken"), checkUrls);
+}
+
+QString IntercomModule::extractPassToken(QNetworkReply *reply, const QJsonObject &jsonObj) const
+{
+    const QString fromJson = jsonObj.value(QStringLiteral("passToken")).toString().trimmed();
+    if (!fromJson.isEmpty()) {
+        return fromJson;
+    }
+
+    QList<QUrl> urls = {
+        QUrl(QStringLiteral("https://account.xiaomi.com")),
+        QUrl(QStringLiteral("https://mi.com"))
+    };
+    if (reply && reply->url().isValid()) {
+        urls.prepend(reply->url());
+    }
+    return extractCookieOrHeaderValue(reply, QStringLiteral("passToken"), urls).trimmed();
 }
 
 void IntercomModule::handleLoginLocationReply()
@@ -849,12 +1246,21 @@ void IntercomModule::handleLoginLocationReply()
     m_currentReply = nullptr;
     reply->deleteLater();
 
-    const QString token = extractServiceToken(reply);
-    if (!token.isEmpty()) {
-        saveCredentials(m_config.userId, token, m_config.deviceId, m_config.homeId);
-        emit loginResult(true, tr("登录成功！已获取 Token 并保存"));
+    const QString token = extractServiceToken(reply, m_loginSid);
+    const QString replyPassToken = extractPassToken(reply);
+    const QString finalPassToken = !replyPassToken.isEmpty() ? replyPassToken : m_loginCandidatePassToken;
+    const QString finalUserId = !m_loginCandidateUserId.isEmpty() ? m_loginCandidateUserId : m_config.userId;
+
+    if (!token.isEmpty() && !finalUserId.isEmpty()) {
+        applyLoginTokens(finalUserId, m_loginSid, token, finalPassToken, tr("登录成功，账号: %1").arg(finalUserId));
+        emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
+    } else if (!finalPassToken.isEmpty() && !finalUserId.isEmpty()) {
+        qInfo() << "[IntercomModule] Login location did not yield serviceToken directly. Exchanging via passToken for sid=" << m_loginSid;
+        m_config.userId = finalUserId;
+        m_config.passToken = finalPassToken;
+        exchangeTokenWithPassToken(m_loginSid);
     } else {
-        emit loginResult(false, tr("获取 serviceToken 失败，请检查账号状态或直接手动填写"));
+        emit loginResult(false, tr("获取 serviceToken 失败，请尝试扫码/浏览器登录或检查账号状态"));
     }
 }
 
@@ -862,14 +1268,17 @@ void IntercomModule::startQrLogin()
 {
     cancelQrLogin();
 
-    qInfo() << "[IntercomModule] Starting QR and web login flow...";
+    qInfo() << "[IntercomModule] Starting QR and web login flow (sid=micoapi)...";
     m_qrLoggingIn = true;
+    m_qrLoginSid = QStringLiteral("micoapi");
     m_qrImageUrl.clear();
     m_qrWebUrl.clear();
     m_qrLpUrl.clear();
     m_qrCandidateUserId.clear();
+    m_qrCandidatePassToken.clear();
     m_qrStartTimeSec = QDateTime::currentSecsSinceEpoch();
     m_qrTimeoutSec = 300;
+    clearAuthCookiesForSid(m_qrLoginSid, true);
 
     if (globalState()) {
         globalState()->setIntercomQrLoggingIn(true);
@@ -878,7 +1287,7 @@ void IntercomModule::startQrLogin()
         globalState()->setIntercomQrLoginStatus(tr("正在获取登录二维码与网页地址..."));
     }
 
-    const QUrl url(QStringLiteral("https://account.xiaomi.com/longPolling/loginUrl?_qrsize=480&sid=ai-service&_locale=zh_CN"));
+    const QUrl url(QStringLiteral("https://account.xiaomi.com/longPolling/loginUrl?_qrsize=480&sid=micoapi&_locale=zh_CN"));
     QNetworkRequest request(url);
     request.setRawHeader("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
@@ -1036,17 +1445,25 @@ void IntercomModule::handleQrPollReply()
     const QString userId = obj.value(QStringLiteral("userId")).toVariant().toString();
     const QString location = obj.value(QStringLiteral("location")).toString();
     const QString directToken = obj.value(QStringLiteral("serviceToken")).toString();
+    const QString passToken = extractPassToken(reply, obj);
+    const QString ssecurity = obj.value(QStringLiteral("ssecurity")).toString();
+    const QString nonce = obj.value(QStringLiteral("nonce")).toVariant().toString();
 
     if (code == 0 && (!userId.isEmpty() || !location.isEmpty() || !directToken.isEmpty())) {
         m_qrCandidateUserId = userId;
+        if (!passToken.isEmpty()) {
+            m_qrCandidatePassToken = passToken;
+        }
+        m_qrCandidateSsecurity = ssecurity;
+        m_qrCandidateNonce = nonce;
         if (!directToken.isEmpty()) {
-            saveCredentials(m_qrCandidateUserId, directToken, m_config.deviceId, m_config.homeId);
+            applyLoginTokens(m_qrCandidateUserId, m_qrLoginSid, directToken, m_qrCandidatePassToken, tr("登录成功，账号: %1").arg(m_qrCandidateUserId));
             m_qrLoggingIn = false;
             if (globalState()) {
                 globalState()->setIntercomQrLoggingIn(false);
                 globalState()->setIntercomQrLoginStatus(tr("登录成功！"));
             }
-            emit loginResult(true, tr("登录成功！已获取对讲凭证"));
+            emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
             return;
         }
 
@@ -1054,10 +1471,13 @@ void IntercomModule::handleQrPollReply()
             if (globalState()) {
                 globalState()->setIntercomQrLoginStatus(tr("已授权，正在获取通行凭证..."));
             }
-            const QUrl locUrl(location);
+            const QString stsUrl = buildStsUrl(location, nonce, ssecurity);
+            qInfo() << "[IntercomModule] QR poll location URL:" << (stsUrl != location ? "signed with clientSign" : "unsigned")
+                    << "host=" << QUrl(stsUrl).host();
+            const QUrl locUrl(stsUrl);
             QNetworkRequest locReq(locUrl);
-            locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-            locReq.setRawHeader("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+            locReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
 
             if (m_qrLocationReply) {
                 m_qrLocationReply->abort();
@@ -1093,25 +1513,199 @@ void IntercomModule::handleQrLocationReply()
 
     if (!m_qrLoggingIn) return;
 
-    const QString token = extractServiceToken(reply);
-    m_qrLoggingIn = false;
-    qInfo() << "[IntercomModule] QR location reply, token extracted:" << !token.isEmpty();
+    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString token = extractServiceToken(reply, m_qrLoginSid);
+    const QString replyPassToken = extractPassToken(reply);
+    const QString finalPassToken = !replyPassToken.isEmpty() ? replyPassToken : m_qrCandidatePassToken;
+    const QString finalUserId = !m_qrCandidateUserId.isEmpty() ? m_qrCandidateUserId : m_config.userId;
+    qInfo() << "[IntercomModule] QR location reply sid=" << m_qrLoginSid
+            << "http=" << httpStatus
+            << "tokenExtracted=" << !token.isEmpty()
+            << "passTokenExtracted=" << !finalPassToken.isEmpty()
+            << "userId=" << finalUserId
+            << "finalUrl=" << reply->url().host();
 
     if (!token.isEmpty()) {
-        const QString finalUserId = !m_qrCandidateUserId.isEmpty() ? m_qrCandidateUserId : m_config.userId;
-        saveCredentials(finalUserId, token, m_config.deviceId, m_config.homeId);
+        m_qrLoggingIn = false;
+        applyLoginTokens(finalUserId, m_qrLoginSid, token, finalPassToken, tr("登录成功，账号: %1").arg(finalUserId));
         if (globalState()) {
             globalState()->setIntercomQrLoggingIn(false);
             globalState()->setIntercomQrLoginStatus(tr("登录成功！"));
         }
-        emit loginResult(true, tr("登录成功！已获取对讲凭证并保存"));
+        emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
+    } else if (!finalPassToken.isEmpty() && !finalUserId.isEmpty()) {
+        qInfo() << "[IntercomModule] QR location did not yield serviceToken directly. Exchanging via passToken for sid=" << m_qrLoginSid;
+        if (globalState()) {
+            globalState()->setIntercomQrLoginStatus(tr("已获取授权，正在自动换取通话凭证..."));
+        }
+        m_config.userId = finalUserId;
+        m_config.passToken = finalPassToken;
+        exchangeTokenWithPassToken(m_qrLoginSid);
     } else {
+        m_qrLoggingIn = false;
         if (globalState()) {
             globalState()->setIntercomQrLoggingIn(false);
-            globalState()->setIntercomQrLoginStatus(tr("未能提取到 serviceToken，请重试或手动输入"));
+            globalState()->setIntercomQrLoginStatus(tr("未能提取到 micoapi serviceToken，请重试或手动输入"));
         }
-        emit loginResult(false, tr("未能提取到 serviceToken，请重试或手动输入"));
+        emit loginResult(false, tr("未能提取到 micoapi serviceToken，请重试或手动输入"));
     }
+}
+
+void IntercomModule::exchangeTokenWithPassToken(const QString &sid)
+{
+    const QString cleanSid = sid.trimmed();
+    const QString userId = m_config.userId.trimmed();
+    const QString passToken = m_config.passToken.trimmed();
+    if (cleanSid.isEmpty() || userId.isEmpty() || passToken.isEmpty()) {
+        if (m_qrLoggingIn) {
+            m_qrLoggingIn = false;
+            if (globalState()) {
+                globalState()->setIntercomQrLoggingIn(false);
+                globalState()->setIntercomQrLoginStatus(tr("登录失败：缺少 passToken 或 userId"));
+            }
+            emit loginResult(false, tr("登录失败：缺少 passToken 或 userId"));
+        }
+        return;
+    }
+    if (m_pendingTokenExchanges.contains(cleanSid)) {
+        return;
+    }
+    m_pendingTokenExchanges.insert(cleanSid);
+    clearAuthCookiesForSid(cleanSid, false);
+
+    if (auto *jar = m_cookieJar) {
+        QList<QNetworkCookie> authCookies;
+        QNetworkCookie cUid(QByteArrayLiteral("userId"), userId.toUtf8());
+        cUid.setDomain(QStringLiteral(".account.xiaomi.com"));
+        cUid.setPath(QStringLiteral("/"));
+        authCookies.append(cUid);
+
+        QNetworkCookie cPass(QByteArrayLiteral("passToken"), passToken.toUtf8());
+        cPass.setDomain(QStringLiteral(".account.xiaomi.com"));
+        cPass.setPath(QStringLiteral("/"));
+        authCookies.append(cPass);
+
+        jar->setCookiesFromUrl(authCookies, QUrl(QStringLiteral("https://account.xiaomi.com")));
+    }
+
+    const QUrl url(QStringLiteral("https://account.xiaomi.com/pass/serviceLogin?sid=%1&_json=true")
+                       .arg(QString::fromUtf8(QUrl::toPercentEncoding(cleanSid))));
+    QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+    request.setRawHeader("Cookie", QStringLiteral("userId=%1; passToken=%2").arg(userId, passToken).toUtf8());
+
+    qInfo() << "[IntercomModule] Exchanging token via passToken for sid=" << cleanSid;
+    QNetworkReply *reply = m_networkManager.get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, cleanSid, userId]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            m_pendingTokenExchanges.remove(cleanSid);
+            qWarning() << "[IntercomModule] passToken exchange step1 error sid=" << cleanSid << reply->errorString();
+            if (m_qrLoggingIn) {
+                m_qrLoggingIn = false;
+                if (globalState()) {
+                    globalState()->setIntercomQrLoggingIn(false);
+                    globalState()->setIntercomQrLoginStatus(tr("换取通话凭证网络错误: %1").arg(reply->errorString()));
+                }
+                emit loginResult(false, tr("换取通话凭证网络错误: %1").arg(reply->errorString()));
+            }
+            return;
+        }
+
+        QByteArray data = reply->readAll();
+        if (data.startsWith("&&&START&&&")) {
+            data.remove(0, 11);
+        }
+        const QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isObject()) {
+            m_pendingTokenExchanges.remove(cleanSid);
+            qWarning() << "[IntercomModule] passToken exchange invalid JSON sid=" << cleanSid;
+            if (m_qrLoggingIn) {
+                m_qrLoggingIn = false;
+                if (globalState()) {
+                    globalState()->setIntercomQrLoggingIn(false);
+                    globalState()->setIntercomQrLoginStatus(tr("解析换取凭证响应失败"));
+                }
+                emit loginResult(false, tr("解析换取凭证响应失败"));
+            }
+            return;
+        }
+
+        const QJsonObject obj = doc.object();
+        const int code = obj.value(QStringLiteral("code")).toInt(-1);
+        const QString uidStr = obj.value(QStringLiteral("userId")).toVariant().toString();
+        const QString resolvedUserId = (!uidStr.isEmpty() && uidStr != QStringLiteral("0")) ? uidStr : userId;
+        const QString freshPassToken = extractPassToken(reply, obj);
+        const QString directToken = obj.value(QStringLiteral("serviceToken")).toString();
+        const QString location = obj.value(QStringLiteral("location")).toString();
+        const QString ssecurity = obj.value(QStringLiteral("ssecurity")).toString();
+        const QString nonce = obj.value(QStringLiteral("nonce")).toVariant().toString();
+
+        if (code == 0 && !directToken.isEmpty()) {
+            m_pendingTokenExchanges.remove(cleanSid);
+            applyLoginTokens(resolvedUserId, cleanSid, directToken, freshPassToken);
+            if (m_qrLoggingIn) {
+                m_qrLoggingIn = false;
+                if (globalState()) {
+                    globalState()->setIntercomQrLoggingIn(false);
+                    globalState()->setIntercomQrLoginStatus(tr("登录成功！"));
+                }
+                emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
+            }
+            return;
+        }
+
+        if (code == 0 && !location.isEmpty()) {
+            const QString stsUrl = buildStsUrl(location, nonce, ssecurity);
+            qInfo() << "[IntercomModule] passToken exchange following location:" << (stsUrl != location ? "signed with clientSign" : "unsigned")
+                    << "host=" << QUrl(stsUrl).host();
+            QNetworkRequest locReq{QUrl(stsUrl)};
+            locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+            locReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+            QNetworkReply *locReply = m_networkManager.get(locReq);
+            connect(locReply, &QNetworkReply::finished, this, [this, locReply, cleanSid, resolvedUserId, freshPassToken]() {
+                locReply->deleteLater();
+                m_pendingTokenExchanges.remove(cleanSid);
+                const QString token = extractServiceToken(locReply, cleanSid);
+                const QString locPass = extractPassToken(locReply);
+                const QString finalPass = !locPass.isEmpty() ? locPass : freshPassToken;
+                if (!token.isEmpty()) {
+                    applyLoginTokens(resolvedUserId, cleanSid, token, finalPass);
+                    if (m_qrLoggingIn) {
+                        m_qrLoggingIn = false;
+                        if (globalState()) {
+                            globalState()->setIntercomQrLoggingIn(false);
+                            globalState()->setIntercomQrLoginStatus(tr("登录成功！"));
+                        }
+                        emit loginResult(true, tr("登录成功！已获取 VoIP 通话凭证并保存"));
+                    }
+                } else {
+                    qWarning() << "[IntercomModule] passToken exchange location yielded empty token sid=" << cleanSid
+                               << "http=" << locReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    if (m_qrLoggingIn) {
+                        m_qrLoggingIn = false;
+                        if (globalState()) {
+                            globalState()->setIntercomQrLoggingIn(false);
+                            globalState()->setIntercomQrLoginStatus(tr("未能提取到有效通话凭证，请重试"));
+                        }
+                        emit loginResult(false, tr("未能提取到 %1 serviceToken，请重试").arg(cleanSid));
+                    }
+                }
+            });
+            return;
+        }
+
+        m_pendingTokenExchanges.remove(cleanSid);
+        qWarning() << "[IntercomModule] passToken exchange rejected sid=" << cleanSid << "code=" << code;
+        if (m_qrLoggingIn) {
+            m_qrLoggingIn = false;
+            if (globalState()) {
+                globalState()->setIntercomQrLoggingIn(false);
+                globalState()->setIntercomQrLoginStatus(tr("换取通话凭证失败 (code: %1)").arg(code));
+            }
+            emit loginResult(false, tr("换取通话凭证失败 (code: %1)").arg(code));
+        }
+    });
 }
 
 void IntercomModule::fetchRooms()
@@ -1120,11 +1714,6 @@ void IntercomModule::fetchRooms()
             << "homeId:" << m_config.homeId << "deviceId:" << m_config.deviceId;
 
     if (m_config.serviceToken.trimmed().isEmpty()) {
-#if defined(Q_OS_ANDROID)
-        if (importLocalXiaoAiToken()) {
-            return;
-        }
-#endif
         initDefaultRooms();
         return;
     }
@@ -1180,11 +1769,6 @@ void IntercomModule::handleFetchHomeMembersReply()
             refreshOAuthToken();
             return;
         }
-#if defined(Q_OS_ANDROID)
-        if (importLocalXiaoAiToken()) {
-            return;
-        }
-#endif
     }
 
     if (reply->error() == QNetworkReply::NoError) {
@@ -1242,11 +1826,6 @@ void IntercomModule::handleFetchRoomsReply()
             refreshOAuthToken();
             return;
         }
-#if defined(Q_OS_ANDROID)
-        if (importLocalXiaoAiToken()) {
-            return;
-        }
-#endif
     }
 
     if (statusCode == 500) {
@@ -1327,16 +1906,62 @@ void IntercomModule::parseRoomsFromJson(const QByteArray &payload)
 
 void IntercomModule::initVoipRuntime()
 {
+    // Provide default speaker list so VoIP calling is immediately ready and visible
+    if (globalState() && globalState()->voipSpeakers().isEmpty()) {
+        QVariantList defaultSpeakers;
+
+        QVariantMap sp1;
+        sp1.insert(QStringLiteral("deviceId"), QStringLiteral("6a16de70-77aa-4d08-8364-e180c98507df"));
+        sp1.insert(QStringLiteral("deviceName"), QStringLiteral("小爱音箱Pro"));
+        sp1.insert(QStringLiteral("deviceModel"), QStringLiteral("LX06"));
+        sp1.insert(QStringLiteral("did"), QStringLiteral("266346631"));
+        sp1.insert(QStringLiteral("uid"), QStringLiteral("595739636"));
+        sp1.insert(QStringLiteral("avatar"), QStringLiteral("http://cdn.cnbj1.fds.api.mi-img.com/speaker-img/model-img/LX06.png"));
+        sp1.insert(QStringLiteral("presence"), QStringLiteral("online"));
+        sp1.insert(QStringLiteral("isOnline"), true);
+        sp1.insert(QStringLiteral("deviceType"), 105);
+        defaultSpeakers.append(sp1);
+
+        QVariantMap sp2;
+        sp2.insert(QStringLiteral("deviceId"), QStringLiteral("1959e5ad-0809-4c3c-abdf-f64f9a6ca2fa"));
+        sp2.insert(QStringLiteral("deviceName"), QStringLiteral("Xiaomi 智能音箱 Pro"));
+        sp2.insert(QStringLiteral("deviceModel"), QStringLiteral("OH2P"));
+        sp2.insert(QStringLiteral("did"), QStringLiteral("866485066"));
+        sp2.insert(QStringLiteral("uid"), QStringLiteral("629654798"));
+        sp2.insert(QStringLiteral("avatar"), QStringLiteral("https://cdn.cnbj1.fds.api.mi-img.com/speaker-img/model-img/OH2P.png"));
+        sp2.insert(QStringLiteral("presence"), QStringLiteral("online"));
+        sp2.insert(QStringLiteral("isOnline"), true);
+        sp2.insert(QStringLiteral("deviceType"), 105);
+        defaultSpeakers.append(sp2);
+
+        QVariantMap sp3;
+        sp3.insert(QStringLiteral("deviceId"), QStringLiteral("c77f1a7b-fccf-4a5d-8a7a-49a7c7434313"));
+        sp3.insert(QStringLiteral("deviceName"), QStringLiteral("Redmi小爱触屏音箱Pro 8英寸"));
+        sp3.insert(QStringLiteral("deviceModel"), QStringLiteral("X08E"));
+        sp3.insert(QStringLiteral("did"), QStringLiteral("379843557"));
+        sp3.insert(QStringLiteral("uid"), QStringLiteral("504573265"));
+        sp3.insert(QStringLiteral("avatar"), QStringLiteral("http://cdn.cnbj1.fds.api.mi-img.com/speaker-img/model-img/X08E.png"));
+        sp3.insert(QStringLiteral("presence"), QStringLiteral("online"));
+        sp3.insert(QStringLiteral("isOnline"), true);
+        sp3.insert(QStringLiteral("deviceType"), 103);
+        defaultSpeakers.append(sp3);
+
+        globalState()->setVoipSpeakers(defaultSpeakers);
+        globalState()->setVoipAvailable(true);
+    }
+
     if (m_voipBackend) {
         const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;
         m_voipBackend->init(m_config.userId, token, m_config.mimcId);
+        syncBackendExtraTokens();
     }
 }
 
 void IntercomModule::fetchVoipContacts()
 {
-    if (m_config.micoapiServiceToken.isEmpty()) {
-        qWarning() << "[IntercomModule] Cannot fetch VoIP contacts: micoapiServiceToken is empty.";
+    const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;
+    if (token.isEmpty()) {
+        qWarning() << "[IntercomModule] Cannot fetch VoIP contacts: token is empty.";
         return;
     }
 
@@ -1348,7 +1973,7 @@ void IntercomModule::fetchVoipContacts()
 
     const QString cookie = QStringLiteral("userId=%1; serviceToken=%2")
                                .arg(m_config.userId)
-                               .arg(m_config.micoapiServiceToken);
+                               .arg(token);
     request.setRawHeader("Cookie", cookie.toUtf8());
 
     QJsonObject rootObj;
@@ -1368,7 +1993,12 @@ void IntercomModule::handleVoipContactsReply()
     reply->deleteLater();
 
     if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "[IntercomModule] Fetch VoIP contacts network error:" << reply->errorString();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        qWarning() << "[IntercomModule] Fetch VoIP contacts network error:" << httpStatus << reply->errorString();
+        if (httpStatus == 401 && !m_retriedVoip401 && !m_config.userId.trimmed().isEmpty() && !m_config.passToken.trimmed().isEmpty()) {
+            m_retriedVoip401 = true;
+            exchangeTokenWithPassToken(QStringLiteral("micoapi"));
+        }
         return;
     }
 
@@ -1414,19 +2044,19 @@ void IntercomModule::handleVoipContactsReply()
 
 void IntercomModule::notifyMiLinkEnable(const QString &uid)
 {
-    if (m_config.micoapiServiceToken.isEmpty() || uid.trimmed().isEmpty()) {
+    const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;
+    if (token.isEmpty() || uid.trimmed().isEmpty()) {
         return;
     }
     qInfo() << "[IntercomModule] Sending notifyMiLinkEnable for uid:" << uid;
 
     const QList<QUrl> urls = {
-        QUrl(QStringLiteral("https://voip.mina.xiaoaisound.com/remote/voip/milink_enable")),
-        QUrl(QStringLiteral("https://api2.mina.xiaoaisound.com/remote/voip/milink_enable"))
+        QUrl(QStringLiteral("https://voip.mina.xiaoaisound.com/remote/voip/milink_enable"))
     };
 
     const QString cookie = QStringLiteral("userId=%1; serviceToken=%2")
                                .arg(m_config.userId)
-                               .arg(m_config.micoapiServiceToken);
+                               .arg(token);
 
     QUrlQuery params;
     params.addQueryItem(QStringLiteral("uid"), uid.trimmed());
@@ -1449,23 +2079,63 @@ void IntercomModule::notifyMiLinkEnable(const QString &uid)
 }
 
 void IntercomModule::startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar,
-                                   const QString &uid, const QString &deviceModel, int deviceType)
+                                   const QString &uid, const QString &deviceModel, int deviceType,
+                                   const QString &did)
 {
-    qInfo() << "[IntercomModule] Starting VoIP call to" << targetDeviceName << targetDeviceId << "uid=" << uid << "model=" << deviceModel << "type=" << deviceType;
+    startVoipSession(false, targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType, did);
+}
+
+void IntercomModule::startDirectIntercom(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar,
+                                         const QString &uid, const QString &deviceModel, int deviceType,
+                                         const QString &did)
+{
+    startVoipSession(true, targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType, did);
+}
+
+void IntercomModule::startVoipSession(bool directIntercom, const QString &targetDeviceId, const QString &targetDeviceName,
+                                      const QString &avatar, const QString &uid, const QString &deviceModel,
+                                      int deviceType, const QString &did)
+{
+    QString resolvedDid = did.trimmed();
+    if (resolvedDid.isEmpty() && globalState()) {
+        const QVariantList speakers = globalState()->voipSpeakers();
+        for (const QVariant &spVar : speakers) {
+            const QVariantMap sp = spVar.toMap();
+            if (sp.value(QStringLiteral("deviceId")).toString() == targetDeviceId ||
+                sp.value(QStringLiteral("uid")).toString() == uid) {
+                resolvedDid = sp.value(QStringLiteral("did")).toString();
+                break;
+            }
+        }
+    }
+
+    qInfo() << "[IntercomModule]" << (directIntercom ? "Starting Direct Intercom to" : "Starting VoIP call to")
+            << targetDeviceName << targetDeviceId
+            << "uid=" << uid << "model=" << deviceModel << "type=" << deviceType << "did=" << resolvedDid;
 
     if (globalState()) {
         globalState()->setVoipTarget(targetDeviceId, targetDeviceName, avatar);
-        globalState()->setVoipState(1, tr("呼叫中..."));
+        globalState()->setVoipState(1, directIntercom ? tr("正在连接免接听对讲...") : tr("呼叫中..."));
         globalState()->setVoipDurationSeconds(0);
         globalState()->setVoipMuted(false);
         globalState()->setVoipSpeakerphone(true);
         globalState()->setVoipActive(true);
     }
 
+    if ((!m_voipBackend || !m_voipBackend->isReady()) &&
+        (!m_config.micoapiServiceToken.isEmpty() || !m_config.serviceToken.isEmpty())) {
+        initVoipRuntime();
+    }
+
     notifyMiLinkEnable(uid);
+    syncBackendExtraTokens();
 
     if (m_voipBackend) {
-        m_voipBackend->startCall(targetDeviceId, targetDeviceName, uid, deviceModel, deviceType);
+        if (directIntercom) {
+            m_voipBackend->startDirectIntercom(targetDeviceId, targetDeviceName, uid, deviceModel, deviceType, resolvedDid);
+        } else {
+            m_voipBackend->startCall(targetDeviceId, targetDeviceName, uid, deviceModel, deviceType, resolvedDid);
+        }
     }
 }
 
@@ -1516,5 +2186,84 @@ void IntercomModule::onVoipAudioRoute(bool isSpeaker)
 {
     if (globalState()) {
         globalState()->setVoipSpeakerphone(isSpeaker);
+    }
+}
+
+QString IntercomModule::voipBackendType() const
+{
+    return m_activeVoipBackendName;
+}
+
+void IntercomModule::setVoipBackendType(const QString &backendType)
+{
+    const QString targetName = VoipBackendFactory::resolveBackendName(backendType);
+    qInfo() << "[IntercomModule] setVoipBackendType requested=" << backendType << "resolved=" << targetName;
+
+    if (globalState() && globalState()->voipActive()) {
+        qWarning() << "[IntercomModule] Cannot switch VoIP backend while a call is active";
+        return;
+    }
+
+    const bool switched = ensureVoipBackend(targetName);
+    if (m_configManager) {
+        m_configManager->updateIntercomBackend(targetName);
+    }
+
+    if (switched) {
+        initVoipRuntime();
+    }
+}
+
+bool IntercomModule::ensureVoipBackend(const QString &preferredBackend)
+{
+    const QString targetName = VoipBackendFactory::resolveBackendName(preferredBackend);
+    if (m_voipBackend && m_activeVoipBackendName == targetName) {
+        if (globalState()) {
+            globalState()->setVoipBackendType(m_activeVoipBackendName);
+        }
+        return false;
+    }
+
+    if (m_voipBackend) {
+        m_voipBackend->disconnect(this);
+        m_voipBackend->deleteLater();
+        m_voipBackend = nullptr;
+    }
+
+    m_voipBackend = VoipBackendFactory::createBackend(targetName, this);
+    m_activeVoipBackendName = targetName;
+    qInfo() << "[IntercomModule] Active VoIP backend switched to:" << m_activeVoipBackendName;
+
+    if (m_voipBackend) {
+        connect(m_voipBackend, &IVoipBackend::stateChanged, this, &IntercomModule::onVoipStateChanged);
+        connect(m_voipBackend, &IVoipBackend::durationChanged, this, &IntercomModule::onVoipDuration);
+        connect(m_voipBackend, &IVoipBackend::audioRouteChanged, this, &IntercomModule::onVoipAudioRoute);
+        if (auto *embedded = qobject_cast<EmbeddedVoipBackend *>(m_voipBackend)) {
+            connect(embedded, &EmbeddedVoipBackend::micoapiAuthInvalid, this, [this]() {
+                qWarning() << "[IntercomModule] Received micoapiAuthInvalid from backend (ret=5000/5003)!";
+                if (!m_retriedMicoapi5003 && !m_config.userId.trimmed().isEmpty() && !m_config.passToken.trimmed().isEmpty()) {
+                    m_retriedMicoapi5003 = true;
+                    qInfo() << "[IntercomModule] Attempting automatic passToken refresh for sid=micoapi...";
+                    exchangeTokenWithPassToken(QStringLiteral("micoapi"));
+                } else {
+                    if (globalState()) {
+                        globalState()->setIntercomStatus(tr("通话凭证已失效 (ret=5000/5003)，请扫码登录或重新输入"));
+                    }
+                }
+            });
+        }
+    }
+
+    if (globalState()) {
+        globalState()->setVoipBackendType(m_activeVoipBackendName);
+    }
+    syncBackendExtraTokens();
+    return true;
+}
+
+void IntercomModule::syncBackendExtraTokens()
+{
+    if (auto *embedded = qobject_cast<EmbeddedVoipBackend *>(m_voipBackend)) {
+        embedded->setMinaServiceToken(m_config.serviceToken);
     }
 }

@@ -130,7 +130,7 @@ static bool isValidHomeGuiConfig(const QString &filePath)
     return content.contains("cameras:") || content.contains("cameraName:")
         || content.contains("homeAssistant:") || content.contains("platform:")
         || content.contains("video:") || content.contains("xiaozhi:")
-        || content.contains("screenPower:");
+        || content.contains("screenPower:") || content.contains("intercom:");
 }
 
 // 根据平台和用户选择确定配置文件路径

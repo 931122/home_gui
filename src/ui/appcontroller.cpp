@@ -169,6 +169,8 @@ AppController::AppController(ConfigManager *configManager,
             this, &AppController::voipAudioSettingsChanged);
     connect(m_globalState, &GlobalState::voipSpeakersChanged,
             this, &AppController::voipSpeakersChanged);
+    connect(m_globalState, &GlobalState::voipBackendTypeChanged,
+            this, &AppController::voipBackendTypeChanged);
     connect(m_moduleManager, &ModuleManager::intercomLoginResult,
             this, &AppController::intercomLoginResult);
     connect(m_moduleManager, &ModuleManager::intercomSendAudioResult,
@@ -1620,6 +1622,11 @@ QString AppController::intercomServiceToken() const
     return m_globalState ? m_globalState->intercomServiceToken() : QString();
 }
 
+QString AppController::micoapiServiceToken() const
+{
+    return m_globalState ? m_globalState->micoapiServiceToken() : QString();
+}
+
 QString AppController::intercomHomeId() const
 {
     return m_globalState ? m_globalState->intercomHomeId() : QString();
@@ -1723,10 +1730,10 @@ bool AppController::importLocalXiaoAiToken()
     return false;
 }
 
-void AppController::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId)
+void AppController::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &micoapiToken)
 {
     if (m_moduleManager) {
-        m_moduleManager->saveIntercomSettings(userId, serviceToken, deviceId, homeId);
+        m_moduleManager->saveIntercomSettings(userId, serviceToken, deviceId, homeId, micoapiToken);
     }
 }
 
@@ -1802,11 +1809,26 @@ QVariantList AppController::voipSpeakers() const
     return m_globalState ? m_globalState->voipSpeakers() : QVariantList();
 }
 
+QString AppController::voipBackendType() const
+{
+    return m_globalState ? m_globalState->voipBackendType() : QString();
+}
+
 void AppController::startVoipCall(const QString &deviceId, const QString &deviceName, const QString &avatar,
-                                   const QString &uid, const QString &deviceModel, int deviceType)
+                                   const QString &uid, const QString &deviceModel, int deviceType,
+                                   const QString &did)
 {
     if (m_moduleManager) {
-        m_moduleManager->startVoipCall(deviceId, deviceName, avatar, uid, deviceModel, deviceType);
+        m_moduleManager->startVoipCall(deviceId, deviceName, avatar, uid, deviceModel, deviceType, did);
+    }
+}
+
+void AppController::startDirectIntercom(const QString &deviceId, const QString &deviceName, const QString &avatar,
+                                        const QString &uid, const QString &deviceModel, int deviceType,
+                                        const QString &did)
+{
+    if (m_moduleManager) {
+        m_moduleManager->startDirectIntercom(deviceId, deviceName, avatar, uid, deviceModel, deviceType, did);
     }
 }
 
@@ -1835,6 +1857,13 @@ void AppController::refreshVoipContacts()
 {
     if (m_moduleManager) {
         m_moduleManager->fetchVoipContacts();
+    }
+}
+
+void AppController::setVoipBackendType(const QString &backendType)
+{
+    if (m_moduleManager) {
+        m_moduleManager->setVoipBackendType(backendType);
     }
 }
 

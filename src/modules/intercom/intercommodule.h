@@ -3,10 +3,13 @@
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
 #include <QHttpMultiPart>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -15,6 +18,14 @@
 
 class ConfigManager;
 class IVoipBackend;
+
+class AccessibleCookieJar : public QNetworkCookieJar
+{
+public:
+    using QNetworkCookieJar::QNetworkCookieJar;
+    QList<QNetworkCookie> allCookiesList() const { return allCookies(); }
+    void setAllCookiesList(const QList<QNetworkCookie> &cookies) { setAllCookies(cookies); }
+};
 
 class IntercomModule : public IModule
 {
@@ -43,7 +54,7 @@ public:
     void cancelQrLogin();
     bool importLocalXiaoAiToken();
     void refreshOAuthToken();
-    void saveCredentials(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken = QString());
+    void saveCredentials(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &refreshToken = QString(), const QString &micoapiToken = QString());
     void fetchRooms();
 
     // 音箱实时 VoIP 通话控制
@@ -51,10 +62,16 @@ public:
     void fetchVoipContacts();
     void notifyMiLinkEnable(const QString &uid);
     void startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
-                       const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0);
+                       const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                       const QString &did = QString());
+    void startDirectIntercom(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
+                            const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                            const QString &did = QString());
     void hangupVoipCall();
     void setVoipMute(bool mute);
     void setVoipSpeakerphone(bool enable);
+    QString voipBackendType() const;
+    void setVoipBackendType(const QString &backendType);
 
     static IntercomModule *instance();
     void onVoipStateChanged(int state, const QString &statusText);
@@ -85,26 +102,42 @@ private:
     void ensureDeviceId();
     void initDefaultRooms();
     void parseRoomsFromJson(const QByteArray &payload);
-    QString extractServiceToken(QNetworkReply *reply);
+    void clearAuthCookiesForSid(const QString &sid, bool includePassToken = false);
+    QString extractCookieOrHeaderValue(QNetworkReply *reply, const QString &cookieName, const QList<QUrl> &preferredUrls) const;
+    QString extractServiceToken(QNetworkReply *reply, const QString &sid = QString());
+    QString extractPassToken(QNetworkReply *reply, const QJsonObject &jsonObj = QJsonObject()) const;
+    void applyLoginTokens(const QString &userId, const QString &sid, const QString &token, const QString &passToken, const QString &statusMsg = QString());
+    void exchangeTokenWithPassToken(const QString &sid);
+    static QString buildStsUrl(const QString &locationUrl, const QString &nonce, const QString &ssecurity);
+    void startVoipSession(bool directIntercom, const QString &targetDeviceId, const QString &targetDeviceName,
+                          const QString &avatar, const QString &uid, const QString &deviceModel,
+                          int deviceType, const QString &did);
 
     ConfigManager *m_configManager = nullptr;
     IntercomConfig m_config;
     AudioRecorder m_audioRecorder;
+    AccessibleCookieJar *m_cookieJar = nullptr;
     QNetworkAccessManager m_networkManager;
 
     QByteArray m_pendingPcmData;
     qint64 m_pendingDurationMs = 0;
 
     // 登录上下文暂存
+    QString m_loginSid = QStringLiteral("micoapi");
     QString m_loginUser;
     QString m_loginPwdHash;
     QString m_loginSign;
     QString m_loginQs;
     QString m_loginCallback;
+    QString m_loginCandidateUserId;
+    QString m_loginCandidatePassToken;
+    QString m_loginCandidateSsecurity;
+    QString m_loginCandidateNonce;
     QNetworkReply *m_currentReply = nullptr;
 
     // 扫码与网页登录长轮询上下文
     bool m_qrLoggingIn = false;
+    QString m_qrLoginSid = QStringLiteral("micoapi");
     QString m_qrImageUrl;
     QString m_qrWebUrl;
     QString m_qrLpUrl;
@@ -112,8 +145,18 @@ private:
     qint64 m_qrStartTimeSec = 0;
     QNetworkReply *m_qrPollReply = nullptr;
     QNetworkReply *m_qrLocationReply = nullptr;
+    bool ensureVoipBackend(const QString &preferredBackend);
+    void syncBackendExtraTokens();
+
     QString m_qrCandidateUserId;
+    QString m_qrCandidatePassToken;
+    QString m_qrCandidateSsecurity;
+    QString m_qrCandidateNonce;
+    QSet<QString> m_pendingTokenExchanges;
+    bool m_retriedVoip401 = false;
+    bool m_retriedMicoapi5003 = false;
     IVoipBackend *m_voipBackend = nullptr;
+    QString m_activeVoipBackendName;
     static IntercomModule *s_instance;
 };
 

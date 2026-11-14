@@ -426,6 +426,11 @@ QVariantList GlobalState::voipSpeakers() const
     return m_voipSpeakers;
 }
 
+QString GlobalState::voipBackendType() const
+{
+    return m_voipBackendType;
+}
+
 QString GlobalState::micoapiServiceToken() const
 {
     return m_micoapiServiceToken;
@@ -624,6 +629,13 @@ void GlobalState::setVoipSpeakers(const QVariantList &speakers)
 {
     m_voipSpeakers = speakers;
     emit voipSpeakersChanged();
+}
+
+void GlobalState::setVoipBackendType(const QString &backendType)
+{
+    if (m_voipBackendType == backendType) return;
+    m_voipBackendType = backendType;
+    emit voipBackendTypeChanged();
 }
 
 void GlobalState::setMicoapiServiceToken(const QString &token)

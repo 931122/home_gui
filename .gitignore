@@ -1,9 +1,11 @@
 build/
 build-*/
+build_cli/
 .deps/
 .codex
 android/ffmpeg/
 ios/ffmpeg/
+ios/agora/
 ios/icons/
 android/assets/
 scratch/

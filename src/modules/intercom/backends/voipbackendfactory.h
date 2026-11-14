@@ -6,7 +6,10 @@
 class VoipBackendFactory
 {
 public:
-    static IVoipBackend *createBackend(QObject *parent = nullptr);
+    static QString resolveBackendName(const QString &preferredBackend = QStringLiteral("auto"));
+    static IVoipBackend *createBackend(const QString &preferredBackend = QStringLiteral("auto"),
+                                     QObject *parent = nullptr);
+    static IVoipBackend *createBackend(QObject *parent);
 };
 
 #endif // VOIPBACKENDFACTORY_H

@@ -244,11 +244,11 @@ bool ModuleManager::importIntercomLocalXiaoAiToken()
     return false;
 }
 
-void ModuleManager::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId)
+void ModuleManager::saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &micoapiToken)
 {
     ensureModules();
     if (m_intercomModule != nullptr) {
-        m_intercomModule->saveCredentials(userId, serviceToken, deviceId, homeId);
+        m_intercomModule->saveCredentials(userId, serviceToken, deviceId, homeId, QString(), micoapiToken);
     }
 }
 
@@ -261,11 +261,22 @@ void ModuleManager::fetchIntercomRooms()
 }
 
 void ModuleManager::startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar,
-                                   const QString &uid, const QString &deviceModel, int deviceType)
+                                   const QString &uid, const QString &deviceModel, int deviceType,
+                                   const QString &did)
 {
     ensureModules();
     if (m_intercomModule != nullptr) {
-        m_intercomModule->startVoipCall(targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType);
+        m_intercomModule->startVoipCall(targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType, did);
+    }
+}
+
+void ModuleManager::startDirectIntercom(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar,
+                                        const QString &uid, const QString &deviceModel, int deviceType,
+                                        const QString &did)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->startDirectIntercom(targetDeviceId, targetDeviceName, avatar, uid, deviceModel, deviceType, did);
     }
 }
 
@@ -295,6 +306,22 @@ void ModuleManager::fetchVoipContacts()
     ensureModules();
     if (m_intercomModule != nullptr) {
         m_intercomModule->fetchVoipContacts();
+    }
+}
+
+QString ModuleManager::voipBackendType() const
+{
+    if (m_intercomModule != nullptr) {
+        return m_intercomModule->voipBackendType();
+    }
+    return QString();
+}
+
+void ModuleManager::setVoipBackendType(const QString &backendType)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->setVoipBackendType(backendType);
     }
 }
 

@@ -131,8 +131,11 @@ xiaozhi:
   websocketPath: /xiaozhi/v1/
   websocketPort: 443
 intercom:
+  backend: auto
   deviceId: ''
   enabled: true
   homeId: ''
   serviceToken: ''
+  micoapiServiceToken: ''
+  mimcId: ''
   userId: ''

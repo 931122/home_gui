@@ -54,16 +54,22 @@ public:
     void startIntercomQrLogin();
     void cancelIntercomQrLogin();
     bool importIntercomLocalXiaoAiToken();
-    void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId);
+    void saveIntercomSettings(const QString &userId, const QString &serviceToken, const QString &deviceId, const QString &homeId, const QString &micoapiToken = QString());
     void fetchIntercomRooms();
 
     // 音箱实时 VoIP 通话控制
     void startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
-                       const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0);
+                       const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                       const QString &did = QString());
+    void startDirectIntercom(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
+                             const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
+                             const QString &did = QString());
     void hangupVoipCall();
     void setVoipMute(bool mute);
     void setVoipSpeakerphone(bool enable);
     void fetchVoipContacts();
+    QString voipBackendType() const;
+    void setVoipBackendType(const QString &backendType);
 
 signals:
     void activeCameraChanged(int index);

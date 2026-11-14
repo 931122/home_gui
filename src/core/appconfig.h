@@ -119,6 +119,7 @@ struct IntercomConfig
     QString homeId;
     QString micoapiServiceToken; // VoIP 专用 serviceToken
     QString mimcId;              // VoIP MIMC ID
+    QString backend = QStringLiteral("embedded"); // VoIP 后端: embedded
     QString defaultRoomId = QStringLiteral("WHOLE_0");
     QString serverUrl = QStringLiteral("https://i.xiaomixiaoai.com");
 };

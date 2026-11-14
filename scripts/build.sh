@@ -17,7 +17,7 @@ Usage:
   ./scripts/build.sh rk3506 [path]    # cross-build for RK3506 Buildroot
   ./scripts/build.sh rk3568 [path]    # cross-build for RK3568 Buildroot
   ./scripts/build.sh android          # build Android APK (arm64-v8a)
-  ./scripts/build.sh ios [type]       # build iOS app bundle (simulator/device)
+  ./scripts/build.sh ios [type]       # build iOS app bundle or IPA (simulator/device/ipa)
   ./scripts/build.sh clean            # remove all local build directories
   ./scripts/build.sh clean native     # remove local build directory
   ./scripts/build.sh clean cross      # remove generic cross build directory
@@ -33,6 +33,8 @@ Environment:
   QT_TARGET_ROOT          Target Qt6 installation path for generic cross build
   QT_IOS_ROOT             Qt6 for iOS installation path (e.g. ~/Qt/6.6.3/ios)
   QT_HOST_PATH            Host Qt6 path (for moc, rcc, qsb)
+  IOS_DEVELOPMENT_TEAM    Override Xcode Development Team ID for iOS signing
+  IOS_EXPORT_OPTIONS_PLIST ExportOptions.plist path for signed archive/IPA export
   BUILD_JOBS              Override parallel build jobs
   PKG_CONFIG_PATH         Additional pkg-config search directories
 
@@ -44,6 +46,7 @@ Examples:
   ./scripts/build.sh android
   ./scripts/build.sh ios simulator
   ./scripts/build.sh ios device
+  ./scripts/build.sh ios ipa
   BUILDROOT_OUTPUT=/path/to/output ./scripts/build.sh rk3506
   BUILD_JOBS=8 ./scripts/build.sh native
 EOF
@@ -752,7 +755,18 @@ EOF
     fi
     local final_apk="${build_dir}/home_gui.apk"
     if [[ -n "${apk_path}" && -f "${apk_path}" ]]; then
-        cp -f "${apk_path}" "${final_apk}"
+        local apksigner_bin
+        apksigner_bin="$(find "${android_sdk_root}/build-tools" -name apksigner 2>/dev/null | sort | tail -n 1)"
+        if [[ -f "${android_keystore_path}" && -n "${apksigner_bin}" && -x "${apksigner_bin}" && "${apk_path}" != *signed* ]]; then
+            echo "Signing APK with apksigner..."
+            "${apksigner_bin}" sign --ks "${android_keystore_path}" \
+                --ks-pass "pass:${android_keystore_store_pass}" \
+                --ks-key-alias "${android_keystore_alias}" \
+                --key-pass "pass:${android_keystore_key_pass}" \
+                --out "${final_apk}" "${apk_path}"
+        else
+            cp -f "${apk_path}" "${final_apk}"
+        fi
         local apk_size
         apk_size="$(du -h "${final_apk}" | cut -f1)"
         echo
@@ -829,17 +843,23 @@ run_ios_build() {
         qt_cmake_bin="${qt_ios_dir}/bin/qt-cmake"
     fi
 
-    local host_qt_dir="/usr/local"
-    if command -v qmake >/dev/null 2>&1; then
+    local host_qt_dir="${QT_HOST_PATH:-/usr/local}"
+    if [[ -z "${QT_HOST_PATH:-}" ]] && command -v qmake >/dev/null 2>&1; then
         host_qt_dir="$(qmake -query QT_INSTALL_PREFIX 2>/dev/null || echo '/usr/local')"
     fi
 
     # 2. 检查 Xcode 与 SDK
     local sdk="iphonesimulator"
+    local want_ipa="0"
     case "${target_type}" in
         device|iphoneos|arm64)
             sdk="iphoneos"
             target_type="device"
+            ;;
+        ipa|package)
+            sdk="iphoneos"
+            target_type="ipa"
+            want_ipa="1"
             ;;
         simulator|iphonesimulator|sim)
             sdk="iphonesimulator"
@@ -863,6 +883,15 @@ run_ios_build() {
 
     mkdir -p "${build_dir}"
     cd "${build_dir}"
+
+    if [[ ! -d "${ROOT_DIR}/ios/agora/AgoraRtcKit.xcframework" ]]; then
+        echo "正在下载声网 Agora Audio iOS SDK 3.7.2 到 ios/agora ..."
+        local agora_zip="${ROOT_DIR}/.deps/AgoraAudio_iOS-3.7.2.zip"
+        mkdir -p "${ROOT_DIR}/.deps" "${ROOT_DIR}/ios/agora"
+        curl -fL --max-time 180 -o "${agora_zip}" "https://download.agora.io/sdk/release/AgoraAudio_iOS-3.7.2.zip"
+        unzip -q -o "${agora_zip}" -d "${ROOT_DIR}/ios/agora"
+        rm -f "${agora_zip}"
+    fi
 
     ensure_qsb_shaders
 
@@ -893,14 +922,126 @@ run_ios_build() {
         cmake "${cmake_args[@]}"
     fi
 
+    local has_sign_identity="0"
+    if [[ "${sdk}" == "iphoneos" ]] && security find-identity -v -p codesigning 2>/dev/null | grep -Eq 'Apple Development|iPhone Developer|Apple Distribution|iPhone Distribution'; then
+        has_sign_identity="1"
+    fi
+
+    local final_ipa="${build_dir}/home_gui.ipa"
+    if [[ "${want_ipa}" == "1" && -n "${IOS_EXPORT_OPTIONS_PLIST:-}" && -f "${IOS_EXPORT_OPTIONS_PLIST}" ]]; then
+        local archive_path="${build_dir}/home_gui.xcarchive"
+        local export_dir="${build_dir}/ipa-export"
+        rm -rf "${archive_path}" "${export_dir}"
+        echo "Archiving and exporting signed IPA using ${IOS_EXPORT_OPTIONS_PLIST}..."
+        local archive_args=(
+            -project "${build_dir}/home_gui.xcodeproj"
+            -scheme home_gui
+            -configuration Release
+            -sdk iphoneos
+            -destination 'generic/platform=iOS'
+            archive
+            -archivePath "${archive_path}"
+        )
+        if [[ -n "${IOS_DEVELOPMENT_TEAM:-}" ]]; then
+            archive_args+=("DEVELOPMENT_TEAM=${IOS_DEVELOPMENT_TEAM}")
+        fi
+        xcodebuild "${archive_args[@]}"
+        xcodebuild -exportArchive \
+            -archivePath "${archive_path}" \
+            -exportPath "${export_dir}" \
+            -exportOptionsPlist "${IOS_EXPORT_OPTIONS_PLIST}"
+        local exported_ipa
+        exported_ipa="$(find "${export_dir}" -maxdepth 2 -type f -name "*.ipa" | head -n 1)"
+        if [[ -z "${exported_ipa}" || ! -f "${exported_ipa}" ]]; then
+            echo "Error: xcodebuild -exportArchive did not produce an .ipa under ${export_dir}" >&2
+            exit 1
+        fi
+        cp -f "${exported_ipa}" "${final_ipa}"
+        local ipa_size
+        ipa_size="$(du -h "${final_ipa}" | cut -f1)"
+        echo
+        echo "================================================================"
+        echo " iOS signed IPA build succeeded!"
+        echo "   Final IPA : ${final_ipa}"
+        echo "   IPA Size  : ${ipa_size}"
+        echo "================================================================"
+        return 0
+    fi
+
     echo "Building iOS target home_gui with Xcode..."
-    cmake --build "${build_dir}" --config Release --target home_gui --parallel "${build_jobs}" || {
+    local xcode_build_flags=()
+    if [[ "${sdk}" == "iphoneos" ]]; then
+        if [[ -n "${IOS_DEVELOPMENT_TEAM:-}" ]]; then
+            xcode_build_flags+=(-- "DEVELOPMENT_TEAM=${IOS_DEVELOPMENT_TEAM}")
+        elif [[ "${has_sign_identity}" == "0" || "${want_ipa}" == "1" ]]; then
+            echo "提示: 未检测到本地签名证书（或打包未签名 IPA），使用 CODE_SIGNING_ALLOWED=NO 编译 .app..."
+            xcode_build_flags+=(-- CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO)
+        fi
+    fi
+
+    cmake --build "${build_dir}" --config Release --target home_gui --parallel "${build_jobs}" ${xcode_build_flags[@]+"${xcode_build_flags[@]}"} || {
         echo
         echo "提示: Xcode 工程已生成在: ${build_dir}/home_gui.xcodeproj"
         echo "您可以使用 Xcode 打开工程进行签名与调试运行:"
         echo "  open ${build_dir}/home_gui.xcodeproj"
-        return 0
+        return 1
     }
+
+    if [[ "${want_ipa}" == "1" ]]; then
+        local app_bundle="${build_dir}/Release-iphoneos/home_gui.app"
+        if [[ ! -d "${app_bundle}" || ! -f "${app_bundle}/home_gui" ]]; then
+            echo "Error: iOS app bundle not found at ${app_bundle}" >&2
+            exit 1
+        fi
+
+        local stage_dir="${build_dir}/.ipa_stage"
+        local stage_app="${stage_dir}/Payload/home_gui.app"
+        rm -rf "${stage_dir}" "${final_ipa}"
+        mkdir -p "${stage_dir}/Payload"
+        ditto "${app_bundle}" "${stage_app}"
+
+        find "${stage_app}" -name "_CodeSignature" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+        find "${stage_app}" -name ".DS_Store" -type f -delete 2>/dev/null || true
+        if [[ -d "${stage_app}/Frameworks" ]]; then
+            find "${stage_app}/Frameworks" -maxdepth 2 \( -name "Headers" -o -name "Modules" -o -name "PrivateHeaders" \) -type d -prune -exec rm -rf {} + 2>/dev/null || true
+            for fw in "${stage_app}/Frameworks/"*.framework; do
+                [[ -d "${fw}" ]] || continue
+                local fw_name
+                fw_name="$(basename "${fw}" .framework)"
+                local fw_bin="${fw}/${fw_name}"
+                if [[ -f "${fw_bin}" ]] && command -v lipo >/dev/null 2>&1; then
+                    if lipo -info "${fw_bin}" 2>/dev/null | grep -q "arm64" && lipo -info "${fw_bin}" 2>/dev/null | grep -q "Architectures in the fat file"; then
+                        lipo "${fw_bin}" -thin arm64 -output "${fw_bin}.arm64"
+                        mv -f "${fw_bin}.arm64" "${fw_bin}"
+                    fi
+                fi
+                [[ -f "${fw_bin}" ]] && chmod +x "${fw_bin}"
+            done
+        fi
+        chmod +x "${stage_app}/home_gui"
+
+        (
+            cd "${stage_dir}"
+            zip -qry "${final_ipa}" Payload
+        )
+        rm -rf "${stage_dir}"
+        unzip -tq "${final_ipa}"
+
+        local ipa_size
+        ipa_size="$(du -h "${final_ipa}" | cut -f1)"
+        echo
+        echo "================================================================"
+        echo " iOS IPA build succeeded! (Unsigned for sideloading / re-signing)"
+        echo "   App Bundle : ${app_bundle}"
+        echo "   Final IPA  : ${final_ipa}"
+        echo "   IPA Size   : ${ipa_size}"
+        echo
+        echo " Note: Because no Apple Distribution/Development certificate is present"
+        echo " in Keychain, this IPA is unsigned. Sign & install it using Sideloadly,"
+        echo " AltStore, TrollStore, 爱思助手, or pass IOS_EXPORT_OPTIONS_PLIST."
+        echo "================================================================"
+        return 0
+    fi
 
     echo
     echo "================================================================"
