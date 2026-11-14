@@ -19,6 +19,7 @@ Rectangle {
     function fs(value) { return Theme.fs(value) }
 
     readonly property bool isCompact: width < dp(560)
+    readonly property bool isVeryCompact: width < dp(440)
 
     radius: panelRadius
     color: Qt.rgba(0.12, 0.18, 0.26, 0.52)
@@ -45,17 +46,17 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: root.isCompact ? root.dp(12) : root.dp(16)
-        anchors.rightMargin: root.isCompact ? root.dp(14) : root.dp(16)
-        spacing: root.isCompact ? root.dp(6) : root.dp(10)
+        anchors.leftMargin: root.isVeryCompact ? root.dp(8) : (root.isCompact ? root.dp(12) : root.dp(16))
+        anchors.rightMargin: root.isVeryCompact ? root.dp(16) : (root.isCompact ? root.dp(16) : root.dp(20))
+        spacing: root.isVeryCompact ? root.dp(4) : (root.isCompact ? root.dp(6) : root.dp(10))
 
         HeaderActionButton {
             scaleUnit: root.scaleUnit
             cornerRadius: root.chipRadius
             isCapsule: false
-            implicitWidth: root.isCompact ? root.dp(76) : root.dp(92)
+            implicitWidth: root.isVeryCompact ? root.dp(36) : (root.isCompact ? root.dp(72) : root.dp(92))
             iconSource: "qrc:/icons/camera.svg"
-            label: qsTr("Camera")
+            label: root.isVeryCompact ? "" : qsTr("Camera")
             boldIcon: true
             onClicked: root.cameraClicked()
         }
@@ -65,9 +66,9 @@ Rectangle {
             scaleUnit: root.scaleUnit
             cornerRadius: root.chipRadius
             isCapsule: false
-            implicitWidth: root.isCompact ? root.dp(76) : root.dp(92)
+            implicitWidth: root.isVeryCompact ? root.dp(36) : (root.isCompact ? root.dp(72) : root.dp(92))
             iconSource: "qrc:/icons/settings.svg"
-            label: qsTr("Settings")
+            label: root.isVeryCompact ? "" : qsTr("Settings")
             boldIcon: true
             onClicked: root.settingsClicked()
         }
@@ -76,7 +77,7 @@ Rectangle {
 
         MouseArea {
             id: weatherArea
-            Layout.preferredWidth: root.isCompact ? root.dp(108) : root.dp(136)
+            Layout.preferredWidth: root.isVeryCompact ? root.dp(92) : (root.isCompact ? root.dp(108) : root.dp(136))
             Layout.preferredHeight: root.dp(36)
             hoverEnabled: true
             onClicked: root.weatherClicked()
@@ -137,14 +138,16 @@ Rectangle {
                     Text {
                         text: root.getTopBarWeatherText()
                         color: "#98dfff"
-                        font.pixelSize: root.isCompact ? root.fs(10) : root.fs(11)
+                        font.pixelSize: root.isVeryCompact ? root.fs(9.5) : (root.isCompact ? root.fs(10) : root.fs(11))
                         font.bold: true
                     }
 
                     Text {
                         text: appController.weatherLocation.length > 0 ? appController.weatherLocation : qsTr("Tap to view forecast")
                         color: "#7f9aac"
-                        font.pixelSize: root.isCompact ? root.fs(8) : root.fs(9)
+                        font.pixelSize: root.isVeryCompact ? root.fs(7.5) : (root.isCompact ? root.fs(8) : root.fs(9))
+                        elide: Text.ElideRight
+                        width: root.isVeryCompact ? root.dp(56) : -1
                     }
                 }
             }
@@ -152,14 +155,17 @@ Rectangle {
 
         MouseArea {
             id: calendarArea
-            Layout.preferredWidth: Math.max(root.isCompact ? root.dp(86) : root.dp(100), timeCol.implicitWidth + root.dp(4))
+            Layout.minimumWidth: timeCol.implicitWidth + root.dp(6)
+            Layout.preferredWidth: timeCol.implicitWidth + root.dp(6)
             Layout.preferredHeight: root.dp(36)
             Layout.alignment: Qt.AlignVCenter
+            Layout.fillWidth: false
             onClicked: root.calendarClicked()
 
             Column {
                 id: timeCol
                 anchors.right: parent.right
+                anchors.rightMargin: root.dp(4)
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
@@ -167,7 +173,7 @@ Rectangle {
                     anchors.right: parent.right
                     text: appController.currentDateText
                     color: "#c3d5e2"
-                    font.pixelSize: root.isCompact ? root.fs(9) : root.fs(10)
+                    font.pixelSize: root.isVeryCompact ? root.fs(8.5) : (root.isCompact ? root.fs(9) : root.fs(10))
                     font.bold: true
                     horizontalAlignment: Text.AlignRight
                     renderType: Text.NativeRendering
@@ -177,7 +183,7 @@ Rectangle {
                     anchors.right: parent.right
                     text: appController.currentClockText
                     color: "#f0f6fb"
-                    font.pixelSize: root.isCompact ? root.fs(16) : root.fs(18)
+                    font.pixelSize: root.isVeryCompact ? root.fs(15) : (root.isCompact ? root.fs(16) : root.fs(18))
                     font.bold: true
                     horizontalAlignment: Text.AlignRight
                     renderType: Text.NativeRendering

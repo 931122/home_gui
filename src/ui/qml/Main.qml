@@ -536,6 +536,7 @@ ApplicationWindow {
 
     CookerPopup {
         id: cookerPopup
+        isPortrait: root.isPortrait
         scaleUnit: root.su
         panelRadius: root.panelRadius
         cardRadius: root.cardRadius

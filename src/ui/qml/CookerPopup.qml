@@ -413,7 +413,7 @@ Popup {
         return root.activeRecipe ? (root.activeRecipe.categoryName || "大厨专享") : "精选工艺"
     }
 
-    readonly property bool isPortrait: Overlay.overlay ? (Overlay.overlay.width < Overlay.overlay.height) : (parent ? (parent.width < parent.height) : (width < height))
+    property bool isPortrait: Overlay.overlay ? (Overlay.overlay.width < Overlay.overlay.height) : (parent ? (parent.width < parent.height) : (width < height))
 
     parent: Overlay.overlay
     anchors.centerIn: Overlay.overlay
@@ -877,7 +877,6 @@ Popup {
                         Text { text: root.isCooking ? root.leftTimeFormatted : root.estimatedTimeText; color: root.isCooking ? "#ffd666" : "#ffffff"; font.pixelSize: root.fs(9.5); font.bold: true }
                     }
                 }
-            }
             }
 
             // ================= 2. 视图切换区 =================
@@ -3106,3 +3105,4 @@ Popup {
             }
         }
     }
+}

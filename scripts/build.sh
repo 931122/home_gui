@@ -629,17 +629,26 @@ EOF
         qt_cmake_bin="cmake"
     fi
 
-    local qt_host_path=""
-    if [[ -d "${qt_android_dir}/../gcc_64" ]]; then
-        qt_host_path="${qt_android_dir}/../gcc_64"
-    elif [[ -d "${qt_android_dir}/../macos" ]]; then
-        qt_host_path="${qt_android_dir}/../macos"
-    elif command -v qmake6 >/dev/null 2>&1; then
-        qt_host_path="$(dirname "$(dirname "$(command -v qmake6)")")"
-    elif [[ -d "/usr/local" && -x "/usr/local/bin/qmake" ]]; then
-        qt_host_path="/usr/local"
-    elif [[ -d "/opt/homebrew" && -x "/opt/homebrew/bin/qmake6" ]]; then
-        qt_host_path="/opt/homebrew"
+    local qt_host_path="${QT_HOST_PATH:-}"
+    if [[ -z "${qt_host_path}" || "${qt_host_path}" == "${qt_android_dir}" ]]; then
+        if [[ -d "${qt_android_dir}/../macos" ]]; then
+            qt_host_path="${qt_android_dir}/../macos"
+        elif [[ -d "${qt_android_dir}/../gcc_64" ]]; then
+            qt_host_path="${qt_android_dir}/../gcc_64"
+        elif [[ -f "/usr/local/lib/cmake/Qt6/Qt6Config.cmake" || -x "/usr/local/bin/qmake" ]]; then
+            qt_host_path="/usr/local"
+        elif [[ -f "/opt/homebrew/lib/cmake/Qt6/Qt6Config.cmake" || -x "/opt/homebrew/bin/qmake6" ]]; then
+            qt_host_path="/opt/homebrew"
+        elif command -v qmake6 >/dev/null 2>&1 && [[ "$(dirname "$(dirname "$(command -v qmake6)")")" != "${qt_android_dir}" ]]; then
+            qt_host_path="$(dirname "$(dirname "$(command -v qmake6)")")"
+        fi
+    fi
+
+    # 清理失效或中断的 CMake 缓存，避免因上次错误缓存导致死锁
+    if [[ -f "${build_dir}/CMakeCache.txt" ]]; then
+        if grep -q "NOTFOUND" "${build_dir}/CMakeCache.txt" 2>/dev/null || grep -q "QT_HOST_PATH.*android" "${build_dir}/CMakeCache.txt" 2>/dev/null; then
+            rm -rf "${build_dir}/CMakeCache.txt" "${build_dir}/CMakeFiles"
+        fi
     fi
 
     local sign_flag="OFF"
