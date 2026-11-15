@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QBuffer>
+#include <QMutex>
 
 #ifdef HOME_GUI_HAS_MULTIMEDIA
 #include <QAudioFormat>
@@ -36,6 +37,10 @@ public slots:
     void cancelRecording();
     void handleAudioChunk(const QByteArray &chunk);
 
+#if defined(Q_OS_ANDROID)
+    void handleAndroidAudioFrame(const char *data, int len);
+#endif
+
 signals:
     void recordingStarted();
     void recordingStopped(qint64 durationMs);
@@ -65,6 +70,8 @@ private:
 
 #if defined(Q_OS_ANDROID)
     AAudioStream *m_aaudioStream = nullptr;
+    QMutex m_androidPcmMutex;
+    QByteArray m_androidPcmBuffer;
 #endif
 };
 

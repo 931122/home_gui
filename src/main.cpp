@@ -193,6 +193,23 @@ static QString resolveConfigPath(int argc, char *argv[])
         return writableConfigPath;
     }
 
+#if defined(Q_OS_IOS)
+    // iOS 沙盒环境下，强制且唯一使用 Documents 目录下的 config.yaml，
+    // 确保运行时可写且能持久化保存登录凭证，不内置敏感凭证文件。
+    const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString docsConfigPath = docsDir + QStringLiteral("/config.yaml");
+    QDir().mkpath(docsDir);
+
+    if (!QFile::exists(docsConfigPath)) {
+        QFile file(docsConfigPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            file.write("platform:\n  type: ios\nintercom:\n  enabled: true\n");
+            file.close();
+        }
+        QFile::setPermissions(docsConfigPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+    }
+    return docsConfigPath;
+#else
     const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     const QString docsConfigPath = docsDir + QStringLiteral("/config.yaml");
     if (isValidHomeGuiConfig(docsConfigPath)) {
@@ -206,13 +223,20 @@ static QString resolveConfigPath(int argc, char *argv[])
     }
 
     // 6. 检查 App Bundle / 程序同级目录内置的默认配置文件
-    const QString bundleConfig = QCoreApplication::applicationDirPath() + QStringLiteral("/config.yaml");
+    QString bundleConfig = QCoreApplication::applicationDirPath() + QStringLiteral("/config.yaml");
+    if (!isValidHomeGuiConfig(bundleConfig)) {
+        const QString resConfig = QCoreApplication::applicationDirPath() + QStringLiteral("/Resources/config.yaml");
+        if (isValidHomeGuiConfig(resConfig)) {
+            bundleConfig = resConfig;
+        }
+    }
     if (isValidHomeGuiConfig(bundleConfig)) {
         return bundleConfig;
     }
 
     // 7. 未选择/未导入时返回空路径，等待用户在设置中选择
     return QString();
+#endif
 }
 
 // 启动前先从配置文件里拿到平台相关参数，

@@ -372,8 +372,31 @@ bool ConfigManager::updateScreenPowerSettings(int idleTimeoutSeconds, const QStr
 
 QString ConfigManager::ensureWritableConfigPath()
 {
-    if (!m_configPath.isEmpty() && QFile::exists(m_configPath)) {
+#if defined(Q_OS_IOS)
+    const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString docsConfigPath = docsDir + QStringLiteral("/config.yaml");
+    QDir().mkpath(docsDir);
+
+    if (m_configPath.isEmpty() || m_configPath.contains(QStringLiteral(".app")) || !QFileInfo(m_configPath).isWritable()) {
+        if (!QFile::exists(docsConfigPath)) {
+            if (!m_configPath.isEmpty() && QFile::exists(m_configPath)) {
+                QFile::copy(m_configPath, docsConfigPath);
+            } else {
+                QString writeErr;
+                writeYamlAtomically(docsConfigPath, "platform: {}\nintercom: {}\n", writeErr);
+            }
+            QFile::setPermissions(docsConfigPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser);
+        }
+        m_configPath = docsConfigPath;
         return m_configPath;
+    }
+#endif
+
+    if (!m_configPath.isEmpty() && QFile::exists(m_configPath)) {
+        QFileInfo fi(m_configPath);
+        if (fi.isWritable()) {
+            return m_configPath;
+        }
     }
 
     QString targetPath = m_configPath.trimmed();
@@ -657,6 +680,26 @@ void ConfigManager::ensureConfigFile(const QString &writableConfigPath, const QS
             }
         }
 
+        // 3. 小爱音箱与家庭传声 (Intercom) 凭证合并补充
+        if (defaultRoot.contains("intercom") && defaultRoot["intercom"].is_mapping()) {
+            if (!existingRoot.contains("intercom") || !existingRoot["intercom"].is_mapping()) {
+                existingRoot["intercom"] = fkyaml::node::mapping();
+            }
+            for (const char *key : {"userId", "serviceToken", "refreshToken", "micoapiServiceToken", "deviceId", "homeId", "mimcId", "passToken"}) {
+                const std::string defVal = getYamlString(defaultRoot["intercom"], key).trimmed().toStdString();
+                const std::string existVal = getYamlString(existingRoot["intercom"], key).trimmed().toStdString();
+                if (!defVal.empty()) {
+                    const std::string keyStr(key);
+                    if (existVal.empty() || existVal == "null" ||
+                        (keyStr == "serviceToken" && existVal.rfind("V3_", 0) != 0 && defVal.rfind("V3_", 0) == 0) ||
+                        (keyStr == "refreshToken" && existVal.empty())) {
+                        existingRoot["intercom"][key] = defVal;
+                        modified = true;
+                    }
+                }
+            }
+        }
+
         if (modified) {
             std::stringstream ss;
             ss << existingRoot;
@@ -873,6 +916,25 @@ bool ConfigManager::parseConfig(const QByteArray &payload, AppConfig &nextConfig
     nextConfig.intercom.backend = getYamlString(intercom, "backend", QStringLiteral("auto")).trimmed().toLower();
     nextConfig.intercom.defaultRoomId = getYamlString(intercom, "defaultRoomId", QStringLiteral("WHOLE_0")).trimmed();
     nextConfig.intercom.serverUrl = getYamlString(intercom, "serverUrl", QStringLiteral("https://i.xiaomixiaoai.com")).trimmed();
+
+    if (intercom.contains("rooms") && intercom["rooms"].is_sequence()) {
+        for (const auto &roomNode : intercom["rooms"]) {
+            IntercomRoomConfig room;
+            if (roomNode.is_mapping()) {
+                room.roomId = getYamlString(roomNode, "id", getYamlString(roomNode, "roomId")).trimmed();
+                room.roomName = getYamlString(roomNode, "name", getYamlString(roomNode, "roomName")).trimmed();
+                room.icon = getYamlString(roomNode, "icon").trimmed();
+            } else if (roomNode.is_string()) {
+                room.roomName = QString::fromStdString(roomNode.get_value<std::string>()).trimmed();
+            }
+            if (!room.roomName.isEmpty()) {
+                if (room.roomId.isEmpty()) {
+                    room.roomId = QStringLiteral("room_%1").arg(nextConfig.intercom.rooms.size() + 1);
+                }
+                nextConfig.intercom.rooms.append(room);
+            }
+        }
+    }
 
     return true;
 }

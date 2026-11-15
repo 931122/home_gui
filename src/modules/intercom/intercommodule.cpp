@@ -110,6 +110,46 @@ void IntercomModule::applyConfig(const AppConfig &config)
     m_retriedMicoapi5003 = false;
     ensureDeviceId();
 
+    // 持久化兜底：如果配置文件中未读取到账号凭证，从 iOS/系统持久化 QSettings 恢复各个字段
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("intercom"));
+    if (m_config.userId.isEmpty() && settings.contains(QStringLiteral("userId"))) {
+        m_config.userId = settings.value(QStringLiteral("userId")).toString().trimmed();
+    }
+    if (m_config.serviceToken.isEmpty() && settings.contains(QStringLiteral("serviceToken"))) {
+        m_config.serviceToken = settings.value(QStringLiteral("serviceToken")).toString().trimmed();
+    }
+    if (m_config.micoapiServiceToken.isEmpty() && settings.contains(QStringLiteral("micoapiServiceToken"))) {
+        m_config.micoapiServiceToken = settings.value(QStringLiteral("micoapiServiceToken")).toString().trimmed();
+    }
+    if (m_config.refreshToken.isEmpty() && settings.contains(QStringLiteral("refreshToken"))) {
+        m_config.refreshToken = settings.value(QStringLiteral("refreshToken")).toString().trimmed();
+    }
+    if (settings.contains(QStringLiteral("passToken")) && !settings.value(QStringLiteral("passToken")).toString().trimmed().isEmpty()) {
+        m_config.passToken = settings.value(QStringLiteral("passToken")).toString().trimmed();
+    }
+    if (m_config.deviceId.isEmpty() && settings.contains(QStringLiteral("deviceId"))) {
+        m_config.deviceId = settings.value(QStringLiteral("deviceId")).toString().trimmed();
+    }
+    if (m_config.homeId.isEmpty() && settings.contains(QStringLiteral("homeId"))) {
+        m_config.homeId = settings.value(QStringLiteral("homeId")).toString().trimmed();
+    }
+    if (m_config.mimcId.isEmpty() && settings.contains(QStringLiteral("mimcId"))) {
+        m_config.mimcId = settings.value(QStringLiteral("mimcId")).toString().trimmed();
+    }
+    if (settings.contains(QStringLiteral("enabled"))) {
+        m_config.enabled = settings.value(QStringLiteral("enabled"), true).toBool();
+    }
+    qInfo() << "[IntercomModule] Initialized credentials: userId=" << m_config.userId
+            << "enabled=" << m_config.enabled
+            << "hasMicoapi=" << !m_config.micoapiServiceToken.isEmpty()
+            << "hasV3ServiceToken=" << m_config.serviceToken.startsWith(QStringLiteral("V3_"))
+            << "hasRefreshToken=" << !m_config.refreshToken.isEmpty()
+            << "hasPassToken=" << !m_config.passToken.isEmpty();
+
+    if (!m_config.userId.isEmpty() && (!m_config.serviceToken.isEmpty() || !m_config.micoapiServiceToken.isEmpty() || !m_config.passToken.isEmpty())) {
+        m_config.enabled = true;
+    }
+
     if (globalState()) {
         globalState()->setIntercomAvailable(m_config.enabled);
         globalState()->setIntercomUserId(m_config.userId);
@@ -119,7 +159,7 @@ void IntercomModule::applyConfig(const AppConfig &config)
         globalState()->setMicoapiServiceToken(m_config.micoapiServiceToken);
         globalState()->setMimcId(m_config.mimcId);
 
-        if (!m_config.serviceToken.isEmpty() || !m_config.micoapiServiceToken.isEmpty()) {
+        if (!m_config.serviceToken.isEmpty() || !m_config.micoapiServiceToken.isEmpty() || !m_config.passToken.isEmpty()) {
             globalState()->setIntercomStatus(tr("已登录账号: %1").arg(m_config.userId));
         } else {
             globalState()->setIntercomStatus(tr("未登录"));
@@ -131,22 +171,35 @@ void IntercomModule::start()
 {
     initDefaultRooms();
 
-    if (m_config.enabled) {
-        if (!m_config.serviceToken.isEmpty()) {
-            fetchRooms();
-        } else if (!m_config.userId.isEmpty() && !m_config.passToken.isEmpty()) {
-            exchangeTokenWithPassToken(QStringLiteral("ai-service"));
+    if (!m_config.userId.isEmpty() && (!m_config.serviceToken.isEmpty() || !m_config.micoapiServiceToken.isEmpty() || !m_config.passToken.isEmpty())) {
+        m_config.enabled = true;
+        if (globalState()) {
+            globalState()->setIntercomAvailable(true);
         }
+    }
 
+    if (m_config.enabled) {
+        // 1. 同步音箱列表 (通过 micoapiToken 拉取 Mina 设备列表)
+        fetchRooms();
+
+        // 2. VoIP 通话初始化
         if (!m_config.micoapiServiceToken.isEmpty()) {
             initVoipRuntime();
             fetchVoipContacts();
         } else if (!m_config.userId.isEmpty() && !m_config.passToken.isEmpty()) {
             initVoipRuntime();
             exchangeTokenWithPassToken(QStringLiteral("micoapi"));
-        } else if (!m_config.serviceToken.isEmpty()) {
-            initVoipRuntime();
-            fetchVoipContacts();
+        }
+
+        // 3. 自动检查并刷新/换取小爱 OAuth 凭证 (用于传声与语音上传)
+        if (!m_config.serviceToken.startsWith(QStringLiteral("V3_"))) {
+            if (!m_config.userId.isEmpty() && !m_config.passToken.isEmpty()) {
+                qInfo() << "[IntercomModule] Initial serviceToken is not V3 OAuth token, exchanging via passToken...";
+                exchangeOAuthTokenWithPassToken();
+            } else if (!m_config.refreshToken.isEmpty()) {
+                qInfo() << "[IntercomModule] Initial serviceToken is not V3 OAuth token, refreshing via refreshToken...";
+                refreshOAuthToken();
+            }
         }
     }
 }
@@ -165,19 +218,6 @@ void IntercomModule::stop()
 void IntercomModule::ensureDeviceId()
 {
     if (m_config.deviceId.trimmed().isEmpty()) {
-#if defined(Q_OS_ANDROID)
-        // 在 Android 上尝试从系统小爱读取真实的 device_id
-        QFile didFile(QStringLiteral("/data/data/com.miui.voiceassist/shared_prefs/aivs_did.xml.xml"));
-        if (didFile.open(QIODevice::ReadOnly)) {
-            const QString content = QString::fromUtf8(didFile.readAll());
-            QRegularExpression didRe(QStringLiteral("<string name=\"device_id\">([^<]+)</string>"));
-            auto match = didRe.match(content);
-            if (match.hasMatch()) {
-                m_config.deviceId = match.captured(1).trimmed();
-                return;
-            }
-        }
-#endif
         // 生成 16 位的标准小爱/Android deviceId 伪随机十六进制
         const QString uuidStr = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_config.deviceId = QCryptographicHash::hash(uuidStr.toUtf8(), QCryptographicHash::Md5).toHex().left(16).toLower();
@@ -186,11 +226,10 @@ void IntercomModule::ensureDeviceId()
 
 QString IntercomModule::buildAuthHeader() const
 {
-    if (m_config.serviceToken.trimmed().isEmpty()) {
+    // Authorization 必须使用独立的 XiaoAi OAuth access_token (V3_ 开头)
+    const QString token = m_config.serviceToken.trimmed();
+    if (token.isEmpty() || !token.startsWith(QStringLiteral("V3_"))) {
         return QString();
-    }
-    if (m_config.serviceToken.startsWith(QStringLiteral("DO-TOKEN-V1 "))) {
-        return m_config.serviceToken.trimmed();
     }
 
     const QString devId = m_config.deviceId.trimmed().isEmpty()
@@ -201,217 +240,22 @@ QString IntercomModule::buildAuthHeader() const
     const QByteArray scopeData = scopeJson.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
 
     return QStringLiteral("DO-TOKEN-V1 app_id:%1,scope_data:%2,access_token:%3")
-        .arg(QStringLiteral("326813440150602752"), QString::fromUtf8(scopeData), m_config.serviceToken.trimmed());
+        .arg(QStringLiteral("326813440150602752"), QString::fromUtf8(scopeData), token);
 }
 
 bool IntercomModule::importLocalXiaoAiToken()
 {
-    qInfo() << "[IntercomModule] Attempting to import token from system XiaoAi & Mico...";
-    QString devId;
-    QString accessToken;
-    QString refreshToken;
-    QString micoapiToken;
-    QString mimcId;
-    QString userId;
-
-#if defined(Q_OS_ANDROID) || defined(Q_OS_LINUX)
-    // 优先尝试使用 su 读取小爱内部存储配置与小爱音箱 App 配置
-    QString suBinary = QStringLiteral("su");
-    for (const QString &cand : {QStringLiteral("/system/bin/su"), QStringLiteral("/sbin/su"), QStringLiteral("/system/xbin/su"), QStringLiteral("su")}) {
-        if (QFile::exists(cand)) {
-            suBinary = cand;
-            break;
-        }
-    }
-
-    QProcess process;
-    process.start(suBinary, QStringList() << QStringLiteral("-c")
-        << QStringLiteral("cat /data/data/com.miui.voiceassist/shared_prefs/aivs_did.xml.xml 2>/dev/null; "
-                          "echo '---DIVIDER---'; "
-                          "cat /data/data/com.miui.voiceassist/shared_prefs/aivs_user_data.xml.xml 2>/dev/null; "
-                          "echo '---DIVIDER---'; "
-                          "cat /data/data/com.xiaomi.mico/shared_prefs/Account.xml 2>/dev/null; "
-                          "echo '---DIVIDER---'; "
-                          "cat /data/data/com.xiaomi.mico/shared_prefs/com.xiaomi.mico_preferences.xml 2>/dev/null"));
-    if (process.waitForFinished(4000)) {
-        const QString output = QString::fromUtf8(process.readAllStandardOutput());
-        const QStringList parts = output.split(QStringLiteral("---DIVIDER---"));
-
-        if (!parts.isEmpty()) {
-            QRegularExpression didRe(QStringLiteral("<string name=\"device_id\">([^<]+)</string>"));
-            auto matchDid = didRe.match(parts.first());
-            if (matchDid.hasMatch()) {
-                devId = matchDid.captured(1).trimmed();
-            }
-        }
-
-        if (parts.size() > 1) {
-            const QString userData = parts.at(1);
-            QRegularExpression tokenRe(QStringLiteral("<string name=\"production_DO-TOKEN-V1_access_token\">([^<]+)</string>"));
-            auto matchToken = tokenRe.match(userData);
-            if (matchToken.hasMatch()) {
-                accessToken = matchToken.captured(1).trimmed();
-            }
-
-            QRegularExpression refreshRe(QStringLiteral("<string name=\"production_DO-TOKEN-V1_refresh_token\">([^<]+)</string>"));
-            auto matchRefresh = refreshRe.match(userData);
-            if (matchRefresh.hasMatch()) {
-                refreshToken = matchRefresh.captured(1).trimmed();
-            }
-        }
-
-        if (parts.size() > 2) {
-            const QString accountXml = parts.at(2);
-            QRegularExpression hexRe(QStringLiteral("<string name=\"encoded_account\">(.*?)</string>"));
-            auto matchHex = hexRe.match(accountXml);
-            if (matchHex.hasMatch()) {
-                const QByteArray raw = QByteArray::fromHex(matchHex.captured(1).toLatin1());
-                const int idx = raw.indexOf("micoapi");
-                if (idx != -1) {
-                    const QByteArray after = raw.mid(idx);
-                    int pos = 0;
-                    while ((pos = after.indexOf('\x74', pos)) != -1) {
-                        if (pos + 3 <= after.size()) {
-                            const quint16 slen = (static_cast<quint8>(after.at(pos + 1)) << 8) | static_cast<quint8>(after.at(pos + 2));
-                            if (slen > 50 && pos + 3 + slen <= after.size()) {
-                                micoapiToken = QString::fromUtf8(after.mid(pos + 3, slen)).trimmed();
-                                break;
-                            }
-                        }
-                        pos++;
-                    }
-                }
-
-                // 从序列化数据提取 userId
-                QRegularExpression uidRe(QStringLiteral("userIdt\\x00\\x07(\\d+)"));
-                auto matchUid = uidRe.match(QString::fromLatin1(raw));
-                if (matchUid.hasMatch()) {
-                    userId = matchUid.captured(1).trimmed();
-                }
-            }
-        }
-
-        if (parts.size() > 3) {
-            const QString prefXml = parts.at(3);
-            QRegularExpression mimcRe(QStringLiteral("<string name=\"mimc_id\\d*\">(\\d+)</string>"));
-            auto matchMimc = mimcRe.match(prefXml);
-            if (matchMimc.hasMatch()) {
-                mimcId = matchMimc.captured(1).trimmed();
-            }
-        }
-    }
-
-    // 若通过 root 读取未成功，尝试直接 QFile 读取
-    if (accessToken.isEmpty()) {
-        QFile didFile(QStringLiteral("/data/data/com.miui.voiceassist/shared_prefs/aivs_did.xml.xml"));
-        if (didFile.open(QIODevice::ReadOnly)) {
-            const QString content = QString::fromUtf8(didFile.readAll());
-            QRegularExpression didRe(QStringLiteral("<string name=\"device_id\">([^<]+)</string>"));
-            auto match = didRe.match(content);
-            if (match.hasMatch()) {
-                devId = match.captured(1).trimmed();
-            }
-        }
-
-        QFile userFile(QStringLiteral("/data/data/com.miui.voiceassist/shared_prefs/aivs_user_data.xml.xml"));
-        if (userFile.open(QIODevice::ReadOnly)) {
-            const QString content = QString::fromUtf8(userFile.readAll());
-            QRegularExpression tokenRe(QStringLiteral("<string name=\"production_DO-TOKEN-V1_access_token\">([^<]+)</string>"));
-            auto matchToken = tokenRe.match(content);
-            if (matchToken.hasMatch()) {
-                accessToken = matchToken.captured(1).trimmed();
-            }
-            QRegularExpression refreshRe(QStringLiteral("<string name=\"production_DO-TOKEN-V1_refresh_token\">([^<]+)</string>"));
-            auto matchRefresh = refreshRe.match(content);
-            if (matchRefresh.hasMatch()) {
-                refreshToken = matchRefresh.captured(1).trimmed();
-            }
-        }
-    }
-#endif
-
-    const bool importedAny = (!accessToken.isEmpty() || !micoapiToken.isEmpty());
-    if (importedAny) {
-        qInfo() << "[IntercomModule] Successfully imported tokens! userId:" << userId
-                << "micoapiToken length:" << micoapiToken.length()
-                << "mimcId:" << mimcId
-                << "accessToken length:" << accessToken.length();
-
-        if (!devId.isEmpty()) {
-            m_config.deviceId = devId;
-        }
-        if (!userId.isEmpty()) {
-            m_config.userId = userId;
-        }
-        if (!accessToken.isEmpty()) {
-            m_config.serviceToken = accessToken;
-        }
-        if (!refreshToken.isEmpty()) {
-            m_config.refreshToken = refreshToken;
-        }
-        if (!micoapiToken.isEmpty()) {
-            if (m_config.micoapiServiceToken.isEmpty() || micoapiToken.length() >= m_config.micoapiServiceToken.length()) {
-                m_config.micoapiServiceToken = micoapiToken;
-            } else {
-                qInfo() << "[IntercomModule] Preserving existing micoapiServiceToken (len:"
-                        << m_config.micoapiServiceToken.length() << ") over shorter imported token (len:"
-                        << micoapiToken.length() << ")";
-            }
-        }
-        if (!mimcId.isEmpty()) {
-            m_config.mimcId = mimcId;
-        }
-
-        if (m_configManager) {
-            m_configManager->updateIntercomConfig(
-                m_config.enabled,
-                m_config.userId,
-                m_config.serviceToken,
-                m_config.deviceId,
-                m_config.homeId,
-                m_config.refreshToken,
-                m_config.micoapiServiceToken,
-                m_config.mimcId
-            );
-        }
-        if (globalState()) {
-            globalState()->setIntercomDeviceId(m_config.deviceId);
-            globalState()->setIntercomUserId(m_config.userId);
-            if (!m_config.serviceToken.isEmpty()) {
-                globalState()->setIntercomServiceToken(m_config.serviceToken);
-            }
-            globalState()->setMicoapiServiceToken(m_config.micoapiServiceToken);
-            globalState()->setMimcId(m_config.mimcId);
-            globalState()->setIntercomStatus(tr("已从系统小爱导入凭证"));
-        }
-
-        m_retriedVoip401 = false;
-        m_retriedMicoapi5003 = false;
-
-        if (!m_config.serviceToken.isEmpty()) {
-            fetchRooms();
-        }
-        if (!m_config.micoapiServiceToken.isEmpty()) {
-            initVoipRuntime();
-            fetchVoipContacts();
-        }
-
-        emit loginResult(true, tr("已成功从系统小爱及音箱导入凭证！"));
-        return true;
-    }
-
-    qWarning() << "[IntercomModule] Could not import XiaoAi token from system.";
-    if (globalState()) {
-        globalState()->setIntercomStatus(tr("未检测到系统小爱凭证或权限不足"));
-    }
-    emit loginResult(false, tr("未检测到系统小爱凭证或权限不足，请使用扫码/浏览器登录"));
+    // 遵照要求，完全基于应用内官方 OAuth 与二维码流程，不使用任何 root (su) 提权
     return false;
 }
 
 void IntercomModule::refreshOAuthToken()
 {
     if (m_config.refreshToken.trimmed().isEmpty()) {
-        qWarning() << "[IntercomModule] No refreshToken available for refresh.";
+        qWarning() << "[IntercomModule] No refreshToken available for refresh, falling back to passToken exchange...";
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+        }
         return;
     }
 
@@ -420,7 +264,7 @@ void IntercomModule::refreshOAuthToken()
         globalState()->setIntercomStatus(tr("正在刷新小爱授权凭证..."));
     }
 
-    const QUrl url(QStringLiteral("https://account.xiaomi.com/oauth2/auth/token?pt=1&client_id=326813440150602752&client_secret=dWbMUXRKF6IACwDtvaXO-cOJQlnyQSc34chxCKudAdANCWrCtXdR5FYQjObaIZvXfUfDoYNm3-6gpAKL0aaxQg&redirect_uri=https%3A%2F%2Fi.xiaomixiaoai.com&grant_type=refresh_token&refresh_token=%1")
+    const QUrl url(QStringLiteral("https://account.xiaomi.com/oauth2/auth/token?pt=1&client_id=326813440150602752&client_secret=dWbMUXRKF6IACwDtvaXO-cOJQlnyQSc34chxCKudAdANCWrCtXdR5FYQjObaIZvXfUfDoYNm3-6gpAKL0aaxQg&redirect_uri=https%3A%2F%2Fi.ai.mi.com&grant_type=refresh_token&refresh_token=%1")
         .arg(QString::fromUtf8(QUrl::toPercentEncoding(m_config.refreshToken))));
 
     QNetworkRequest request(url);
@@ -437,13 +281,21 @@ void IntercomModule::handleRefreshTokenReply()
     reply->deleteLater();
 
     if (reply->error() != QNetworkReply::NoError) {
-        qWarning() << "[IntercomModule] Refresh token network error:" << reply->errorString();
+        qWarning() << "[IntercomModule] Refresh token network error:" << reply->errorString() << ", trying passToken exchange...";
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+        }
         return;
     }
 
     const QByteArray data = reply->readAll();
     const QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (!doc.isObject()) return;
+    if (!doc.isObject()) {
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+        }
+        return;
+    }
 
     const QJsonObject obj = doc.object();
     const QString newAccessToken = obj.value(QStringLiteral("access_token")).toString();
@@ -460,8 +312,31 @@ void IntercomModule::handleRefreshTokenReply()
             m_config.deviceId = newDeviceId;
         }
 
+        // 同步备份至 iOS/系统持久化 QSettings (NSUserDefaults)，防冷启动丢失
+        QSettings settings(QStringLiteral("home_gui"), QStringLiteral("intercom"));
+        settings.setValue(QStringLiteral("enabled"), true);
+        settings.setValue(QStringLiteral("userId"), m_config.userId);
+        settings.setValue(QStringLiteral("serviceToken"), m_config.serviceToken);
+        settings.setValue(QStringLiteral("micoapiServiceToken"), m_config.micoapiServiceToken);
+        settings.setValue(QStringLiteral("deviceId"), m_config.deviceId);
+        settings.setValue(QStringLiteral("homeId"), m_config.homeId);
+        settings.setValue(QStringLiteral("refreshToken"), m_config.refreshToken);
+        settings.setValue(QStringLiteral("passToken"), m_config.passToken);
+        settings.setValue(QStringLiteral("mimcId"), m_config.mimcId);
+        settings.sync();
+
         if (m_configManager) {
-            m_configManager->updateIntercomConfig(m_config.enabled, m_config.userId, m_config.serviceToken, m_config.deviceId, m_config.homeId, m_config.refreshToken);
+            m_configManager->updateIntercomConfig(
+                m_config.enabled,
+                m_config.userId,
+                m_config.serviceToken,
+                m_config.deviceId,
+                m_config.homeId,
+                m_config.refreshToken,
+                m_config.micoapiServiceToken,
+                m_config.mimcId,
+                m_config.passToken
+            );
         }
         if (globalState()) {
             globalState()->setIntercomServiceToken(m_config.serviceToken);
@@ -470,12 +345,63 @@ void IntercomModule::handleRefreshTokenReply()
         }
 
         fetchRooms();
+
+        // 若之前有由于 401 触发刷新而暂存的录音，自动立即重发
+        if (!m_pendingPcmData.isEmpty() && !m_pendingTargetRoomId.isEmpty()) {
+            const QString targetRoomId = m_pendingTargetRoomId;
+            const QString targetRoomName = m_pendingTargetRoomName;
+            m_pendingTargetRoomId.clear();
+            m_pendingTargetRoomName.clear();
+            qInfo() << "[IntercomModule] Automatically resending pending voice after token refresh to:" << targetRoomName;
+            sendPendingAudio(targetRoomId, targetRoomName);
+        }
+    } else {
+        qWarning() << "[IntercomModule] Refresh token response missing access_token, falling back to passToken exchange:" << data;
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+        }
     }
+}
+
+static QString defaultIconForRoom(const QString &roomName)
+{
+    if (roomName.contains(QStringLiteral("卧"))) {
+        return QStringLiteral("🛏️");
+    } else if (roomName.contains(QStringLiteral("门")) || roomName.contains(QStringLiteral("玄关"))) {
+        return QStringLiteral("🚪");
+    } else if (roomName.contains(QStringLiteral("厅"))) {
+        return QStringLiteral("🛋️");
+    } else if (roomName.contains(QStringLiteral("厨"))) {
+        return QStringLiteral("🍳");
+    } else if (roomName.contains(QStringLiteral("餐"))) {
+        return QStringLiteral("🍽️");
+    } else if (roomName.contains(QStringLiteral("书"))) {
+        return QStringLiteral("📚");
+    } else if (roomName.contains(QStringLiteral("阳台"))) {
+        return QStringLiteral("🪴");
+    } else if (roomName.contains(QStringLiteral("卫")) || roomName.contains(QStringLiteral("洗"))) {
+        return QStringLiteral("🚿");
+    } else if (roomName.contains(QStringLiteral("音箱")) || roomName.contains(QStringLiteral("音响")) || roomName.contains(QStringLiteral("小爱"))) {
+        return QStringLiteral("🔊");
+    }
+    return QStringLiteral("🏠");
 }
 
 void IntercomModule::initDefaultRooms()
 {
+    // 初始化已知房间映射
+    m_roomNameToId.insert(tr("全屋广播"), QStringLiteral("WHOLE_0"));
+    m_roomNameToId.insert(QStringLiteral("WHOLE_0"), QStringLiteral("WHOLE_0"));
+    m_roomNameToId.insert(tr("北卧室"), QStringLiteral("552001369698"));
+    m_roomNameToId.insert(QStringLiteral("北卧室"), QStringLiteral("552001369698"));
+
+    m_deviceToRoomMap.insert(QStringLiteral("1959e5ad-0809-4c3c-abdf-f64f9a6ca2fa"), QStringLiteral("552001369698"));
+    m_deviceToRoomMap.insert(QStringLiteral("Xiaomi 智能音箱 Pro"), QStringLiteral("552001369698"));
+    m_deviceToRoomMap.insert(QStringLiteral("866485066"), QStringLiteral("552001369698"));
+
     QVariantList defaultList;
+
+    // 1. 全屋广播始终排在首位
     QVariantMap wholeHouse;
     wholeHouse.insert(QStringLiteral("roomId"), QStringLiteral("WHOLE_0"));
     wholeHouse.insert(QStringLiteral("roomName"), tr("全屋广播"));
@@ -483,8 +409,57 @@ void IntercomModule::initDefaultRooms()
     wholeHouse.insert(QStringLiteral("isWholeHouse"), true);
     defaultList.append(wholeHouse);
 
-    if (globalState() && globalState()->intercomRooms().isEmpty()) {
-        globalState()->setIntercomRooms(defaultList);
+    // 2. 如果配置中指定了房间列表，优先使用配置文件中的房间
+    if (!m_config.rooms.isEmpty()) {
+        for (const auto &rc : m_config.rooms) {
+            if (rc.roomName.trimmed().isEmpty()) continue;
+            QVariantMap rm;
+            rm.insert(QStringLiteral("roomId"), rc.roomId.isEmpty() ? rc.roomName : rc.roomId);
+            rm.insert(QStringLiteral("roomName"), rc.roomName);
+            rm.insert(QStringLiteral("icon"), rc.icon.isEmpty() ? defaultIconForRoom(rc.roomName) : rc.icon);
+            rm.insert(QStringLiteral("isWholeHouse"), false);
+            defaultList.append(rm);
+        }
+    } else if (globalState() && !globalState()->voipSpeakers().isEmpty()) {
+        // 3. 如果已有音箱设备列表，展示实际存在小爱音箱的目标
+        const QVariantList speakers = globalState()->voipSpeakers();
+        QSet<QString> added;
+        for (const auto &spVal : speakers) {
+            const QVariantMap sp = spVal.toMap();
+            const QString devName = sp.value(QStringLiteral("deviceName")).toString();
+            const QString devId = sp.value(QStringLiteral("deviceId")).toString();
+            if (devName.isEmpty() || added.contains(devName)) continue;
+            added.insert(devName);
+
+            // 建立设备到房间的映射
+            if (devName.contains(QStringLiteral("Pro")) || devName.contains(tr("北卧")) || devId == QStringLiteral("1959e5ad-0809-4c3c-abdf-f64f9a6ca2fa")) {
+                m_deviceToRoomMap.insert(devId, QStringLiteral("552001369698"));
+                m_deviceToRoomMap.insert(devName, QStringLiteral("552001369698"));
+            }
+
+            QVariantMap rm;
+            rm.insert(QStringLiteral("roomId"), devId.isEmpty() ? devName : devId);
+            rm.insert(QStringLiteral("roomName"), devName);
+            rm.insert(QStringLiteral("icon"), QStringLiteral("🔊"));
+            rm.insert(QStringLiteral("isWholeHouse"), false);
+            defaultList.append(rm);
+        }
+    }
+
+    if (defaultList.size() <= 1) {
+        // 默认内置北卧室音箱房间
+        QVariantMap northBed;
+        northBed.insert(QStringLiteral("roomId"), QStringLiteral("552001369698"));
+        northBed.insert(QStringLiteral("roomName"), tr("北卧室"));
+        northBed.insert(QStringLiteral("icon"), QStringLiteral("🛏️"));
+        northBed.insert(QStringLiteral("isWholeHouse"), false);
+        defaultList.append(northBed);
+    }
+
+    if (globalState()) {
+        if (globalState()->intercomRooms().isEmpty()) {
+            globalState()->setIntercomRooms(defaultList);
+        }
     }
 }
 
@@ -507,12 +482,15 @@ void IntercomModule::stopRecording()
     m_pendingPcmData = m_audioRecorder.stopRecording(&durationMs);
     m_pendingDurationMs = durationMs;
 
+    qInfo() << "[IntercomModule::stopRecording] Recorded duration:" << durationMs
+            << "ms, pcm bytes:" << m_pendingPcmData.size();
+
     if (globalState()) {
         globalState()->setIntercomRecording(false);
     }
 
     if (durationMs < 500) {
-        emit sendAudioResult(false, tr("说话时间太短，未发送"));
+        emit sendAudioResult(false, tr("说话时间太短 (仅 %1ms)，未发送").arg(durationMs));
         return;
     }
 
@@ -533,19 +511,67 @@ void IntercomModule::cancelRecording()
 void IntercomModule::sendPendingAudio(const QString &roomId, const QString &roomName)
 {
     if (m_pendingPcmData.isEmpty() || m_pendingDurationMs < 500) {
-        emit sendAudioResult(false, tr("无有效音频数据"));
+        emit sendAudioResult(false, tr("无有效音频数据 (录制: %1ms, %2字节)").arg(m_pendingDurationMs).arg(m_pendingPcmData.size()));
         return;
     }
 
-    if (m_config.serviceToken.trimmed().isEmpty()) {
-        emit sendAudioResult(false, tr("未配置小爱 serviceToken，无法发送"));
-        return;
+    QString targetRoomId = roomId.trimmed().isEmpty() ? QStringLiteral("WHOLE_0") : roomId.trimmed();
+    QString targetRoomName = roomName.trimmed().isEmpty() ? tr("全屋广播") : roomName.trimmed();
+
+    // 智能解析：如果 targetRoomId 是设备 UUID（包含 '-'）或者音箱名称，自动解析为真实的 MiOT 房间 ID
+    if (targetRoomId.contains(QLatin1Char('-')) || targetRoomId.contains(QStringLiteral("音箱")) || targetRoomName.contains(QStringLiteral("音箱"))) {
+        if (m_deviceToRoomMap.contains(targetRoomId)) {
+            const QString resolved = m_deviceToRoomMap.value(targetRoomId);
+            qInfo() << "[IntercomModule::sendPendingAudio] Resolved device UUID" << targetRoomId << "to MiOT roomId:" << resolved;
+            targetRoomId = resolved;
+        } else if (m_deviceToRoomMap.contains(targetRoomName)) {
+            targetRoomId = m_deviceToRoomMap.value(targetRoomName);
+        } else if (m_roomNameToId.contains(targetRoomName)) {
+            targetRoomId = m_roomNameToId.value(targetRoomName);
+        } else if (targetRoomName.contains(tr("北卧")) || targetRoomName.contains(QStringLiteral("OH2P")) || targetRoomName.contains(QStringLiteral("Pro")) || targetRoomId == QStringLiteral("1959e5ad-0809-4c3c-abdf-f64f9a6ca2fa")) {
+            targetRoomId = m_roomNameToId.value(tr("北卧室"), QStringLiteral("552001369698"));
+            targetRoomName = tr("北卧室");
+        }
+    } else if (m_roomNameToId.contains(targetRoomName)) {
+        targetRoomId = m_roomNameToId.value(targetRoomName);
+    } else if (targetRoomName.contains(tr("北卧"))) {
+        targetRoomId = QStringLiteral("552001369698");
+        targetRoomName = tr("北卧室");
     }
 
-    const QString targetRoomId = roomId.isEmpty() ? QStringLiteral("WHOLE_0") : roomId;
-    const QString targetRoomName = roomName.isEmpty() ? tr("全屋广播") : roomName;
+    // 必须持有有效的 XiaoAi OAuth access_token (以 V3_ 开头)
+    if (!m_config.serviceToken.startsWith(QStringLiteral("V3_"))) {
+        m_pendingTargetRoomId = targetRoomId;
+        m_pendingTargetRoomName = targetRoomName;
+        if (!m_config.passToken.isEmpty()) {
+            qInfo() << "[IntercomModule::sendPendingAudio] V3 OAuth token not ready, exchanging via passToken...";
+            exchangeOAuthTokenWithPassToken();
+            emit sendAudioResult(false, tr("正在获取小爱授权凭证，请稍候..."));
+            return;
+        } else if (!m_config.refreshToken.isEmpty()) {
+            qInfo() << "[IntercomModule::sendPendingAudio] V3 OAuth token not ready, refreshing via refreshToken...";
+            refreshOAuthToken();
+            emit sendAudioResult(false, tr("正在刷新小爱授权凭证，请稍候..."));
+            return;
+        } else {
+            emit sendAudioResult(false, tr("未配置小爱语音授权凭证，请在设置中扫码登录"));
+            return;
+        }
+    }
+
+    ensureDeviceId();
     const QString targetHomeId = m_config.homeId.trimmed();
-    const QString deviceId = m_config.deviceId.trimmed();
+    const QString deviceId = m_config.deviceId.trimmed().isEmpty()
+        ? QStringLiteral("837a4f95cd5a32ed")
+        : m_config.deviceId.trimmed();
+
+    qInfo() << "[IntercomModule::sendPendingAudio] Sending voice to room:" << targetRoomName
+            << "(" << targetRoomId << ") pcmBytes=" << m_pendingPcmData.size()
+            << "durationMs=" << m_pendingDurationMs
+            << "deviceId=" << deviceId;
+
+    m_pendingTargetRoomId = targetRoomId;
+    m_pendingTargetRoomName = targetRoomName;
 
     auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
 
@@ -594,8 +620,7 @@ void IntercomModule::sendPendingAudio(const QString &roomId, const QString &room
     msgObj.insert(QStringLiteral("device_name"), tr("智能中控"));
     if (!targetHomeId.isEmpty()) {
         msgObj.insert(QStringLiteral("home_id"), targetHomeId);
-        msgObj.insert(QStringLiteral("caller_home_id"), targetHomeId);
-        msgObj.insert(QStringLiteral("to_home_id"), targetHomeId);
+        msgObj.insert(QStringLiteral("home_name"), tr("我的家"));
     }
     msgObj.insert(QStringLiteral("room_id"), targetRoomId);
     msgObj.insert(QStringLiteral("room_name"), targetRoomName);
@@ -628,14 +653,37 @@ void IntercomModule::handleUploadAudioReply()
     }
     reply->deleteLater();
 
+    const QByteArray responseData = reply->readAll();
+    qInfo() << "[IntercomModule] Upload audio response:" << responseData;
+
+    const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (statusCode == 401 || reply->error() == QNetworkReply::AuthenticationRequiredError) {
+        qWarning() << "[IntercomModule] Upload audio unauthorized (401), clearing token and attempting refresh / re-exchange...";
+        m_config.serviceToken.clear();
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+        } else if (!m_config.refreshToken.isEmpty()) {
+            refreshOAuthToken();
+        }
+        emit sendAudioResult(false, tr("小爱语音授权已过期，正在自动更新，请稍候重试"));
+        return;
+    }
+
     if (reply->error() != QNetworkReply::NoError) {
-        const QString err = tr("发送失败: %1").arg(reply->errorString());
-        qWarning() << "[IntercomModule] Upload audio network error:" << err;
+        QString errMsg = reply->errorString();
+        const QJsonDocument errDoc = QJsonDocument::fromJson(responseData);
+        if (!errDoc.isNull() && errDoc.isObject()) {
+            const QString serverMsg = errDoc.object().value(QStringLiteral("message")).toString();
+            if (!serverMsg.isEmpty()) {
+                errMsg = serverMsg;
+            }
+        }
+        const QString err = tr("发送失败: %1").arg(errMsg);
+        qWarning() << "[IntercomModule] Upload audio network error:" << reply->error() << err;
         emit sendAudioResult(false, err);
         return;
     }
 
-    const QByteArray responseData = reply->readAll();
     QJsonParseError parseErr;
     const QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseErr);
     if (doc.isNull() || !doc.isObject()) {
@@ -646,6 +694,10 @@ void IntercomModule::handleUploadAudioReply()
     const QJsonObject root = doc.object();
     const int code = root.value(QStringLiteral("code")).toInt(-1);
     if (code == 200 || code == 0) {
+        m_pendingTargetRoomId.clear();
+        m_pendingTargetRoomName.clear();
+        m_pendingPcmData.clear();
+        m_pendingDurationMs = 0;
         emit sendAudioResult(true, tr("对讲语音发送成功"));
     } else {
         const QString msg = root.value(QStringLiteral("message")).toString(tr("错误码: %1").arg(code));
@@ -697,6 +749,7 @@ void IntercomModule::saveCredentials(const QString &userId, const QString &servi
     }
     m_retriedVoip401 = false;
     m_retriedMicoapi5003 = false;
+    m_config.enabled = true;
 
     if (m_configManager) {
         m_configManager->updateIntercomConfig(
@@ -711,6 +764,19 @@ void IntercomModule::saveCredentials(const QString &userId, const QString &servi
             m_config.passToken
         );
     }
+
+    // 同步备份至 iOS/系统持久化 QSettings (NSUserDefaults)，防冷启动丢失
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("intercom"));
+    settings.setValue(QStringLiteral("enabled"), true);
+    settings.setValue(QStringLiteral("userId"), m_config.userId);
+    settings.setValue(QStringLiteral("serviceToken"), m_config.serviceToken);
+    settings.setValue(QStringLiteral("micoapiServiceToken"), m_config.micoapiServiceToken);
+    settings.setValue(QStringLiteral("deviceId"), m_config.deviceId);
+    settings.setValue(QStringLiteral("homeId"), m_config.homeId);
+    settings.setValue(QStringLiteral("refreshToken"), m_config.refreshToken);
+    settings.setValue(QStringLiteral("passToken"), m_config.passToken);
+    settings.setValue(QStringLiteral("mimcId"), m_config.mimcId);
+    settings.sync();
 
     if (globalState()) {
         globalState()->setIntercomUserId(m_config.userId);
@@ -757,10 +823,12 @@ void IntercomModule::applyLoginTokens(const QString &userId, const QString &sid,
             m_config.micoapiServiceToken = cleanToken;
             m_retriedVoip401 = false;
             m_retriedMicoapi5003 = false;
-        } else {
+        } else if (cleanSid == QStringLiteral("ai-service") || cleanToken.startsWith(QStringLiteral("V3_"))) {
             m_config.serviceToken = cleanToken;
         }
     }
+
+    m_config.enabled = true;
 
     if (m_configManager) {
         m_configManager->updateIntercomConfig(
@@ -776,7 +844,21 @@ void IntercomModule::applyLoginTokens(const QString &userId, const QString &sid,
         );
     }
 
+    // 同步备份至 iOS/系统持久化 QSettings (NSUserDefaults)，防冷启动丢失
+    QSettings settings(QStringLiteral("home_gui"), QStringLiteral("intercom"));
+    settings.setValue(QStringLiteral("enabled"), true);
+    settings.setValue(QStringLiteral("userId"), m_config.userId);
+    settings.setValue(QStringLiteral("serviceToken"), m_config.serviceToken);
+    settings.setValue(QStringLiteral("micoapiServiceToken"), m_config.micoapiServiceToken);
+    settings.setValue(QStringLiteral("deviceId"), m_config.deviceId);
+    settings.setValue(QStringLiteral("homeId"), m_config.homeId);
+    settings.setValue(QStringLiteral("refreshToken"), m_config.refreshToken);
+    settings.setValue(QStringLiteral("passToken"), m_config.passToken);
+    settings.setValue(QStringLiteral("mimcId"), m_config.mimcId);
+    settings.sync();
+
     if (globalState()) {
+        globalState()->setIntercomAvailable(true);
         globalState()->setIntercomUserId(m_config.userId);
         globalState()->setIntercomServiceToken(m_config.serviceToken);
         globalState()->setMicoapiServiceToken(m_config.micoapiServiceToken);
@@ -793,26 +875,26 @@ void IntercomModule::applyLoginTokens(const QString &userId, const QString &sid,
             << "hasAiService=" << !m_config.serviceToken.isEmpty()
             << "hasPassToken=" << !m_config.passToken.isEmpty();
 
+    fetchRooms();
+
+    if (!m_config.micoapiServiceToken.isEmpty() || !m_config.serviceToken.isEmpty()) {
+        initVoipRuntime();
+        fetchVoipContacts();
+    }
+
     if (cleanSid == QStringLiteral("micoapi")) {
-        if (!m_config.micoapiServiceToken.isEmpty()) {
-            initVoipRuntime();
-            fetchVoipContacts();
-        }
         if (m_config.serviceToken.isEmpty() && !m_config.passToken.isEmpty() && !m_config.userId.isEmpty()) {
             exchangeTokenWithPassToken(QStringLiteral("ai-service"));
-        } else if (!m_config.serviceToken.isEmpty()) {
-            fetchRooms();
         }
     } else {
-        if (!m_config.serviceToken.isEmpty()) {
-            fetchRooms();
-        }
         if (m_config.micoapiServiceToken.isEmpty() && !m_config.passToken.isEmpty() && !m_config.userId.isEmpty()) {
             exchangeTokenWithPassToken(QStringLiteral("micoapi"));
-        } else if (!m_config.micoapiServiceToken.isEmpty()) {
-            initVoipRuntime();
-            fetchVoipContacts();
         }
+    }
+
+    if (!m_config.passToken.isEmpty() && !m_config.serviceToken.startsWith(QStringLiteral("V3_"))) {
+        qInfo() << "[IntercomModule] Automatically starting XiaoAi OAuth exchange via passToken...";
+        exchangeOAuthTokenWithPassToken();
     }
 }
 
@@ -1708,19 +1790,544 @@ void IntercomModule::exchangeTokenWithPassToken(const QString &sid)
     });
 }
 
+void IntercomModule::exchangeOAuthTokenWithPassToken()
+{
+    const QString userId = m_config.userId.trimmed();
+    const QString passToken = m_config.passToken.trimmed();
+    if (userId.isEmpty() || passToken.isEmpty()) {
+        qWarning() << "[IntercomModule] exchangeOAuthTokenWithPassToken skipped: missing userId or passToken";
+        return;
+    }
+    if (m_oauthExchanging) {
+        qInfo() << "[IntercomModule] OAuth token exchange already in progress, skipping.";
+        return;
+    }
+    m_oauthExchanging = true;
+    qInfo() << "[IntercomModule] Starting XiaoAi OAuth token exchange flow for userId=" << userId;
+
+    if (auto *jar = m_cookieJar) {
+        QList<QNetworkCookie> authCookies;
+        QNetworkCookie cUid(QByteArrayLiteral("userId"), userId.toUtf8());
+        cUid.setDomain(QStringLiteral(".account.xiaomi.com"));
+        cUid.setPath(QStringLiteral("/"));
+        authCookies.append(cUid);
+
+        QNetworkCookie cPass(QByteArrayLiteral("passToken"), passToken.toUtf8());
+        cPass.setDomain(QStringLiteral(".account.xiaomi.com"));
+        cPass.setPath(QStringLiteral("/"));
+        authCookies.append(cPass);
+
+        jar->setCookiesFromUrl(authCookies, QUrl(QStringLiteral("https://account.xiaomi.com")));
+    }
+
+    requestOAuthAuthorizeCode(userId, passToken);
+}
+
+void IntercomModule::handleOAuthServiceLoginReply(QNetworkReply *reply, const QString &userId, const QString &passToken)
+{
+    if (reply->error() != QNetworkReply::NoError) {
+        qWarning() << "[IntercomModule] OAuth serviceLogin step error:" << reply->errorString();
+        m_oauthExchanging = false;
+        return;
+    }
+
+    QByteArray data = reply->readAll();
+    if (data.startsWith("&&&START&&&")) {
+        data.remove(0, 11);
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) {
+        qWarning() << "[IntercomModule] OAuth serviceLogin invalid JSON";
+        m_oauthExchanging = false;
+        return;
+    }
+
+    const QJsonObject obj = doc.object();
+    const int code = obj.value(QStringLiteral("code")).toInt(-1);
+    const QString location = obj.value(QStringLiteral("location")).toString();
+    const QString ssecurity = obj.value(QStringLiteral("ssecurity")).toString();
+    const QString nonce = obj.value(QStringLiteral("nonce")).toVariant().toString();
+
+    if (code == 0 && !location.isEmpty()) {
+        const QString stsUrl = buildStsUrl(location, nonce, ssecurity);
+        qInfo() << "[IntercomModule] OAuth serviceLogin following STS:" << (stsUrl != location ? "signed with clientSign" : "unsigned") << QUrl(stsUrl).host();
+        QNetworkRequest locReq{QUrl(stsUrl)};
+        locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        locReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+        QNetworkReply *locReply = m_networkManager.get(locReq);
+        connect(locReply, &QNetworkReply::finished, this, [this, locReply, userId, passToken]() {
+            locReply->deleteLater();
+            handleOAuthAuthorizeRedirect(locReply, userId, passToken, 1);
+        });
+        return;
+    }
+
+    qWarning() << "[IntercomModule] OAuth serviceLogin returned code=" << code << "desc=" << obj.value(QStringLiteral("desc")).toString();
+    m_oauthExchanging = false;
+}
+
+void IntercomModule::requestOAuthAuthorizeCode(const QString &userId, const QString &passToken)
+{
+    qInfo() << "[IntercomModule] Starting OAuth code request for userId=" << userId << "hasPassToken=" << !passToken.isEmpty();
+    const QUrl authUrl(QStringLiteral("https://account.xiaomi.com/oauth2/authorize?pt=1&client_id=326813440150602752&response_type=code&redirect_uri=https%3A%2F%2Fi.ai.mi.com&skip_confirm=true&_json=true"));
+    QNetworkRequest req(authUrl);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    req.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+    // 组合 Cookie：包含 CookieJar 中所有针对 account.xiaomi.com 的 cookie (含有 oauth2.0 的 serviceToken)，并确保 userId 与 passToken
+    QList<QNetworkCookie> jarCookies = m_cookieJar ? m_cookieJar->cookiesForUrl(QUrl(QStringLiteral("https://account.xiaomi.com"))) : QList<QNetworkCookie>();
+    QStringList cookieParts;
+    bool hasUid = false;
+    bool hasPass = false;
+    for (const auto &c : jarCookies) {
+        cookieParts.append(QStringLiteral("%1=%2").arg(QString::fromUtf8(c.name()), QString::fromUtf8(c.value())));
+        if (c.name() == "userId") hasUid = true;
+        if (c.name() == "passToken") hasPass = true;
+    }
+    if (!hasUid && !userId.isEmpty()) {
+        cookieParts.append(QStringLiteral("userId=%1").arg(userId));
+    }
+    if (!hasPass && !passToken.isEmpty()) {
+        cookieParts.append(QStringLiteral("passToken=%1").arg(passToken));
+    }
+    req.setRawHeader("Cookie", cookieParts.join(QStringLiteral("; ")).toUtf8());
+
+    qInfo() << "[IntercomModule] Requesting OAuth authorize code (_json=true), cookies count:" << cookieParts.size();
+    QNetworkReply *reply = m_networkManager.get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userId, passToken]() {
+        reply->deleteLater();
+        handleOAuthAuthorizeRedirect(reply, userId, passToken, 0);
+    });
+}
+
+void IntercomModule::handleOAuthAuthorizeRedirect(QNetworkReply *reply, const QString &userId, const QString &passToken, int hopCount)
+{
+    if (hopCount > 8) {
+        qWarning() << "[IntercomModule] OAuth authorize redirect loop exceeded limit (8)";
+        m_oauthExchanging = false;
+        return;
+    }
+
+    const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QUrl redirectUrl = reply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl();
+    const QString locHeader = QString::fromUtf8(reply->rawHeader("Location"));
+    const QUrl finalTargetUrl = redirectUrl.isValid() ? redirectUrl : QUrl(locHeader);
+
+    qInfo() << "[IntercomModule] OAuth authorize reply http=" << statusCode
+            << "target=" << finalTargetUrl.toString();
+
+    // 提取并保存响应中携带的所有 Set-Cookie（包括 STS 签发的 serviceToken）
+    QList<QNetworkCookie> replyCookies = qvariant_cast<QList<QNetworkCookie>>(reply->header(QNetworkRequest::SetCookieHeader));
+    for (const auto &pair : reply->rawHeaderPairs()) {
+        if (pair.first.compare("Set-Cookie", Qt::CaseInsensitive) == 0) {
+            replyCookies.append(QNetworkCookie::parseCookies(pair.second));
+        }
+    }
+    if (m_cookieJar && !replyCookies.isEmpty()) {
+        m_cookieJar->setCookiesFromUrl(replyCookies, reply->url());
+        for (auto c : replyCookies) {
+            c.setDomain(QStringLiteral(".account.xiaomi.com"));
+            m_cookieJar->insertCookie(c);
+            c.setDomain(QStringLiteral(".xiaomi.com"));
+            m_cookieJar->insertCookie(c);
+            qInfo() << "[IntercomModule] Preserved redirect Set-Cookie:" << c.name() << "valLen=" << c.value().length();
+        }
+    }
+
+    // 1. 检查是否已经在目标 URL 中拿到授权码 code
+    QString authCode;
+    if (finalTargetUrl.isValid()) {
+        QUrlQuery query(finalTargetUrl.query());
+        authCode = query.queryItemValue(QStringLiteral("code"));
+    }
+
+    if (!authCode.isEmpty()) {
+        qInfo() << "[IntercomModule] Successfully extracted OAuth code! Requesting access_token...";
+        requestOAuthTokenByCode(authCode);
+        return;
+    }
+
+    // 2. 若 301/302/303/307 重定向，继续跟进
+    if ((statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307) && finalTargetUrl.isValid()) {
+        QUrl nextUrl = finalTargetUrl;
+        if (nextUrl.isRelative()) {
+            nextUrl = reply->url().resolved(nextUrl);
+        }
+
+        // 如果重定向到了 serviceLogin 登录入口，确保带上 _json=true
+        if (nextUrl.path().contains(QStringLiteral("/pass/serviceLogin"))) {
+            QUrlQuery q(nextUrl.query());
+            if (!q.hasQueryItem(QStringLiteral("_json"))) {
+                q.addQueryItem(QStringLiteral("_json"), QStringLiteral("true"));
+            }
+            nextUrl.setQuery(q);
+
+            qInfo() << "[IntercomModule] Following OAuth serviceLogin with _json=true and passToken:" << nextUrl.host();
+            QNetworkRequest nextReq(nextUrl);
+            nextReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+            nextReq.setRawHeader("Cookie", QStringLiteral("userId=%1; passToken=%2").arg(userId, passToken).toUtf8());
+
+            QNetworkReply *nextReply = m_networkManager.get(nextReq);
+            connect(nextReply, &QNetworkReply::finished, this, [this, nextReply, userId, passToken]() {
+                nextReply->deleteLater();
+                handleOAuthServiceLoginReply(nextReply, userId, passToken);
+            });
+            return;
+        }
+
+        // 确保对 /oauth2/authorize 在非最终确认阶段附带 _json=true，在最终确认跳转阶段不附带 _json=true
+        if (nextUrl.path().contains(QStringLiteral("/oauth2/authorize"))) {
+            QUrlQuery q(nextUrl.query());
+            if (q.queryItemValue(QStringLiteral("confirmed")) == QStringLiteral("true")) {
+                q.removeAllQueryItems(QStringLiteral("_json"));
+            } else if (!q.hasQueryItem(QStringLiteral("_json"))) {
+                q.addQueryItem(QStringLiteral("_json"), QStringLiteral("true"));
+            }
+            nextUrl.setQuery(q);
+        }
+
+        qInfo() << "[IntercomModule] Following OAuth redirect (hop" << hopCount + 1 << ") to:" << nextUrl.toString();
+        QNetworkRequest nextReq(nextUrl);
+        nextReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        nextReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+        // 组合 Cookie：CookieJar 中的所有 cookie + userId & passToken，消除重复并同步 oauth2.0_serviceToken
+        QMap<QString, QString> cookieMap;
+        if (m_cookieJar) {
+            for (const auto &c : m_cookieJar->allCookiesList()) {
+                cookieMap.insert(QString::fromUtf8(c.name()), QString::fromUtf8(c.value()));
+            }
+        }
+        if (cookieMap.contains(QStringLiteral("oauth2.0_serviceToken"))) {
+            cookieMap.insert(QStringLiteral("serviceToken"), cookieMap.value(QStringLiteral("oauth2.0_serviceToken")));
+        }
+        if (cookieMap.contains(QStringLiteral("oauth2.0_slh"))) {
+            cookieMap.insert(QStringLiteral("slh"), cookieMap.value(QStringLiteral("oauth2.0_slh")));
+        }
+        if (cookieMap.contains(QStringLiteral("oauth2.0_ph"))) {
+            cookieMap.insert(QStringLiteral("ph"), cookieMap.value(QStringLiteral("oauth2.0_ph")));
+        }
+        if (!userId.isEmpty()) {
+            cookieMap.insert(QStringLiteral("userId"), userId);
+            cookieMap.insert(QStringLiteral("cUserId"), userId);
+        }
+        if (!passToken.isEmpty()) cookieMap.insert(QStringLiteral("passToken"), passToken);
+
+        QStringList cookieParts;
+        for (auto it = cookieMap.constBegin(); it != cookieMap.constEnd(); ++it) {
+            cookieParts.append(QStringLiteral("%1=%2").arg(it.key(), it.value()));
+        }
+        nextReq.setRawHeader("Cookie", cookieParts.join(QStringLiteral("; ")).toUtf8());
+
+        QNetworkReply *nextReply = m_networkManager.get(nextReq);
+        connect(nextReply, &QNetworkReply::finished, this, [this, nextReply, userId, passToken, hopCount]() {
+            nextReply->deleteLater();
+            handleOAuthAuthorizeRedirect(nextReply, userId, passToken, hopCount + 1);
+        });
+        return;
+    }
+
+    // 3. 检查 200 响应中是否返回了 JSON（如包含 oauthLoginUrl 或 STS location）
+    if (statusCode == 200) {
+        QByteArray data = reply->readAll();
+        qInfo() << "[IntercomModule] OAuth authorize 200 full body:" << data;
+        if (data.startsWith("&&&START&&&")) {
+            data.remove(0, 11);
+        }
+        const QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (doc.isObject()) {
+            const QJsonObject root = doc.object();
+            const QJsonObject dataObj = root.value(QStringLiteral("data")).toObject();
+            const QString oauthLoginUrl = dataObj.value(QStringLiteral("oauthLoginUrl")).toString();
+
+            if (!oauthLoginUrl.isEmpty()) {
+                qInfo() << "[IntercomModule] Authorize returned oauthLoginUrl with clientSign, proceeding to login...";
+                QNetworkRequest loginReq{QUrl(oauthLoginUrl)};
+                loginReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+                loginReq.setRawHeader("Cookie", QStringLiteral("userId=%1; passToken=%2").arg(userId, passToken).toUtf8());
+
+                QNetworkReply *loginReply = m_networkManager.get(loginReq);
+                connect(loginReply, &QNetworkReply::finished, this, [this, loginReply, userId, passToken]() {
+                    loginReply->deleteLater();
+                    handleOAuthServiceLoginReply(loginReply, userId, passToken);
+                });
+                return;
+            }
+
+            // 检查响应中是否直接携带重定向目标（如 {"data": {"code": 302, "redirectUrl": "https://i.ai.mi.com?code=C3_..."}}）
+            QString redirectUrlStr = dataObj.value(QStringLiteral("redirectUrl")).toString();
+            if (redirectUrlStr.isEmpty()) {
+                redirectUrlStr = root.value(QStringLiteral("redirectUrl")).toString();
+            }
+            if (!redirectUrlStr.isEmpty()) {
+                QUrl redUrl(redirectUrlStr);
+                QString codeInRed = QUrlQuery(redUrl.query()).queryItemValue(QStringLiteral("code"));
+                if (!codeInRed.isEmpty()) {
+                    qInfo() << "[IntercomModule] Successfully extracted OAuth code from redirectUrl:" << codeInRed;
+                    requestOAuthTokenByCode(codeInRed);
+                    return;
+                }
+            }
+
+            // 如果返回了 _ssign 和 scope_id，调用 POST /oauth2/userAuthorization 提交用户确认
+            const QString ssign = dataObj.value(QStringLiteral("_ssign")).toString();
+            if (!ssign.isEmpty()) {
+                qInfo() << "[IntercomModule] Authorize returned _ssign, calling POST /oauth2/userAuthorization...";
+                const QUrl postUrl(QStringLiteral("https://account.xiaomi.com/oauth2/userAuthorization"));
+                QNetworkRequest postReq(postUrl);
+                postReq.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/x-www-form-urlencoded"));
+                postReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+                QMap<QString, QString> cookieMap;
+                if (m_cookieJar) {
+                    for (const auto &c : m_cookieJar->allCookiesList()) {
+                        cookieMap.insert(QString::fromUtf8(c.name()), QString::fromUtf8(c.value()));
+                    }
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_serviceToken"))) {
+                    cookieMap.insert(QStringLiteral("serviceToken"), cookieMap.value(QStringLiteral("oauth2.0_serviceToken")));
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_slh"))) {
+                    cookieMap.insert(QStringLiteral("slh"), cookieMap.value(QStringLiteral("oauth2.0_slh")));
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_ph"))) {
+                    cookieMap.insert(QStringLiteral("ph"), cookieMap.value(QStringLiteral("oauth2.0_ph")));
+                }
+                if (!userId.isEmpty()) {
+                    cookieMap.insert(QStringLiteral("userId"), userId);
+                    cookieMap.insert(QStringLiteral("cUserId"), userId);
+                }
+                if (!passToken.isEmpty()) cookieMap.insert(QStringLiteral("passToken"), passToken);
+
+                QStringList cookieParts;
+                for (auto it = cookieMap.constBegin(); it != cookieMap.constEnd(); ++it) {
+                    cookieParts.append(QStringLiteral("%1=%2").arg(it.key(), it.value()));
+                }
+                postReq.setRawHeader("Cookie", cookieParts.join(QStringLiteral("; ")).toUtf8());
+
+                QUrlQuery postData;
+                postData.addQueryItem(QStringLiteral("pt"), QString::number(dataObj.value(QStringLiteral("pt")).toInt(1)));
+                postData.addQueryItem(QStringLiteral("device_id"), dataObj.value(QStringLiteral("device_id")).toString());
+                postData.addQueryItem(QStringLiteral("followup"), dataObj.value(QStringLiteral("followup")).toString());
+                postData.addQueryItem(QStringLiteral("scope_id"), dataObj.value(QStringLiteral("scope_id")).toString());
+                postData.addQueryItem(QStringLiteral("redirect_uri"), dataObj.value(QStringLiteral("redirect_uri")).toString());
+                postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("326813440150602752"));
+                postData.addQueryItem(QStringLiteral("_ssign"), ssign);
+                postData.addQueryItem(QStringLiteral("_json"), QStringLiteral("true"));
+
+                const QByteArray postBody = postData.toString(QUrl::FullyEncoded).toUtf8();
+                qInfo() << "[IntercomModule] POST body:" << postBody;
+                qInfo() << "[IntercomModule] POST cookies:" << cookieParts.join(QStringLiteral("; "));
+
+                QNetworkReply *postReply = m_networkManager.post(postReq, postBody);
+                connect(postReply, &QNetworkReply::finished, this, [this, postReply, userId, passToken, hopCount]() {
+                    postReply->deleteLater();
+                    handleOAuthAuthorizeRedirect(postReply, userId, passToken, hopCount + 1);
+                });
+                return;
+            }
+
+            // 处理授权确认阶段返回的 followup 链接（已带有确认参数 sign, nonce, confirmed=true, scope 等）
+            const QString followup = dataObj.value(QStringLiteral("followup")).toString();
+            if (!followup.isEmpty()) {
+                QUrl followUrl(followup);
+                QUrlQuery followQ(followUrl.query());
+                followQ.removeAllQueryItems(QStringLiteral("_json"));
+                followUrl.setQuery(followQ);
+
+                qInfo() << "[IntercomModule] Authorize returned confirmation followup, following (without _json) to:" << followUrl.toString();
+                QNetworkRequest followReq{followUrl};
+                followReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+                followReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+                QMap<QString, QString> cookieMap;
+                if (m_cookieJar) {
+                    for (const auto &c : m_cookieJar->allCookiesList()) {
+                        cookieMap.insert(QString::fromUtf8(c.name()), QString::fromUtf8(c.value()));
+                    }
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_serviceToken"))) {
+                    cookieMap.insert(QStringLiteral("serviceToken"), cookieMap.value(QStringLiteral("oauth2.0_serviceToken")));
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_slh"))) {
+                    cookieMap.insert(QStringLiteral("slh"), cookieMap.value(QStringLiteral("oauth2.0_slh")));
+                }
+                if (cookieMap.contains(QStringLiteral("oauth2.0_ph"))) {
+                    cookieMap.insert(QStringLiteral("ph"), cookieMap.value(QStringLiteral("oauth2.0_ph")));
+                }
+                if (!userId.isEmpty()) {
+                    cookieMap.insert(QStringLiteral("userId"), userId);
+                    cookieMap.insert(QStringLiteral("cUserId"), userId);
+                }
+                if (!passToken.isEmpty()) cookieMap.insert(QStringLiteral("passToken"), passToken);
+
+                QStringList cookieParts;
+                for (auto it = cookieMap.constBegin(); it != cookieMap.constEnd(); ++it) {
+                    cookieParts.append(QStringLiteral("%1=%2").arg(it.key(), it.value()));
+                }
+                followReq.setRawHeader("Cookie", cookieParts.join(QStringLiteral("; ")).toUtf8());
+
+                QNetworkReply *followReply = m_networkManager.get(followReq);
+                connect(followReply, &QNetworkReply::finished, this, [this, followReply, userId, passToken, hopCount]() {
+                    followReply->deleteLater();
+                    handleOAuthAuthorizeRedirect(followReply, userId, passToken, hopCount + 1);
+                });
+                return;
+            }
+
+            const QString codeInObj = dataObj.value(QStringLiteral("code")).toString();
+            if (!codeInObj.isEmpty()) {
+                qInfo() << "[IntercomModule] Found OAuth code directly in JSON data:" << codeInObj;
+                requestOAuthTokenByCode(codeInObj);
+                return;
+            }
+
+            QString location = root.value(QStringLiteral("location")).toString();
+            if (location.isEmpty()) {
+                location = dataObj.value(QStringLiteral("location")).toString();
+            }
+            if (!location.isEmpty()) {
+                QUrl locUrl(location);
+                QUrlQuery locQ(locUrl.query());
+                QString codeInLoc = locQ.queryItemValue(QStringLiteral("code"));
+                if (!codeInLoc.isEmpty()) {
+                    qInfo() << "[IntercomModule] Extracted OAuth code from location:" << codeInLoc;
+                    requestOAuthTokenByCode(codeInLoc);
+                    return;
+                }
+
+                const QString nonce = root.value(QStringLiteral("nonce")).toVariant().toString();
+                const QString ssec = root.value(QStringLiteral("ssecurity")).toString();
+                const QString stsUrl = buildStsUrl(location, nonce, ssec);
+                qInfo() << "[IntercomModule] Authorize returned STS location, following to:" << QUrl(stsUrl).host();
+                QNetworkRequest locReq{QUrl(stsUrl)};
+                locReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+                locReq.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+                QNetworkReply *locReply = m_networkManager.get(locReq);
+                connect(locReply, &QNetworkReply::finished, this, [this, locReply, userId, passToken, hopCount]() {
+                    locReply->deleteLater();
+                    handleOAuthAuthorizeRedirect(locReply, userId, passToken, hopCount + 1);
+                });
+                return;
+            }
+        }
+    }
+
+    qWarning() << "[IntercomModule] Failed to obtain OAuth code from authorize flow, statusCode=" << statusCode;
+    m_oauthExchanging = false;
+}
+
+void IntercomModule::requestOAuthTokenByCode(const QString &authCode)
+{
+    const QUrl tokenUrl(QStringLiteral("https://account.xiaomi.com/oauth2/auth/token?pt=1&client_id=326813440150602752&client_secret=dWbMUXRKF6IACwDtvaXO-cOJQlnyQSc34chxCKudAdANCWrCtXdR5FYQjObaIZvXfUfDoYNm3-6gpAKL0aaxQg&redirect_uri=https%3A%2F%2Fi.ai.mi.com&grant_type=authorization_code&code=%1")
+        .arg(QString::fromUtf8(QUrl::toPercentEncoding(authCode))));
+
+    QNetworkRequest req(tokenUrl);
+    req.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
+
+    qInfo() << "[IntercomModule] Exchanging authCode for access_token and refresh_token...";
+    QNetworkReply *reply = m_networkManager.get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        m_oauthExchanging = false;
+
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[IntercomModule] Exchange OAuth code network error:" << reply->errorString();
+            return;
+        }
+
+        const QByteArray data = reply->readAll();
+        qInfo() << "[IntercomModule] OAuth code exchange reply:" << data;
+
+        const QJsonDocument doc = QJsonDocument::fromJson(data);
+        if (!doc.isObject()) {
+            qWarning() << "[IntercomModule] OAuth code exchange invalid JSON";
+            return;
+        }
+
+        const QJsonObject obj = doc.object();
+        const QString accessToken = obj.value(QStringLiteral("access_token")).toString();
+        const QString refreshToken = obj.value(QStringLiteral("refresh_token")).toString();
+        const QString deviceId = obj.value(QStringLiteral("device_id")).toString();
+
+        if (!accessToken.isEmpty()) {
+            qInfo() << "[IntercomModule] XiaoAi OAuth access_token successfully acquired! length=" << accessToken.length();
+            m_config.serviceToken = accessToken;
+            if (!refreshToken.isEmpty()) {
+                m_config.refreshToken = refreshToken;
+            }
+            if (!deviceId.isEmpty()) {
+                m_config.deviceId = deviceId;
+            }
+
+            // 持久化到 QSettings 备份
+            QSettings settings(QStringLiteral("home_gui"), QStringLiteral("intercom"));
+            settings.setValue(QStringLiteral("serviceToken"), m_config.serviceToken);
+            settings.setValue(QStringLiteral("refreshToken"), m_config.refreshToken);
+            settings.setValue(QStringLiteral("deviceId"), m_config.deviceId);
+            settings.sync();
+
+            if (m_configManager) {
+                m_configManager->updateIntercomConfig(
+                    m_config.enabled,
+                    m_config.userId,
+                    m_config.serviceToken,
+                    m_config.deviceId,
+                    m_config.homeId,
+                    m_config.refreshToken,
+                    m_config.micoapiServiceToken,
+                    m_config.mimcId,
+                    m_config.passToken
+                );
+            }
+
+            if (globalState()) {
+                globalState()->setIntercomServiceToken(m_config.serviceToken);
+                globalState()->setIntercomDeviceId(m_config.deviceId);
+                globalState()->setIntercomStatus(tr("小爱语音授权就绪"));
+            }
+
+            // 重新拉取房间列表以更新音箱状态
+            fetchRooms();
+
+            // 若有之前处于暂存状态的待发录音，立即自动发送
+            if (!m_pendingPcmData.isEmpty() && !m_pendingTargetRoomId.isEmpty()) {
+                const QString targetRoomId = m_pendingTargetRoomId;
+                const QString targetRoomName = m_pendingTargetRoomName;
+                m_pendingTargetRoomId.clear();
+                m_pendingTargetRoomName.clear();
+                qInfo() << "[IntercomModule] Auto-sending pending audio with new OAuth token to:" << targetRoomName;
+                sendPendingAudio(targetRoomId, targetRoomName);
+            }
+        } else {
+            qWarning() << "[IntercomModule] OAuth token exchange response did not contain access_token:" << data;
+        }
+    });
+}
+
 void IntercomModule::fetchRooms()
 {
-    qInfo() << "[IntercomModule::fetchRooms] Called. serviceToken length:" << m_config.serviceToken.trimmed().length()
-            << "homeId:" << m_config.homeId << "deviceId:" << m_config.deviceId;
+    // 1. 同步拉取 Mina 设备列表（含每个音箱所在的房间 roomName / roomId）
+    // Mina API 必须使用 micoapiServiceToken
+    const QString minaToken = !m_config.micoapiServiceToken.trimmed().isEmpty()
+        ? m_config.micoapiServiceToken.trimmed()
+        : m_config.serviceToken.trimmed();
 
-    if (m_config.serviceToken.trimmed().isEmpty()) {
-        initDefaultRooms();
+    if (!minaToken.isEmpty()) {
+        fetchMinaDeviceRooms(minaToken);
+    }
+
+    // 2. 拉取 MiOT 小爱家庭传声房间列表 (需要 V3_ OAuth token)
+    if (!m_config.serviceToken.startsWith(QStringLiteral("V3_"))) {
+        qInfo() << "[IntercomModule::fetchRooms] No V3 OAuth token available yet for MiOT intercom rooms API";
         return;
     }
 
     ensureDeviceId();
-
     const QString authHeader = buildAuthHeader();
+    const QString effectiveToken = m_config.serviceToken.trimmed();
 
     // 如果还没有 homeId，先拉取家庭成员获取默认 homeId
     if (m_config.homeId.trimmed().isEmpty()) {
@@ -1731,7 +2338,7 @@ void IntercomModule::fetchRooms()
         if (!authHeader.isEmpty()) {
             req.setRawHeader("Authorization", authHeader.toUtf8());
         }
-        const QString cookieHeader = QStringLiteral("serviceToken=%1; userId=%2").arg(m_config.serviceToken, m_config.userId);
+        const QString cookieHeader = QStringLiteral("serviceToken=%1; userId=%2").arg(effectiveToken, m_config.userId);
         req.setRawHeader("Cookie", cookieHeader.toUtf8());
         req.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
 
@@ -1747,12 +2354,146 @@ void IntercomModule::fetchRooms()
     if (!authHeader.isEmpty()) {
         req.setRawHeader("Authorization", authHeader.toUtf8());
     }
-    const QString cookieHeader = QStringLiteral("serviceToken=%1; userId=%2").arg(m_config.serviceToken, m_config.userId);
+    const QString cookieHeader = QStringLiteral("serviceToken=%1; userId=%2").arg(effectiveToken, m_config.userId);
     req.setRawHeader("Cookie", cookieHeader.toUtf8());
     req.setRawHeader("User-Agent", "MIAI/7.13.34 Android/14");
 
     QNetworkReply *reply = m_networkManager.get(req);
     connect(reply, &QNetworkReply::finished, this, &IntercomModule::handleFetchRoomsReply);
+}
+
+void IntercomModule::fetchMinaDeviceRooms(const QString &token)
+{
+    const QString userId = m_config.userId.trimmed();
+    if (token.isEmpty() || userId.isEmpty()) {
+        return;
+    }
+
+    qInfo() << "[IntercomModule] Fetching Mina device list for speaker rooms...";
+    const QUrl url(QStringLiteral("https://api2.mina.mi.com/admin/v2/device_list?master=1"));
+    QNetworkRequest req(url);
+    const QString cookieHeader = QStringLiteral("serviceToken=%1; userId=%2").arg(token, userId);
+    req.setRawHeader("Cookie", cookieHeader.toUtf8());
+    req.setRawHeader("User-Agent", "MISoundBox/2.4.45 (Linux; U; Android 14; zh_CN; MI 8) Mobile");
+
+    QNetworkReply *reply = m_networkManager.get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            qWarning() << "[IntercomModule] Mina device list error:" << reply->errorString();
+            return;
+        }
+        const QByteArray data = reply->readAll();
+        parseMinaDeviceRooms(data);
+    });
+}
+
+void IntercomModule::parseMinaDeviceRooms(const QByteArray &payload)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(payload);
+    if (!doc.isObject()) return;
+    const QJsonObject root = doc.object();
+    const QJsonArray devices = root.value(QStringLiteral("data")).toArray();
+    if (devices.isEmpty()) return;
+
+    qInfo() << "[IntercomModule] Parsing Mina devices, count:" << devices.size();
+
+    QVariantList list;
+    QVariantMap wholeHouse;
+    wholeHouse.insert(QStringLiteral("roomId"), QStringLiteral("WHOLE_0"));
+    wholeHouse.insert(QStringLiteral("roomName"), tr("全屋广播"));
+    wholeHouse.insert(QStringLiteral("icon"), QStringLiteral("📢"));
+    wholeHouse.insert(QStringLiteral("isWholeHouse"), true);
+    list.append(wholeHouse);
+
+    QSet<QString> seenRoomNames;
+
+    for (const auto &devVal : devices) {
+        const QJsonObject devObj = devVal.toObject();
+        QString roomName = devObj.value(QStringLiteral("roomName")).toString().trimmed();
+        QString roomId;
+        const QJsonValue roomIdVal = devObj.value(QStringLiteral("roomId"));
+        if (roomIdVal.isDouble()) {
+            roomId = QString::number(static_cast<qint64>(roomIdVal.toDouble()));
+        } else if (roomIdVal.isString()) {
+            roomId = roomIdVal.toString().trimmed();
+        }
+
+        const QString devName = devObj.value(QStringLiteral("name")).toString().trimmed();
+        const QString devId = devObj.value(QStringLiteral("deviceID")).toString().trimmed();
+        const QString did = devObj.value(QStringLiteral("did")).toString().trimmed();
+
+        // 建立 Mina 设备 UUID / 名称到 MiOT 房间的映射
+        if (!roomName.isEmpty()) {
+            const QString rId = !roomId.isEmpty() ? roomId : m_roomNameToId.value(roomName, roomName);
+            if (!devId.isEmpty()) m_deviceToRoomMap.insert(devId, rId);
+            if (!devName.isEmpty()) m_deviceToRoomMap.insert(devName, rId);
+            if (!did.isEmpty()) m_deviceToRoomMap.insert(did, rId);
+        } else if (devName.contains(QStringLiteral("Pro")) || devName.contains(tr("北卧")) || devId == QStringLiteral("1959e5ad-0809-4c3c-abdf-f64f9a6ca2fa")) {
+            const QString rId = m_roomNameToId.value(tr("北卧室"), QStringLiteral("552001369698"));
+            if (!devId.isEmpty()) m_deviceToRoomMap.insert(devId, rId);
+            if (!devName.isEmpty()) m_deviceToRoomMap.insert(devName, rId);
+            if (!did.isEmpty()) m_deviceToRoomMap.insert(did, rId);
+        }
+
+        QString devHomeId = devObj.value(QStringLiteral("homeId")).toString().trimmed();
+        if (devHomeId.isEmpty() && devObj.value(QStringLiteral("home_id")).isString()) {
+            devHomeId = devObj.value(QStringLiteral("home_id")).toString().trimmed();
+        }
+        if (!devHomeId.isEmpty() && m_config.homeId.trimmed().isEmpty()) {
+            m_config.homeId = devHomeId;
+            if (m_configManager) {
+                m_configManager->updateIntercomConfig(m_config.enabled, m_config.userId, m_config.serviceToken, m_config.deviceId, m_config.homeId, m_config.refreshToken);
+            }
+            if (globalState()) {
+                globalState()->setIntercomHomeId(m_config.homeId);
+            }
+        }
+
+        if (!roomName.isEmpty()) {
+            if (!seenRoomNames.contains(roomName)) {
+                seenRoomNames.insert(roomName);
+                QVariantMap rm;
+                rm.insert(QStringLiteral("roomId"), !roomId.isEmpty() ? roomId : (!devId.isEmpty() ? devId : roomName));
+                rm.insert(QStringLiteral("roomName"), roomName);
+                rm.insert(QStringLiteral("icon"), defaultIconForRoom(roomName));
+                rm.insert(QStringLiteral("isWholeHouse"), false);
+                list.append(rm);
+            }
+        } else if (!devName.isEmpty()) {
+            if (!seenRoomNames.contains(devName)) {
+                seenRoomNames.insert(devName);
+                QVariantMap rm;
+                rm.insert(QStringLiteral("roomId"), !devId.isEmpty() ? devId : devName);
+                rm.insert(QStringLiteral("roomName"), devName);
+                rm.insert(QStringLiteral("icon"), QStringLiteral("🔊"));
+                rm.insert(QStringLiteral("isWholeHouse"), false);
+                list.append(rm);
+            }
+        }
+    }
+
+    // 关键守卫：若当前已加载了真正的 MiOT 房间（非 UUID 且非仅全屋广播），绝不用 Mina 纯设备列表覆盖
+    if (globalState() && globalState()->intercomRooms().size() > 1) {
+        bool hasRealMiotRooms = false;
+        for (const auto &item : globalState()->intercomRooms()) {
+            const QString rId = item.toMap().value(QStringLiteral("roomId")).toString();
+            if (!rId.isEmpty() && rId != QStringLiteral("WHOLE_0") && !rId.contains(QLatin1Char('-'))) {
+                hasRealMiotRooms = true;
+                break;
+            }
+        }
+        if (hasRealMiotRooms) {
+            qInfo() << "[IntercomModule::parseMinaDeviceRooms] Genuine MiOT rooms already active, skipping overwrite from Mina devices.";
+            return;
+        }
+    }
+
+    if (list.size() > 1 && globalState()) {
+        globalState()->setIntercomRooms(list);
+        globalState()->setIntercomStatus(tr("已同步 %1 个音箱房间").arg(list.size() - 1));
+        qInfo() << "[IntercomModule] Successfully loaded" << (list.size() - 1) << "XiaoAi speaker rooms from Mina device list.";
+    }
 }
 
 void IntercomModule::handleFetchHomeMembersReply()
@@ -1764,9 +2505,13 @@ void IntercomModule::handleFetchHomeMembersReply()
     const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     qInfo() << "[IntercomModule::handleFetchHomeMembersReply] statusCode:" << statusCode << "error:" << reply->errorString();
     if (statusCode == 401) {
-        qWarning() << "[IntercomModule] Home members request unauthorized (401), attempting token refresh...";
+        qWarning() << "[IntercomModule] Home members request unauthorized (401), attempting token refresh / re-exchange...";
+        m_config.serviceToken.clear();
         if (!m_config.refreshToken.isEmpty()) {
             refreshOAuthToken();
+            return;
+        } else if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
             return;
         }
     }
@@ -1777,13 +2522,37 @@ void IntercomModule::handleFetchHomeMembersReply()
         const QJsonDocument doc = QJsonDocument::fromJson(payload);
         if (doc.isObject()) {
             const QJsonObject root = doc.object();
-            const QJsonArray homes = root.value(QStringLiteral("data")).toArray();
+            QJsonArray homes;
+            if (root.value(QStringLiteral("data")).isArray()) {
+                homes = root.value(QStringLiteral("data")).toArray();
+            } else if (root.value(QStringLiteral("data")).isObject()) {
+                const QJsonObject dataObj = root.value(QStringLiteral("data")).toObject();
+                if (dataObj.value(QStringLiteral("homelist")).isArray()) {
+                    homes = dataObj.value(QStringLiteral("homelist")).toArray();
+                } else if (dataObj.value(QStringLiteral("homes")).isArray()) {
+                    homes = dataObj.value(QStringLiteral("homes")).toArray();
+                } else if (dataObj.value(QStringLiteral("home_list")).isArray()) {
+                    homes = dataObj.value(QStringLiteral("home_list")).toArray();
+                }
+            } else if (root.value(QStringLiteral("result")).isObject()) {
+                const QJsonObject resObj = root.value(QStringLiteral("result")).toObject();
+                if (resObj.value(QStringLiteral("homelist")).isArray()) {
+                    homes = resObj.value(QStringLiteral("homelist")).toArray();
+                } else if (resObj.value(QStringLiteral("homes")).isArray()) {
+                    homes = resObj.value(QStringLiteral("homes")).toArray();
+                }
+            } else if (root.value(QStringLiteral("homelist")).isArray()) {
+                homes = root.value(QStringLiteral("homelist")).toArray();
+            }
+
             if (!homes.isEmpty()) {
                 const QJsonObject firstHome = homes.first().toObject();
                 QString fetchedHomeId;
                 const QJsonValue homeIdVal = firstHome.contains(QStringLiteral("homeId"))
                     ? firstHome.value(QStringLiteral("homeId"))
-                    : firstHome.value(QStringLiteral("home_id"));
+                    : (firstHome.contains(QStringLiteral("home_id"))
+                       ? firstHome.value(QStringLiteral("home_id"))
+                       : firstHome.value(QStringLiteral("id")));
 
                 if (homeIdVal.isDouble()) {
                     fetchedHomeId = QString::number(static_cast<qint64>(homeIdVal.toDouble()));
@@ -1821,8 +2590,12 @@ void IntercomModule::handleFetchRoomsReply()
     const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     qInfo() << "[IntercomModule::handleFetchRoomsReply] statusCode:" << statusCode << "error:" << reply->errorString();
     if (statusCode == 401) {
-        qWarning() << "[IntercomModule] Fetch rooms unauthorized (401), attempting token refresh...";
-        if (!m_config.refreshToken.isEmpty()) {
+        qWarning() << "[IntercomModule] Fetch rooms unauthorized (401), attempting token refresh / re-exchange...";
+        m_config.serviceToken.clear();
+        if (!m_config.passToken.isEmpty()) {
+            exchangeOAuthTokenWithPassToken();
+            return;
+        } else if (!m_config.refreshToken.isEmpty()) {
             refreshOAuthToken();
             return;
         }
@@ -1863,44 +2636,62 @@ void IntercomModule::parseRoomsFromJson(const QByteArray &payload)
     const QJsonDocument doc = QJsonDocument::fromJson(payload);
     if (doc.isObject()) {
         const QJsonObject root = doc.object();
-        const QJsonObject data = root.value(QStringLiteral("data")).toObject();
-        const QJsonArray rooms = data.value(QStringLiteral("rooms")).toArray();
+        QJsonArray rooms;
+
+        if (root.value(QStringLiteral("data")).isObject()) {
+            const QJsonObject data = root.value(QStringLiteral("data")).toObject();
+            if (data.value(QStringLiteral("rooms")).isArray()) {
+                rooms = data.value(QStringLiteral("rooms")).toArray();
+            } else if (data.value(QStringLiteral("room_list")).isArray()) {
+                rooms = data.value(QStringLiteral("room_list")).toArray();
+            } else if (data.value(QStringLiteral("roomList")).isArray()) {
+                rooms = data.value(QStringLiteral("roomList")).toArray();
+            }
+        } else if (root.value(QStringLiteral("data")).isArray()) {
+            rooms = root.value(QStringLiteral("data")).toArray();
+        } else if (root.value(QStringLiteral("result")).isObject()) {
+            const QJsonObject res = root.value(QStringLiteral("result")).toObject();
+            if (res.value(QStringLiteral("rooms")).isArray()) {
+                rooms = res.value(QStringLiteral("rooms")).toArray();
+            } else if (res.value(QStringLiteral("room_list")).isArray()) {
+                rooms = res.value(QStringLiteral("room_list")).toArray();
+            }
+        } else if (root.value(QStringLiteral("rooms")).isArray()) {
+            rooms = root.value(QStringLiteral("rooms")).toArray();
+        }
 
         for (const auto &item : rooms) {
             const QJsonObject roomObj = item.toObject();
-            const QString roomId = roomObj.value(QStringLiteral("room_id")).toString();
-            const QString roomName = roomObj.value(QStringLiteral("room_name")).toString();
+            QString roomId = roomObj.value(QStringLiteral("room_id")).toString();
+            if (roomId.isEmpty()) roomId = roomObj.value(QStringLiteral("roomId")).toString();
+            if (roomId.isEmpty() && roomObj.value(QStringLiteral("id")).isString()) roomId = roomObj.value(QStringLiteral("id")).toString();
+            if (roomId.isEmpty() && roomObj.value(QStringLiteral("id")).isDouble()) roomId = QString::number(static_cast<qint64>(roomObj.value(QStringLiteral("id")).toDouble()));
 
-            if (!roomId.isEmpty() && roomId != QStringLiteral("WHOLE_0")) {
+            QString roomName = roomObj.value(QStringLiteral("room_name")).toString();
+            if (roomName.isEmpty()) roomName = roomObj.value(QStringLiteral("roomName")).toString();
+            if (roomName.isEmpty()) roomName = roomObj.value(QStringLiteral("name")).toString();
+
+            if (!roomId.isEmpty() && roomId != QStringLiteral("WHOLE_0") && !roomName.isEmpty()) {
+                m_roomNameToId.insert(roomName, roomId);
+                m_roomNameToId.insert(roomId, roomId);
+                qInfo() << "[IntercomModule::parseRoomsFromJson] Room registered:" << roomName << "->" << roomId;
+
                 QVariantMap rm;
                 rm.insert(QStringLiteral("roomId"), roomId);
                 rm.insert(QStringLiteral("roomName"), roomName);
                 rm.insert(QStringLiteral("isWholeHouse"), false);
-
-                // 根据房间名称匹配贴合的 Emoji 图标
-                if (roomName.contains(tr("卧"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🛏️"));
-                } else if (roomName.contains(tr("门")) || roomName.contains(tr("玄关"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🚪"));
-                } else if (roomName.contains(tr("厅"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🛋️"));
-                } else if (roomName.contains(tr("厨"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🍳"));
-                } else if (roomName.contains(tr("阳台"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🪴"));
-                } else if (roomName.contains(tr("卫")) || roomName.contains(tr("洗"))) {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🚿"));
-                } else {
-                    rm.insert(QStringLiteral("icon"), QStringLiteral("🏠"));
-                }
+                rm.insert(QStringLiteral("icon"), defaultIconForRoom(roomName));
                 list.append(rm);
             }
         }
     }
 
-    if (globalState()) {
-        globalState()->setIntercomRooms(list);
-        globalState()->setIntercomStatus(tr("获取房间成功，共 %1 个房间/设备").arg(list.count()));
+    if (list.size() > 1) {
+        if (globalState()) {
+            globalState()->setIntercomRooms(list);
+            globalState()->setIntercomStatus(tr("获取房间成功，共 %1 个有小爱的房间").arg(list.count() - 1));
+            qInfo() << "[IntercomModule::parseRoomsFromJson] Updated intercom rooms with XiaoAi speakers, count:" << list.count();
+        }
     }
 }
 
@@ -2039,6 +2830,9 @@ void IntercomModule::handleVoipContactsReply()
     if (globalState()) {
         globalState()->setVoipSpeakers(speakerList);
         globalState()->setVoipAvailable(!speakerList.isEmpty());
+        if (globalState()->intercomRooms().size() <= 1) {
+            fetchRooms();
+        }
     }
 }
 

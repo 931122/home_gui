@@ -108,6 +108,13 @@ struct XiaozhiConfig
     int wakeGpioDebounceMs = 80;
 };
 
+struct IntercomRoomConfig
+{
+    QString roomId;
+    QString roomName;
+    QString icon;
+};
+
 struct IntercomConfig
 {
     bool enabled = true;
@@ -122,6 +129,7 @@ struct IntercomConfig
     QString backend = QStringLiteral("embedded"); // VoIP 后端: embedded
     QString defaultRoomId = QStringLiteral("WHOLE_0");
     QString serverUrl = QStringLiteral("https://i.xiaomixiaoai.com");
+    QList<IntercomRoomConfig> rooms;
 };
 
 struct UiConfig
@@ -153,6 +161,7 @@ Q_DECLARE_METATYPE(WeatherConfig)
 Q_DECLARE_METATYPE(WifiConfig)
 Q_DECLARE_METATYPE(ScreenPowerConfig)
 Q_DECLARE_METATYPE(XiaozhiConfig)
+Q_DECLARE_METATYPE(IntercomRoomConfig)
 Q_DECLARE_METATYPE(IntercomConfig)
 Q_DECLARE_METATYPE(AppConfig)
 

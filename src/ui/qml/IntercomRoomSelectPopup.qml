@@ -16,8 +16,8 @@ GlassPopup {
 
     signal speakerSelectRequested()
 
-    width: Math.min((Overlay.overlay ? Overlay.overlay.width : 800) * 0.90, Theme.dp(isPortrait ? 400 : 440))
-    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.88, Theme.dp(isPortrait ? 420 : 360))
+    width: Math.min((Overlay.overlay ? Overlay.overlay.width : 800) * 0.92, Theme.dp(isPortrait ? 400 : 460))
+    height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.90, Theme.dp(isPortrait ? 460 : 380))
 
     function dp(val) { return Theme.dp(val) }
     function fs(val) { return Theme.fs(val) }
@@ -106,7 +106,9 @@ GlassPopup {
                         scaleUnit: root.scaleUnit
                         styleType: modelData.isWholeHouse ? "primary" : "neutral"
                         implicitHeight: root.dp(44)
-                        implicitWidth: Math.max(root.dp(100), (roomsFlow.width - root.dp(10)) / 2)
+                        implicitWidth: modelData.isWholeHouse
+                                       ? roomsFlow.width
+                                       : Math.max(root.dp(100), (roomsFlow.width - root.dp(10)) / 2)
                         text: (modelData.icon ? (modelData.icon + " ") : "") + modelData.roomName
                         textPixelSize: root.fs(13)
 

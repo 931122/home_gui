@@ -139,3 +139,7 @@ intercom:
   micoapiServiceToken: ''
   mimcId: ''
   userId: ''
+  # 自定义房间列表（可选，默认留空即可自动同步有放小爱的房间）
+  # rooms:
+  #   - name: 客厅
+  #   - name: 主卧

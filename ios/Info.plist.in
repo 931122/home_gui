@@ -20,6 +20,8 @@
     <string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
     <key>CFBundleVersion</key>
     <string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon60x60</string>
     <key>CFBundleIcons</key>
     <dict>
         <key>CFBundlePrimaryIcon</key>
@@ -30,9 +32,10 @@
                 <string>AppIcon29x29</string>
                 <string>AppIcon40x40</string>
                 <string>AppIcon60x60</string>
+                <string>AppIcon</string>
             </array>
-            <key>CFBundleIconName</key>
-            <string>AppIcon</string>
+            <key>UIPrerenderedIcon</key>
+            <true/>
         </dict>
     </dict>
     <key>CFBundleIcons~ipad</key>
@@ -47,9 +50,10 @@
                 <string>AppIcon60x60</string>
                 <string>AppIcon76x76</string>
                 <string>AppIcon83.5x83.5</string>
+                <string>AppIcon</string>
             </array>
-            <key>CFBundleIconName</key>
-            <string>AppIcon</string>
+            <key>UIPrerenderedIcon</key>
+            <true/>
         </dict>
     </dict>
     <key>LSRequiresIPhoneOS</key>

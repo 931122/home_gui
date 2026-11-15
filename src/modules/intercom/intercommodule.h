@@ -12,6 +12,7 @@
 #include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QSettings>
 
 #include "core/imodule.h"
 #include "audiorecorder.h"
@@ -102,12 +103,19 @@ private:
     void ensureDeviceId();
     void initDefaultRooms();
     void parseRoomsFromJson(const QByteArray &payload);
+    void fetchMinaDeviceRooms(const QString &token);
+    void parseMinaDeviceRooms(const QByteArray &payload);
     void clearAuthCookiesForSid(const QString &sid, bool includePassToken = false);
     QString extractCookieOrHeaderValue(QNetworkReply *reply, const QString &cookieName, const QList<QUrl> &preferredUrls) const;
     QString extractServiceToken(QNetworkReply *reply, const QString &sid = QString());
     QString extractPassToken(QNetworkReply *reply, const QJsonObject &jsonObj = QJsonObject()) const;
     void applyLoginTokens(const QString &userId, const QString &sid, const QString &token, const QString &passToken, const QString &statusMsg = QString());
     void exchangeTokenWithPassToken(const QString &sid);
+    void exchangeOAuthTokenWithPassToken();
+    void handleOAuthServiceLoginReply(QNetworkReply *reply, const QString &userId, const QString &passToken);
+    void requestOAuthAuthorizeCode(const QString &userId, const QString &passToken);
+    void handleOAuthAuthorizeRedirect(QNetworkReply *reply, const QString &userId, const QString &passToken, int hopCount = 0);
+    void requestOAuthTokenByCode(const QString &authCode);
     static QString buildStsUrl(const QString &locationUrl, const QString &nonce, const QString &ssecurity);
     void startVoipSession(bool directIntercom, const QString &targetDeviceId, const QString &targetDeviceName,
                           const QString &avatar, const QString &uid, const QString &deviceModel,
@@ -153,8 +161,13 @@ private:
     QString m_qrCandidateSsecurity;
     QString m_qrCandidateNonce;
     QSet<QString> m_pendingTokenExchanges;
+    bool m_oauthExchanging = false;
+    QString m_pendingTargetRoomId;
+    QString m_pendingTargetRoomName;
     bool m_retriedVoip401 = false;
     bool m_retriedMicoapi5003 = false;
+    QMap<QString, QString> m_roomNameToId;
+    QMap<QString, QString> m_deviceToRoomMap;
     IVoipBackend *m_voipBackend = nullptr;
     QString m_activeVoipBackendName;
     static IntercomModule *s_instance;

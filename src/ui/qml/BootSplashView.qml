@@ -47,7 +47,7 @@ Item {
         }
     }
 
-    // 科技芯片徽章与内部脉冲折线
+    // 应用图标徽章与光晕
     Item {
         id: badgeItem
         x: splashRoot.width / 2 - splashRoot.logoSize / 2
@@ -55,34 +55,14 @@ Item {
         width: splashRoot.logoSize
         height: splashRoot.logoSize
 
-        // 芯片圆角外框
-        Rectangle {
-            anchors.fill: parent
-            radius: splashRoot.logoSize * 0.24
-            color: "#102433"
-            border.color: "#5bc4d8"
-            border.width: Math.max(2, Math.round(2 * splashRoot.scaleRatio))
-        }
-
-        // 心跳/脉冲折线（严格还原 Linux bootsplash.cpp 折线坐标）
-        Canvas {
-            id: lineCanvas
-            anchors.fill: parent
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.clearRect(0, 0, width, height)
-                ctx.strokeStyle = "#f2fbff"
-                ctx.lineWidth = Math.max(5, Math.round(7 * splashRoot.scaleRatio))
-                ctx.lineCap = "round"
-                ctx.lineJoin = "round"
-
-                ctx.beginPath()
-                ctx.moveTo(width * 0.28, height * 0.62)
-                ctx.lineTo(width * 0.45, height * 0.38)
-                ctx.lineTo(width * 0.64, height * 0.62)
-                ctx.lineTo(width * 0.78, height * 0.42)
-                ctx.stroke()
-            }
+        Image {
+            anchors.centerIn: parent
+            width: splashRoot.logoSize
+            height: splashRoot.logoSize
+            source: "qrc:/icons/app_icon.png"
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
         }
     }
 

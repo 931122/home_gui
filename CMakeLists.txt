@@ -74,14 +74,25 @@ if(ANDROID)
         )
     endif()
 elseif(IOS)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavformat.a")
+    set(IOS_FFMPEG_LIB_DIR "")
+    if(CMAKE_OSX_SYSROOT MATCHES "iphonesimulator")
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib-simulator/libavformat.a")
+            set(IOS_FFMPEG_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib-simulator")
+        endif()
+    else()
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavformat.a")
+            set(IOS_FFMPEG_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib")
+        endif()
+    endif()
+
+    if(IOS_FFMPEG_LIB_DIR AND EXISTS "${IOS_FFMPEG_LIB_DIR}/libavformat.a")
         set(FFMPEG_FOUND TRUE)
         add_compile_definitions(HOME_GUI_HAS_FFMPEG)
         set(IOS_FFMPEG_LIBRARIES
-            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavformat.a"
-            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavcodec.a"
-            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libswscale.a"
-            "${CMAKE_CURRENT_SOURCE_DIR}/ios/ffmpeg/lib/libavutil.a"
+            "${IOS_FFMPEG_LIB_DIR}/libavformat.a"
+            "${IOS_FFMPEG_LIB_DIR}/libavcodec.a"
+            "${IOS_FFMPEG_LIB_DIR}/libswscale.a"
+            "${IOS_FFMPEG_LIB_DIR}/libavutil.a"
         )
     endif()
 else()
@@ -214,6 +225,8 @@ elseif(IOS)
         src/core/platform_ios.mm
         src/modules/intercom/backends/agoramediabridge_ios.h
         src/modules/intercom/backends/agoramediabridge_ios.mm
+        src/modules/intercom/audiorecorder_ios.h
+        src/modules/intercom/audiorecorder_ios.mm
     )
     target_compile_definitions(home_gui PRIVATE MILINK_USE_APPLE_CRYPTO)
 

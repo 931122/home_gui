@@ -796,7 +796,7 @@ EOF
 }
 
 run_ios_build() {
-    local target_type="${2:-simulator}"
+    local target_type="${2:-device}"
     local host_os
     host_os="$(detect_host_os)"
     if [[ "${host_os}" != "macos" ]]; then
@@ -858,12 +858,13 @@ run_ios_build() {
     fi
 
     # 2. 检查 Xcode 与 SDK
-    local sdk="iphonesimulator"
-    local want_ipa="0"
+    local sdk="iphoneos"
+    local want_ipa="1"
     case "${target_type}" in
         device|iphoneos|arm64)
             sdk="iphoneos"
             target_type="device"
+            want_ipa="1"
             ;;
         ipa|package)
             sdk="iphoneos"
@@ -873,11 +874,13 @@ run_ios_build() {
         simulator|iphonesimulator|sim)
             sdk="iphonesimulator"
             target_type="simulator"
+            want_ipa="0"
             ;;
         *)
-            echo "Unknown iOS target type: ${target_type}. Defaulting to simulator."
-            sdk="iphonesimulator"
-            target_type="simulator"
+            echo "Unknown iOS target type: ${target_type}. Defaulting to device (iphoneos)."
+            sdk="iphoneos"
+            target_type="device"
+            want_ipa="1"
             ;;
     esac
 
@@ -890,6 +893,15 @@ run_ios_build() {
     echo "  Build Dir  : ${build_dir}"
     echo "================================"
 
+    if [[ -f "${build_dir}/CMakeCache.txt" ]]; then
+        local cached_sdk
+        cached_sdk="$(grep -E '^CMAKE_OSX_SYSROOT:STRING=' "${build_dir}/CMakeCache.txt" | cut -d'=' -f2 || true)"
+        if [[ -n "${cached_sdk}" && "${cached_sdk}" != "${sdk}" ]]; then
+            echo "Target SDK changed (${cached_sdk} -> ${sdk}). Cleaning ${build_dir} to avoid sysroot conflicts..."
+            rm -rf "${build_dir}"
+        fi
+    fi
+
     mkdir -p "${build_dir}"
     cd "${build_dir}"
 
@@ -900,6 +912,29 @@ run_ios_build() {
         curl -fL --max-time 180 -o "${agora_zip}" "https://download.agora.io/sdk/release/AgoraAudio_iOS-3.7.2.zip"
         unzip -q -o "${agora_zip}" -d "${ROOT_DIR}/ios/agora"
         rm -f "${agora_zip}"
+    fi
+
+    if [[ "${sdk}" == "iphonesimulator" && -d "${ROOT_DIR}/ios/ffmpeg/lib" && ! -f "${ROOT_DIR}/ios/ffmpeg/lib-simulator/libavformat.a" ]]; then
+        if command -v xcrun >/dev/null 2>&1 && xcrun -find vtool >/dev/null 2>&1; then
+            echo "Generating iOS Simulator compatible FFmpeg libraries in ios/ffmpeg/lib-simulator..."
+            mkdir -p "${ROOT_DIR}/ios/ffmpeg/lib-simulator"
+            for lib in "${ROOT_DIR}/ios/ffmpeg/lib/"*.a; do
+                [[ -f "${lib}" ]] || continue
+                local name
+                name="$(basename "${lib}")"
+                local tmpdir
+                tmpdir="$(mktemp -d)"
+                (
+                    cd "${tmpdir}"
+                    ar -x "${lib}"
+                    for obj in *.o; do
+                        xcrun vtool -set-build-version 7 15.0 17.2 -replace -output "${obj}" "${obj}" 2>/dev/null || true
+                    done
+                    libtool -static -o "${ROOT_DIR}/ios/ffmpeg/lib-simulator/${name}" *.o 2>/dev/null
+                )
+                rm -rf "${tmpdir}"
+            done
+        fi
     fi
 
     ensure_qsb_shaders
@@ -1003,11 +1038,30 @@ run_ios_build() {
             exit 1
         fi
 
+        # Ensure iOS app icons are present in app bundle
+        if [[ -d "${ROOT_DIR}/ios/icons" ]]; then
+            cp -f "${ROOT_DIR}/ios/icons/"*.png "${app_bundle}/" 2>/dev/null || true
+            cp -f "${ROOT_DIR}/resources/icons/app_icon.png" "${app_bundle}/AppIcon.png" 2>/dev/null || true
+            cp -f "${ROOT_DIR}/ios/icons/AppIcon60x60@2x.png" "${app_bundle}/AppIcon60x60.png" 2>/dev/null || true
+        fi
+
         local stage_dir="${build_dir}/.ipa_stage"
         local stage_app="${stage_dir}/Payload/home_gui.app"
         rm -rf "${stage_dir}" "${final_ipa}"
         mkdir -p "${stage_dir}/Payload"
         ditto "${app_bundle}" "${stage_app}"
+
+        # Ensure flat iOS bundle layout: NO nested Resources/ directory (causes Missing bundle ID in iOS CFBundle)
+        # and do NOT bundle config.yaml into the IPA package
+        rm -rf "${stage_app}/Resources" "${stage_app}/config.yaml" "${stage_app}/config.yaml.example"
+        rm -rf "${app_bundle}/Resources" "${app_bundle}/config.yaml" "${app_bundle}/config.yaml.example"
+
+        # Ensure iOS app icons are present in staged app bundle
+        if [[ -d "${ROOT_DIR}/ios/icons" ]]; then
+            cp -f "${ROOT_DIR}/ios/icons/"*.png "${stage_app}/" 2>/dev/null || true
+            cp -f "${ROOT_DIR}/resources/icons/app_icon.png" "${stage_app}/AppIcon.png" 2>/dev/null || true
+            cp -f "${ROOT_DIR}/ios/icons/AppIcon60x60@2x.png" "${stage_app}/AppIcon60x60.png" 2>/dev/null || true
+        fi
 
         find "${stage_app}" -name "_CodeSignature" -type d -prune -exec rm -rf {} + 2>/dev/null || true
         find "${stage_app}" -name ".DS_Store" -type f -delete 2>/dev/null || true

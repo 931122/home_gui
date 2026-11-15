@@ -3,10 +3,15 @@
 #include <QtEndian>
 #include <cmath>
 #include <QDebug>
+#include <QFile>
 #include <QCoreApplication>
 
 #if QT_CONFIG(permissions)
 #include <QPermissions>
+#endif
+
+#if defined(Q_OS_IOS)
+#include "audiorecorder_ios.h"
 #endif
 
 #if defined(Q_OS_ANDROID)
@@ -25,13 +30,16 @@ static aaudio_data_callback_result_t aaudioDataCallback(
     }
 
     const int byteCount = numFrames * static_cast<int>(sizeof(qint16));
-    const QByteArray chunk(reinterpret_cast<const char *>(audioData), byteCount);
-
-    QMetaObject::invokeMethod(self, [self, chunk]() {
-        self->handleAudioChunk(chunk);
-    }, Qt::QueuedConnection);
+    self->handleAndroidAudioFrame(reinterpret_cast<const char *>(audioData), byteCount);
 
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
+}
+
+void AudioRecorder::handleAndroidAudioFrame(const char *data, int len)
+{
+    if (len <= 0) return;
+    QMutexLocker locker(&m_androidPcmMutex);
+    m_androidPcmBuffer.append(data, len);
 }
 #endif
 
@@ -40,6 +48,9 @@ AudioRecorder::AudioRecorder(QObject *parent)
 {
     m_tickTimer.setInterval(100);
     connect(&m_tickTimer, &QTimer::timeout, this, &AudioRecorder::handleTimerTick);
+#if defined(Q_OS_IOS)
+    AudioRecorderIos::requestPermissionIfNeeded();
+#endif
 }
 
 AudioRecorder::~AudioRecorder()
@@ -68,7 +79,7 @@ bool AudioRecorder::startRecording()
         return true;
     }
 
-#if QT_CONFIG(permissions)
+#if QT_CONFIG(permissions) && !defined(Q_OS_IOS)
     QMicrophonePermission micPermission;
     switch (qApp->checkPermission(micPermission)) {
     case Qt::PermissionStatus::Undetermined:
@@ -118,6 +129,10 @@ bool AudioRecorder::startRecording()
 
     connect(m_audioIo, &QIODevice::readyRead, this, &AudioRecorder::handleAudioDataReady);
 #elif defined(Q_OS_ANDROID)
+    {
+        QMutexLocker locker(&m_androidPcmMutex);
+        m_androidPcmBuffer.clear();
+    }
     if (m_aaudioStream) {
         AAudioStream_close(m_aaudioStream);
         m_aaudioStream = nullptr;
@@ -131,6 +146,7 @@ bool AudioRecorder::startRecording()
         AAudioStreamBuilder_setChannelCount(builder, 1);
         AAudioStreamBuilder_setFormat(builder, AAUDIO_FORMAT_PCM_I16);
         AAudioStreamBuilder_setPerformanceMode(builder, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
+        AAudioStreamBuilder_setInputPreset(builder, AAUDIO_INPUT_PRESET_VOICE_COMMUNICATION);
         AAudioStreamBuilder_setDataCallback(builder, aaudioDataCallback, this);
 
         res = AAudioStreamBuilder_openStream(builder, &m_aaudioStream);
@@ -153,6 +169,11 @@ bool AudioRecorder::startRecording()
         }
     } else {
         emit errorOccurred(tr("创建音频流构建器失败"));
+        return false;
+    }
+#elif defined(Q_OS_IOS)
+    if (!AudioRecorderIos::startRecording(this)) {
+        m_buffer.close();
         return false;
     }
 #endif
@@ -220,7 +241,23 @@ void AudioRecorder::handleTimerTick()
     const int seconds = static_cast<int>(m_elapsedTimer.elapsed() / 1000);
     emit durationUpdated(seconds);
 
-#if !defined(HOME_GUI_HAS_MULTIMEDIA) && !defined(Q_OS_ANDROID)
+#if defined(Q_OS_IOS)
+    const qreal iosLvl = AudioRecorderIos::currentAudioLevel();
+    m_audioLevel = iosLvl;
+    emit audioLevelChanged(iosLvl);
+#elif defined(Q_OS_ANDROID)
+    QByteArray recentChunk;
+    {
+        QMutexLocker locker(&m_androidPcmMutex);
+        const int sampleBytes = 640;
+        if (m_androidPcmBuffer.size() >= sampleBytes) {
+            recentChunk = m_androidPcmBuffer.right(sampleBytes);
+        }
+    }
+    if (!recentChunk.isEmpty()) {
+        calculateAudioLevel(recentChunk);
+    }
+#elif !defined(HOME_GUI_HAS_MULTIMEDIA)
     // 模拟录音电平波动（针对无多媒体库平台保活）
     static int phase = 0;
     phase = (phase + 1) % 10;
@@ -260,6 +297,47 @@ QByteArray AudioRecorder::stopRecording(qint64 *outDurationMs)
         AAudioStream_close(m_aaudioStream);
         m_aaudioStream = nullptr;
     }
+    QByteArray capturedPcm;
+    {
+        QMutexLocker locker(&m_androidPcmMutex);
+        capturedPcm = m_androidPcmBuffer;
+        m_androidPcmBuffer.clear();
+    }
+    m_buffer.close();
+    m_buffer.setData(capturedPcm);
+
+    // 计算采样峰值与 RMS 并输出日志
+    qint16 maxAmp = 0;
+    double sumSq = 0.0;
+    const int numSamples = capturedPcm.size() / 2;
+    const qint16 *samples = reinterpret_cast<const qint16 *>(capturedPcm.constData());
+    for (int i = 0; i < numSamples; ++i) {
+        const qint16 s = std::abs(samples[i]);
+        if (s > maxAmp) maxAmp = s;
+        sumSq += static_cast<double>(s) * s;
+    }
+    const double rms = numSamples > 0 ? std::sqrt(sumSq / numSamples) : 0.0;
+    qInfo() << "[AudioRecorder::stopRecording] Android PCM captured: bytes=" << capturedPcm.size()
+            << "durationMs=" << m_durationMs
+            << "peakAmp=" << maxAmp
+            << "rms=" << rms;
+
+    QFile debugFile(QStringLiteral("/sdcard/home_gui_last_speech.pcm"));
+    if (debugFile.open(QIODevice::WriteOnly)) {
+        debugFile.write(capturedPcm);
+        debugFile.close();
+    }
+#elif defined(Q_OS_IOS)
+    m_buffer.close();
+    const QByteArray iosPcm = AudioRecorderIos::stopRecording();
+    m_buffer.setData(iosPcm);
+    m_audioLevel = 0.0;
+    emit audioLevelChanged(0.0);
+    emit recordingStopped(m_durationMs);
+    if (outDurationMs) {
+        *outDurationMs = m_durationMs;
+    }
+    return iosPcm;
 #else
     // 降级模式：若无多媒体模块且非 Android，生成静音/测试 16kHz PCM
     if (m_buffer.size() == 0) {
@@ -302,6 +380,12 @@ void AudioRecorder::cancelRecording()
         AAudioStream_close(m_aaudioStream);
         m_aaudioStream = nullptr;
     }
+    {
+        QMutexLocker locker(&m_androidPcmMutex);
+        m_androidPcmBuffer.clear();
+    }
+#elif defined(Q_OS_IOS)
+    AudioRecorderIos::cancelRecording();
 #endif
 
     m_buffer.close();
