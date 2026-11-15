@@ -441,6 +441,26 @@ QString GlobalState::mimcId() const
     return m_mimcId;
 }
 
+QVariantList GlobalState::xiaoaiDialogueRecords() const
+{
+    return m_xiaoaiDialogueRecords;
+}
+
+bool GlobalState::xiaoaiDialogueLoading() const
+{
+    return m_xiaoaiDialogueLoading;
+}
+
+QString GlobalState::xiaoaiDialogueError() const
+{
+    return m_xiaoaiDialogueError;
+}
+
+qint64 GlobalState::xiaoaiDialogueNextTimestamp() const
+{
+    return m_xiaoaiDialogueNextTimestamp;
+}
+
 void GlobalState::setIntercomAvailable(bool available)
 {
     if (m_intercomAvailable == available) {
@@ -646,4 +666,35 @@ void GlobalState::setMicoapiServiceToken(const QString &token)
 void GlobalState::setMimcId(const QString &mimcId)
 {
     m_mimcId = mimcId;
+}
+
+void GlobalState::setXiaoaiDialogueRecords(const QVariantList &records, bool append)
+{
+    if (append) {
+        m_xiaoaiDialogueRecords.append(records);
+    } else {
+        m_xiaoaiDialogueRecords = records;
+    }
+    emit xiaoaiDialogueRecordsChanged();
+}
+
+void GlobalState::setXiaoaiDialogueLoading(bool loading)
+{
+    if (m_xiaoaiDialogueLoading == loading) return;
+    m_xiaoaiDialogueLoading = loading;
+    emit xiaoaiDialogueLoadingChanged();
+}
+
+void GlobalState::setXiaoaiDialogueError(const QString &error)
+{
+    if (m_xiaoaiDialogueError == error) return;
+    m_xiaoaiDialogueError = error;
+    emit xiaoaiDialogueErrorChanged();
+}
+
+void GlobalState::setXiaoaiDialogueNextTimestamp(qint64 ts)
+{
+    if (m_xiaoaiDialogueNextTimestamp == ts) return;
+    m_xiaoaiDialogueNextTimestamp = ts;
+    emit xiaoaiDialogueNextTimestampChanged();
 }

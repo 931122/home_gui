@@ -23,6 +23,7 @@
         <file alias="qml/IntercomLoginPopup.qml">../src/ui/qml/IntercomLoginPopup.qml</file>
         <file alias="qml/VoipCallPopup.qml">../src/ui/qml/VoipCallPopup.qml</file>
         <file alias="qml/VoipSpeakerSelectPopup.qml">../src/ui/qml/VoipSpeakerSelectPopup.qml</file>
+        <file alias="qml/XiaoaiDialoguePopup.qml">../src/ui/qml/XiaoaiDialoguePopup.qml</file>
         <file alias="qml/TapToWakeOverlay.qml">../src/ui/qml/TapToWakeOverlay.qml</file>
         <file alias="qml/CookerPopup.qml">../src/ui/qml/CookerPopup.qml</file>
         <file alias="qml/CookerRecipes.js">../src/ui/qml/CookerRecipes.js</file>

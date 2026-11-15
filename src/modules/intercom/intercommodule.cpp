@@ -2836,6 +2836,365 @@ void IntercomModule::handleVoipContactsReply()
     }
 }
 
+void IntercomModule::fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware, qint64 timestamp, bool append)
+{
+    const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;
+    if (token.isEmpty() || m_config.userId.isEmpty()) {
+        qWarning() << "[IntercomModule] Cannot fetch XiaoAi dialogue: token or userId is empty.";
+        if (globalState()) {
+            globalState()->setXiaoaiDialogueLoading(false);
+            globalState()->setXiaoaiDialogueError(tr("未登录小米账号或凭证为空"));
+        }
+        return;
+    }
+
+    if (globalState()) {
+        globalState()->setXiaoaiDialogueLoading(true);
+        globalState()->setXiaoaiDialogueError(QString());
+    }
+    m_dialogueAppend = append;
+
+    QString hw = hardware.trimmed();
+    QString devId = deviceId.trimmed();
+    if (hw.isEmpty() && globalState()) {
+        const QVariantList speakers = globalState()->voipSpeakers();
+        for (const QVariant &spVar : speakers) {
+            const QVariantMap sp = spVar.toMap();
+            if (devId.isEmpty() || sp.value(QStringLiteral("deviceId")).toString() == devId) {
+                hw = sp.value(QStringLiteral("deviceModel")).toString();
+                if (devId.isEmpty()) {
+                    devId = sp.value(QStringLiteral("deviceId")).toString();
+                }
+                break;
+            }
+        }
+    }
+    if (hw.isEmpty()) {
+        hw = QStringLiteral("LX06");
+    }
+    if (devId.isEmpty()) {
+        devId = m_config.deviceId.trimmed();
+    }
+
+    const qint64 queryTs = (timestamp > 0) ? timestamp : QDateTime::currentMSecsSinceEpoch();
+
+    QUrl url(QStringLiteral("https://userprofile.mina.mi.com/device_profile/v2/conversation"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("source"), QStringLiteral("dialogu"));
+    query.addQueryItem(QStringLiteral("hardware"), hw);
+    query.addQueryItem(QStringLiteral("timestamp"), QString::number(queryTs));
+    query.addQueryItem(QStringLiteral("limit"), QStringLiteral("20"));
+    url.setQuery(query);
+
+    QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "MISoundBox/2.4.45 (Linux; U; Android 14; zh_CN; MI 8) Mobile");
+    const QString cookie = QStringLiteral("userId=%1; serviceToken=%2; deviceId=%3")
+                               .arg(m_config.userId)
+                               .arg(token)
+                               .arg(devId);
+    request.setRawHeader("Cookie", cookie.toUtf8());
+
+    qInfo() << "[IntercomModule] Fetching XiaoAi dialogue for hardware:" << hw << "deviceId:" << devId << "timestamp:" << queryTs;
+
+    QNetworkReply *reply = m_networkManager.get(request);
+    connect(reply, &QNetworkReply::finished, this, &IntercomModule::handleXiaoaiDialogueReply);
+}
+
+void IntercomModule::handleXiaoaiDialogueReply()
+{
+    auto *reply = qobject_cast<QNetworkReply *>(sender());
+    if (!reply) return;
+    reply->deleteLater();
+
+    if (globalState()) {
+        globalState()->setXiaoaiDialogueLoading(false);
+    }
+
+    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (reply->error() != QNetworkReply::NoError) {
+        qWarning() << "[IntercomModule] Fetch XiaoAi dialogue network error:" << httpStatus << reply->errorString();
+        if (globalState()) {
+            globalState()->setXiaoaiDialogueError(tr("网络错误 (%1): %2").arg(httpStatus).arg(reply->errorString()));
+        }
+        if (httpStatus == 401 && !m_retriedVoip401 && !m_config.userId.trimmed().isEmpty() && !m_config.passToken.trimmed().isEmpty()) {
+            m_retriedVoip401 = true;
+            exchangeTokenWithPassToken(QStringLiteral("micoapi"));
+        }
+        return;
+    }
+
+    const QByteArray payload = reply->readAll();
+    qInfo() << "[IntercomModule] XiaoAi dialogue reply length:" << payload.length();
+    qInfo().noquote() << "[XiaoAiDump]" << payload;
+
+    QJsonDocument doc = QJsonDocument::fromJson(payload);
+    if (!doc.isObject()) {
+        if (globalState()) {
+            globalState()->setXiaoaiDialogueError(tr("返回数据格式错误"));
+        }
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonObject dataObj;
+    QJsonValue dataVal = root.value(QStringLiteral("data"));
+    if (dataVal.isString()) {
+        dataObj = QJsonDocument::fromJson(dataVal.toString().toUtf8()).object();
+    } else if (dataVal.isObject()) {
+        dataObj = dataVal.toObject();
+    } else if (root.contains(QStringLiteral("records"))) {
+        dataObj = root;
+    }
+
+    QJsonArray recordsArr = dataObj.value(QStringLiteral("records")).toArray();
+    QVariantList recordList;
+    qint64 earliestTs = 0;
+    if (dataObj.contains(QStringLiteral("nextTimestamp"))) {
+        earliestTs = dataObj.value(QStringLiteral("nextTimestamp")).toVariant().toLongLong();
+    }
+
+    for (const QJsonValue &rVal : recordsArr) {
+        QJsonObject rObj = rVal.toObject();
+        QVariantMap item;
+
+        // 1. 时间戳解析：优先 "time"，次选 "timestamp"
+        qint64 timeMs = rObj.value(QStringLiteral("time")).toVariant().toLongLong();
+        if (timeMs <= 0) {
+            timeMs = rObj.value(QStringLiteral("timestamp")).toVariant().toLongLong();
+        }
+        if (earliestTs == 0 || (timeMs > 0 && timeMs < earliestTs)) {
+            earliestTs = timeMs;
+        }
+
+        // 2. 用户问题 query 解析 (支持 recordGroup 嵌套格式)
+        QString query = rObj.value(QStringLiteral("query")).toString();
+        if (query.isEmpty()) {
+            query = rObj.value(QStringLiteral("question")).toString();
+        }
+
+        QJsonObject recordGroupObj;
+        if (rObj.contains(QStringLiteral("recordGroup"))) {
+            const QJsonValue rgVal = rObj.value(QStringLiteral("recordGroup"));
+            if (rgVal.isString()) {
+                recordGroupObj = QJsonDocument::fromJson(rgVal.toString().toUtf8()).object();
+            } else if (rgVal.isObject()) {
+                recordGroupObj = rgVal.toObject();
+            }
+        }
+        if (!recordGroupObj.isEmpty() && query.isEmpty()) {
+            query = recordGroupObj.value(QStringLiteral("user")).toObject().value(QStringLiteral("content")).toString();
+        }
+
+        item.insert(QStringLiteral("query"), query);
+        item.insert(QStringLiteral("timestamp"), timeMs);
+
+        QDateTime dt = QDateTime::fromMSecsSinceEpoch(timeMs);
+        item.insert(QStringLiteral("timeStr"), dt.toString(QStringLiteral("yyyy-MM-dd HH:mm:ss")));
+        item.insert(QStringLiteral("timeShort"), dt.toString(QStringLiteral("HH:mm")));
+
+        // 3. 回答解析 (支持 answers 数组、recordGroup.xiaoai、以及顶层 toSpeak/content)
+        QString replySummary;
+        QVariantList answersList;
+
+        // 3a. 先从 recordGroup.xiaoai 中提取
+        if (!recordGroupObj.isEmpty()) {
+            const QJsonObject xiaoaiObj = recordGroupObj.value(QStringLiteral("xiaoai")).toObject();
+            const QString xContent = xiaoaiObj.value(QStringLiteral("content")).toString();
+            if (!xContent.isEmpty()) {
+                replySummary = xContent;
+            }
+            // 检查 instructions
+            QJsonArray instArr = xiaoaiObj.value(QStringLiteral("instructionList")).toArray();
+            if (instArr.isEmpty() && xiaoaiObj.value(QStringLiteral("instructions")).isString()) {
+                instArr = QJsonDocument::fromJson(xiaoaiObj.value(QStringLiteral("instructions")).toString().toUtf8()).array();
+            }
+            for (const QJsonValue &iVal : instArr) {
+                const QString payloadText = iVal.toObject().value(QStringLiteral("payload")).toObject().value(QStringLiteral("text")).toString();
+                if (!payloadText.isEmpty()) {
+                    if (replySummary.isEmpty()) replySummary = payloadText;
+                    break;
+                }
+            }
+            // 检查 widgets
+            QJsonArray widgetArr = xiaoaiObj.value(QStringLiteral("widgetList")).toArray();
+            if (widgetArr.isEmpty() && xiaoaiObj.value(QStringLiteral("widget")).isString()) {
+                widgetArr = QJsonDocument::fromJson(xiaoaiObj.value(QStringLiteral("widget")).toString().toUtf8()).array();
+            }
+            for (const QJsonValue &wVal : widgetArr) {
+                const QJsonObject wObj = wVal.toObject();
+                const QString wText = wObj.value(QStringLiteral("text")).toString();
+                const QString wTitle = wObj.value(QStringLiteral("title")).toString();
+                if (!wText.isEmpty()) {
+                    if (replySummary.isEmpty()) replySummary = wText;
+                    break;
+                } else if (!wTitle.isEmpty()) {
+                    if (replySummary.isEmpty()) replySummary = wTitle;
+                    break;
+                }
+            }
+        }
+
+        // 3b. 检查 rObj 顶层文本字段
+        if (replySummary.isEmpty()) {
+            if (rObj.contains(QStringLiteral("toSpeak")) && !rObj.value(QStringLiteral("toSpeak")).toString().isEmpty()) {
+                replySummary = rObj.value(QStringLiteral("toSpeak")).toString();
+            } else if (rObj.contains(QStringLiteral("content")) && !rObj.value(QStringLiteral("content")).toString().isEmpty()) {
+                replySummary = rObj.value(QStringLiteral("content")).toString();
+            } else if (rObj.contains(QStringLiteral("reply")) && !rObj.value(QStringLiteral("reply")).toString().isEmpty()) {
+                replySummary = rObj.value(QStringLiteral("reply")).toString();
+            } else if (rObj.contains(QStringLiteral("text")) && !rObj.value(QStringLiteral("text")).toString().isEmpty()) {
+                replySummary = rObj.value(QStringLiteral("text")).toString();
+            }
+        }
+
+        // 3c. 解析 answers 数组
+        QJsonArray answersArr = rObj.value(QStringLiteral("answers")).toArray();
+        for (const QJsonValue &aVal : answersArr) {
+            if (aVal.isString()) {
+                const QString sText = aVal.toString().trimmed();
+                if (!sText.isEmpty()) {
+                    QVariantMap ans;
+                    ans.insert(QStringLiteral("type"), QStringLiteral("TEXT"));
+                    ans.insert(QStringLiteral("text"), sText);
+                    answersList.append(ans);
+                    if (replySummary.isEmpty()) replySummary = sText;
+                }
+                continue;
+            }
+
+            if (!aVal.isObject()) continue;
+            QJsonObject aObj = aVal.toObject();
+            QVariantMap ans;
+            const QString type = aObj.value(QStringLiteral("type")).toString();
+            ans.insert(QStringLiteral("type"), type);
+
+            QString ansText;
+            // 1. 小爱大模型 (LLM) 回复，例如天气、问答、闲聊等
+            if (aObj.contains(QStringLiteral("llm"))) {
+                const QJsonValue llmVal = aObj.value(QStringLiteral("llm"));
+                if (llmVal.isString()) {
+                    ansText = llmVal.toString();
+                } else if (llmVal.isObject()) {
+                    const QJsonObject llmObj = llmVal.toObject();
+                    ansText = llmObj.value(QStringLiteral("text")).toString();
+                    if (ansText.isEmpty()) ansText = llmObj.value(QStringLiteral("content")).toString();
+                    if (ansText.isEmpty()) ansText = llmObj.value(QStringLiteral("toSpeak")).toString();
+                }
+            }
+            // 2. 传统 TTS 语音回复
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("tts"))) {
+                const QJsonValue ttsVal = aObj.value(QStringLiteral("tts"));
+                if (ttsVal.isString()) {
+                    ansText = ttsVal.toString();
+                } else if (ttsVal.isObject()) {
+                    const QJsonObject ttsObj = ttsVal.toObject();
+                    ansText = ttsObj.value(QStringLiteral("text")).toString();
+                    if (ansText.isEmpty()) ansText = ttsObj.value(QStringLiteral("toSpeak")).toString();
+                    if (ansText.isEmpty()) ansText = ttsObj.value(QStringLiteral("content")).toString();
+                }
+            }
+            // 3. nlp 文本回复
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("nlp"))) {
+                const QJsonValue nlpVal = aObj.value(QStringLiteral("nlp"));
+                if (nlpVal.isString()) {
+                    ansText = nlpVal.toString();
+                } else if (nlpVal.isObject()) {
+                    const QJsonObject nlpObj = nlpVal.toObject();
+                    ansText = nlpObj.value(QStringLiteral("text")).toString();
+                    if (ansText.isEmpty()) ansText = nlpObj.value(QStringLiteral("toSpeak")).toString();
+                    if (ansText.isEmpty()) ansText = nlpObj.value(QStringLiteral("content")).toString();
+                }
+            }
+            // 4. 直接字段检查
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("text"))) {
+                ansText = aObj.value(QStringLiteral("text")).toString();
+            }
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("toSpeak"))) {
+                ansText = aObj.value(QStringLiteral("toSpeak")).toString();
+            }
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("content"))) {
+                ansText = aObj.value(QStringLiteral("content")).toString();
+            }
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("answer"))) {
+                ansText = aObj.value(QStringLiteral("answer")).toString();
+            }
+            if (ansText.isEmpty() && aObj.contains(QStringLiteral("payload"))) {
+                ansText = aObj.value(QStringLiteral("payload")).toObject().value(QStringLiteral("text")).toString();
+            }
+
+            // 5. 通用子对象遍历兜底：如果 aObj 的任何子对象包含有效 text/content/toSpeak
+            if (ansText.isEmpty()) {
+                for (auto it = aObj.constBegin(); it != aObj.constEnd(); ++it) {
+                    if (it.value().isObject()) {
+                        const QJsonObject subObj = it.value().toObject();
+                        if (subObj.contains(QStringLiteral("text")) && !subObj.value(QStringLiteral("text")).toString().trimmed().isEmpty()) {
+                            ansText = subObj.value(QStringLiteral("text")).toString();
+                            break;
+                        }
+                        if (subObj.contains(QStringLiteral("content")) && !subObj.value(QStringLiteral("content")).toString().trimmed().isEmpty()) {
+                            ansText = subObj.value(QStringLiteral("content")).toString();
+                            break;
+                        }
+                        if (subObj.contains(QStringLiteral("toSpeak")) && !subObj.value(QStringLiteral("toSpeak")).toString().trimmed().isEmpty()) {
+                            ansText = subObj.value(QStringLiteral("toSpeak")).toString();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!ansText.isEmpty()) {
+                ans.insert(QStringLiteral("text"), ansText);
+                if (replySummary.isEmpty()) replySummary = ansText;
+            }
+
+            if (type == QStringLiteral("AUDIO") || aObj.contains(QStringLiteral("audio"))) {
+                QJsonObject audioObj = aObj.value(QStringLiteral("audio")).toObject();
+                QJsonArray infoList = audioObj.value(QStringLiteral("audioInfoList")).toArray();
+                if (!infoList.isEmpty()) {
+                    QJsonObject firstAudio = infoList.at(0).toObject();
+                    const QString title = firstAudio.value(QStringLiteral("title")).toString();
+                    const QString artist = firstAudio.value(QStringLiteral("artist")).toString();
+                    ans.insert(QStringLiteral("title"), title);
+                    ans.insert(QStringLiteral("artist"), artist);
+                    if (replySummary.isEmpty()) {
+                        replySummary = artist.isEmpty() ? QStringLiteral("播放音频: %1").arg(title)
+                                                        : QStringLiteral("播放: %1 - %2").arg(title, artist);
+                    }
+                }
+            } else if (type == QStringLiteral("ALERT") || aObj.contains(QStringLiteral("alert"))) {
+                QJsonObject alertObj = aObj.value(QStringLiteral("alert")).toObject();
+                const QString dtStr = alertObj.value(QStringLiteral("datetime")).toString();
+                ans.insert(QStringLiteral("datetime"), dtStr);
+                if (replySummary.isEmpty()) replySummary = QStringLiteral("设置提醒: %1").arg(dtStr);
+            } else if (type == QStringLiteral("ERROR") || aObj.contains(QStringLiteral("error"))) {
+                const QString errText = aObj.value(QStringLiteral("error")).toObject().value(QStringLiteral("text")).toString();
+                ans.insert(QStringLiteral("errorText"), errText);
+                if (replySummary.isEmpty()) replySummary = errText;
+            }
+            answersList.append(ans);
+        }
+
+        // 若无任何回复文本/音频，保持 replySummary 为空，不显示占位气泡
+        const bool hasReply = !replySummary.trimmed().isEmpty() || !answersList.isEmpty();
+
+        item.insert(QStringLiteral("answers"), answersList);
+        item.insert(QStringLiteral("replySummary"), replySummary);
+        item.insert(QStringLiteral("hasReply"), hasReply);
+        recordList.append(item);
+    }
+
+    if (globalState()) {
+        globalState()->setXiaoaiDialogueNextTimestamp(earliestTs);
+        globalState()->setXiaoaiDialogueRecords(recordList, m_dialogueAppend);
+        if (recordList.isEmpty() && !m_dialogueAppend) {
+            globalState()->setXiaoaiDialogueError(tr("当前设备暂无对话记录"));
+        } else {
+            globalState()->setXiaoaiDialogueError(QString());
+        }
+    }
+}
+
 void IntercomModule::notifyMiLinkEnable(const QString &uid)
 {
     const QString token = !m_config.micoapiServiceToken.isEmpty() ? m_config.micoapiServiceToken : m_config.serviceToken;

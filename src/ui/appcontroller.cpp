@@ -171,6 +171,14 @@ AppController::AppController(ConfigManager *configManager,
             this, &AppController::voipSpeakersChanged);
     connect(m_globalState, &GlobalState::voipBackendTypeChanged,
             this, &AppController::voipBackendTypeChanged);
+    connect(m_globalState, &GlobalState::xiaoaiDialogueRecordsChanged,
+            this, &AppController::xiaoaiDialogueRecordsChanged);
+    connect(m_globalState, &GlobalState::xiaoaiDialogueLoadingChanged,
+            this, &AppController::xiaoaiDialogueLoadingChanged);
+    connect(m_globalState, &GlobalState::xiaoaiDialogueErrorChanged,
+            this, &AppController::xiaoaiDialogueErrorChanged);
+    connect(m_globalState, &GlobalState::xiaoaiDialogueNextTimestampChanged,
+            this, &AppController::xiaoaiDialogueNextTimestampChanged);
     connect(m_moduleManager, &ModuleManager::intercomLoginResult,
             this, &AppController::intercomLoginResult);
     connect(m_moduleManager, &ModuleManager::intercomSendAudioResult,
@@ -1864,6 +1872,33 @@ void AppController::setVoipBackendType(const QString &backendType)
 {
     if (m_moduleManager) {
         m_moduleManager->setVoipBackendType(backendType);
+    }
+}
+
+QVariantList AppController::xiaoaiDialogueRecords() const
+{
+    return m_globalState ? m_globalState->xiaoaiDialogueRecords() : QVariantList();
+}
+
+bool AppController::xiaoaiDialogueLoading() const
+{
+    return m_globalState ? m_globalState->xiaoaiDialogueLoading() : false;
+}
+
+QString AppController::xiaoaiDialogueError() const
+{
+    return m_globalState ? m_globalState->xiaoaiDialogueError() : QString();
+}
+
+qint64 AppController::xiaoaiDialogueNextTimestamp() const
+{
+    return m_globalState ? m_globalState->xiaoaiDialogueNextTimestamp() : 0;
+}
+
+void AppController::fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware, qint64 timestamp, bool append)
+{
+    if (m_moduleManager) {
+        m_moduleManager->fetchXiaoaiDialogue(deviceId, hardware, timestamp, append);
     }
 }
 

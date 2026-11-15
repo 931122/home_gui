@@ -61,6 +61,7 @@ public:
     // 音箱实时 VoIP 通话控制
     void initVoipRuntime();
     void fetchVoipContacts();
+    void fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware = QString(), qint64 timestamp = 0, bool append = false);
     void notifyMiLinkEnable(const QString &uid);
     void startVoipCall(const QString &targetDeviceId, const QString &targetDeviceName, const QString &avatar = QString(),
                        const QString &uid = QString(), const QString &deviceModel = QString(), int deviceType = 0,
@@ -97,6 +98,7 @@ private slots:
     void handleFetchHomeMembersReply();
     void handleUploadAudioReply();
     void handleVoipContactsReply();
+    void handleXiaoaiDialogueReply();
 
 private:
     QString buildAuthHeader() const;
@@ -166,6 +168,7 @@ private:
     QString m_pendingTargetRoomName;
     bool m_retriedVoip401 = false;
     bool m_retriedMicoapi5003 = false;
+    bool m_dialogueAppend = false;
     QMap<QString, QString> m_roomNameToId;
     QMap<QString, QString> m_deviceToRoomMap;
     IVoipBackend *m_voipBackend = nullptr;

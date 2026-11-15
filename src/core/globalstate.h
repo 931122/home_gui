@@ -45,6 +45,10 @@ class GlobalState : public QObject
     Q_PROPERTY(QString intercomQrWebUrl READ intercomQrWebUrl NOTIFY intercomQrLoginChanged)
     Q_PROPERTY(QString intercomQrLoginStatus READ intercomQrLoginStatus NOTIFY intercomQrLoginChanged)
     Q_PROPERTY(bool intercomQrLoggingIn READ intercomQrLoggingIn NOTIFY intercomQrLoginChanged)
+    Q_PROPERTY(QVariantList xiaoaiDialogueRecords READ xiaoaiDialogueRecords NOTIFY xiaoaiDialogueRecordsChanged)
+    Q_PROPERTY(bool xiaoaiDialogueLoading READ xiaoaiDialogueLoading NOTIFY xiaoaiDialogueLoadingChanged)
+    Q_PROPERTY(QString xiaoaiDialogueError READ xiaoaiDialogueError NOTIFY xiaoaiDialogueErrorChanged)
+    Q_PROPERTY(qint64 xiaoaiDialogueNextTimestamp READ xiaoaiDialogueNextTimestamp NOTIFY xiaoaiDialogueNextTimestampChanged)
 
 public:
     explicit GlobalState(QObject *parent = nullptr);
@@ -98,6 +102,10 @@ public:
     QString voipBackendType() const;
     QString micoapiServiceToken() const;
     QString mimcId() const;
+    QVariantList xiaoaiDialogueRecords() const;
+    bool xiaoaiDialogueLoading() const;
+    QString xiaoaiDialogueError() const;
+    qint64 xiaoaiDialogueNextTimestamp() const;
 
 public slots:
     void setPlatform(const QString &platform);
@@ -147,6 +155,10 @@ public slots:
     void setVoipBackendType(const QString &backendType);
     void setMicoapiServiceToken(const QString &token);
     void setMimcId(const QString &mimcId);
+    void setXiaoaiDialogueRecords(const QVariantList &records, bool append = false);
+    void setXiaoaiDialogueLoading(bool loading);
+    void setXiaoaiDialogueError(const QString &error);
+    void setXiaoaiDialogueNextTimestamp(qint64 ts);
 
 signals:
     void platformChanged();
@@ -180,6 +192,10 @@ signals:
     void voipAudioSettingsChanged();
     void voipSpeakersChanged();
     void voipBackendTypeChanged();
+    void xiaoaiDialogueRecordsChanged();
+    void xiaoaiDialogueLoadingChanged();
+    void xiaoaiDialogueErrorChanged();
+    void xiaoaiDialogueNextTimestampChanged();
 
 private:
     QString m_platform;
@@ -231,6 +247,10 @@ private:
     QString m_voipBackendType;
     QString m_micoapiServiceToken;
     QString m_mimcId;
+    QVariantList m_xiaoaiDialogueRecords;
+    bool m_xiaoaiDialogueLoading = false;
+    QString m_xiaoaiDialogueError;
+    qint64 m_xiaoaiDialogueNextTimestamp = 0;
 };
 
 #endif

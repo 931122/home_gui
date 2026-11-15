@@ -309,6 +309,14 @@ void ModuleManager::fetchVoipContacts()
     }
 }
 
+void ModuleManager::fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware, qint64 timestamp, bool append)
+{
+    ensureModules();
+    if (m_intercomModule != nullptr) {
+        m_intercomModule->fetchXiaoaiDialogue(deviceId, hardware, timestamp, append);
+    }
+}
+
 QString ModuleManager::voipBackendType() const
 {
     if (m_intercomModule != nullptr) {

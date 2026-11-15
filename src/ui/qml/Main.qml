@@ -82,6 +82,7 @@ ApplicationWindow {
                                          (steamerPopup.opened) ||
                                          (intercomRoomSelectPopup.opened) ||
                                          (intercomLoginPopup.opened) ||
+                                         (xiaoaiDialoguePopup.opened) ||
                                          (calendarLoader.status === Loader.Ready && calendarLoader.item && calendarLoader.item.opened) ||
                                          (weatherLoader.status === Loader.Ready && weatherLoader.item && weatherLoader.item.opened) ||
                                          (cameraLoader.status === Loader.Ready && cameraLoader.item && cameraLoader.item.opened) ||
@@ -121,6 +122,10 @@ ApplicationWindow {
         }
         if (intercomLoginPopup.opened) {
             intercomLoginPopup.close()
+            return true
+        }
+        if (xiaoaiDialoguePopup.opened) {
+            xiaoaiDialoguePopup.close()
             return true
         }
         if (intercomRoomSelectPopup.opened) {
@@ -583,6 +588,18 @@ ApplicationWindow {
 
     VoipSpeakerSelectPopup {
         id: voipSpeakerSelectPopup
+        scaleUnit: root.su
+        panelRadius: root.panelRadius
+        cardRadius: root.cardRadius
+        chipRadius: root.chipRadius
+        onClosed: root.contentItem.forceActiveFocus()
+        onDialogueRequested: (deviceId, deviceModel, deviceName) => {
+            xiaoaiDialoguePopup.openWithSpeaker(deviceId, deviceModel, deviceName)
+        }
+    }
+
+    XiaoaiDialoguePopup {
+        id: xiaoaiDialoguePopup
         scaleUnit: root.su
         panelRadius: root.panelRadius
         cardRadius: root.cardRadius

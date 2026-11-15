@@ -107,6 +107,10 @@ class AppController : public QObject
     Q_PROPERTY(bool voipSpeakerphone READ voipSpeakerphone NOTIFY voipAudioSettingsChanged)
     Q_PROPERTY(QVariantList voipSpeakers READ voipSpeakers NOTIFY voipSpeakersChanged)
     Q_PROPERTY(QString voipBackendType READ voipBackendType NOTIFY voipBackendTypeChanged)
+    Q_PROPERTY(QVariantList xiaoaiDialogueRecords READ xiaoaiDialogueRecords NOTIFY xiaoaiDialogueRecordsChanged)
+    Q_PROPERTY(bool xiaoaiDialogueLoading READ xiaoaiDialogueLoading NOTIFY xiaoaiDialogueLoadingChanged)
+    Q_PROPERTY(QString xiaoaiDialogueError READ xiaoaiDialogueError NOTIFY xiaoaiDialogueErrorChanged)
+    Q_PROPERTY(qint64 xiaoaiDialogueNextTimestamp READ xiaoaiDialogueNextTimestamp NOTIFY xiaoaiDialogueNextTimestampChanged)
 
 public:
     explicit AppController(ConfigManager *configManager,
@@ -215,6 +219,10 @@ public:
     bool voipSpeakerphone() const;
     QVariantList voipSpeakers() const;
     QString voipBackendType() const;
+    QVariantList xiaoaiDialogueRecords() const;
+    bool xiaoaiDialogueLoading() const;
+    QString xiaoaiDialogueError() const;
+    qint64 xiaoaiDialogueNextTimestamp() const;
 
     Q_INVOKABLE bool startIntercomRecord();
     Q_INVOKABLE void stopIntercomRecord();
@@ -236,6 +244,7 @@ public:
     Q_INVOKABLE void setVoipMute(bool mute);
     Q_INVOKABLE void setVoipSpeakerphone(bool enable);
     Q_INVOKABLE void refreshVoipContacts();
+    Q_INVOKABLE void fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware = QString(), qint64 timestamp = 0, bool append = false);
     Q_INVOKABLE void setVoipBackendType(const QString &backendType);
 
 public slots:
@@ -345,6 +354,10 @@ signals:
     void voipAudioSettingsChanged();
     void voipSpeakersChanged();
     void voipBackendTypeChanged();
+    void xiaoaiDialogueRecordsChanged();
+    void xiaoaiDialogueLoadingChanged();
+    void xiaoaiDialogueErrorChanged();
+    void xiaoaiDialogueNextTimestampChanged();
 
 private:
     // 根据当前配置和全局状态，得到界面应该使用的“当前视频配置”。

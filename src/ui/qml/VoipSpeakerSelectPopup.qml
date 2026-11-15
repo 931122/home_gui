@@ -13,6 +13,8 @@ GlassPopup {
     property int chipRadius: Theme.radiusChip
     readonly property bool isPortrait: Overlay.overlay && Overlay.overlay.width < Overlay.overlay.height
 
+    signal dialogueRequested(string deviceId, string deviceModel, string deviceName)
+
     width: Math.min((Overlay.overlay ? Overlay.overlay.width : 800) * 0.92, Theme.dp(isPortrait ? 400 : 460))
     height: Math.min((Overlay.overlay ? Overlay.overlay.height : 480) * 0.90, Theme.dp(isPortrait ? 500 : 420))
 
@@ -60,7 +62,7 @@ GlassPopup {
                 GlassButton {
                     scaleUnit: root.scaleUnit
                     styleType: "neutral"
-                    implicitWidth: root.dp(64)
+                    implicitWidth: root.dp(56)
                     implicitHeight: root.dp(28)
                     text: qsTr("刷新")
                     textPixelSize: root.fs(11)
@@ -68,6 +70,19 @@ GlassPopup {
                         if (typeof appController !== "undefined") {
                             appController.refreshVoipContacts()
                         }
+                    }
+                }
+
+                GlassButton {
+                    scaleUnit: root.scaleUnit
+                    styleType: "primary"
+                    implicitWidth: root.dp(84)
+                    implicitHeight: root.dp(28)
+                    text: qsTr("📜 对话记录")
+                    textPixelSize: root.fs(11)
+                    onClicked: {
+                        root.dialogueRequested("", "", "")
+                        root.close()
                     }
                 }
             }
@@ -195,7 +210,7 @@ GlassPopup {
                                 GlassButton {
                                     scaleUnit: root.scaleUnit
                                     styleType: "neutral"
-                                    implicitWidth: root.dp(72)
+                                    implicitWidth: root.dp(64)
                                     implicitHeight: root.dp(36)
                                     text: qsTr("📞 电话")
                                     textPixelSize: root.fs(12)
@@ -211,6 +226,22 @@ GlassPopup {
                                                                        modelData.deviceType || 0,
                                                                        modelData.did || "")
                                         }
+                                        root.close()
+                                    }
+                                }
+
+                                GlassButton {
+                                    scaleUnit: root.scaleUnit
+                                    styleType: "neutral"
+                                    implicitWidth: root.dp(56)
+                                    implicitHeight: root.dp(36)
+                                    text: qsTr("📜 记录")
+                                    textPixelSize: root.fs(11)
+
+                                    onClicked: {
+                                        root.dialogueRequested(modelData.deviceId || "",
+                                                              modelData.deviceModel || "",
+                                                              modelData.deviceName || "")
                                         root.close()
                                     }
                                 }

@@ -68,6 +68,7 @@ public:
     void setVoipMute(bool mute);
     void setVoipSpeakerphone(bool enable);
     void fetchVoipContacts();
+    void fetchXiaoaiDialogue(const QString &deviceId, const QString &hardware = QString(), qint64 timestamp = 0, bool append = false);
     QString voipBackendType() const;
     void setVoipBackendType(const QString &backendType);
 
